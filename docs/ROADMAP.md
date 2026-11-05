@@ -5,7 +5,7 @@
 - [x] Create project repository and safety-first project charter
 - [x] Define architecture boundaries and data-preservation policy
 - [x] Add initial .NET solution, project structure, and Windows CI workflow
-- [ ] Add reusable synthetic disk-image builder and baseline fixtures (current tests generate temporary MBR/GPT images directly)
+- [x] Add reusable synthetic disk-image builder and baseline MBR/GPT fixtures
 
 ## Phase 1 — Read-only inspection
 
@@ -14,6 +14,7 @@
 - [ ] Device identity and sector geometry reporting
 - [x] Add initial MBR parsing with signature, boot-indicator, sector-size, range, protective-MBR, and overlap diagnostics
 - [x] Add initial GPT primary/backup parsing with header and partition-array CRC32 validation, bounded entry arrays, image-bound checks, and copy-consistency diagnostics
+- [x] Expand synthetic parser coverage for primary/backup GUID mismatch, truncated images, and 4Kn logical sectors
 
 ## Phase 2 — Lost partition discovery
 
@@ -47,7 +48,7 @@
 
 - `DiskRescue.IO` reads regular image files only; it exposes no physical-device access or source-write API. Device namespace paths, directories, and reparse points are rejected.
 - `DiskRescue.Partitions` contains initial MBR and GPT parsers. MBR parsing requires the 0x55AA signature. GPT parsing validates revision, header CRC, partition-array CRC, standard primary/backup placement, bounded entry counts/sizes, image bounds, usable-LBA ranges, duplicate GUIDs, overlaps, and primary/backup metadata consistency.
-- Tests use generated temporary image files, including synthetic primary/backup GPT copies. Windows CI run 37 completed restore, build, and test successfully for the GPT parser and its fixture tests, in addition to the earlier successful image-reader/MBR run 21.
+- Tests use a shared reusable synthetic-image builder and disposable temporary files; fixtures cover MBR validation, GPT primary/backup copies, CRC failures, overlaps, entry-count limits, primary/backup GUID mismatch, truncated images, and 4Kn sector geometry. Earlier Windows CI runs 21 and 37 passed the image-reader/MBR and original GPT milestones. New validation for the shared builder and expanded cases is running on the current feature-branch head.
 - Physical-disk inventory, lost-partition discovery, filesystem parsing, recovery, and the desktop application are not implemented.
 
 ## Release gates
