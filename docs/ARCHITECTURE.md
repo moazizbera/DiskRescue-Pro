@@ -46,7 +46,8 @@ The project structure is intentionally incremental. Do not add empty abstraction
 - Parses resident `$FILE_NAME` values and parent references.
 - Scans a bounded number of initialized records covered by the initial MFT extent.
 - Builds a conservative partial tree with parent-sequence checks, cycle handling, and orphan reporting.
-- Parses the binary structure of an already-read `$ATTRIBUTE_LIST` value. The parser returns referenced file-record numbers, sequence numbers, attribute IDs, names, and lowest VCN values. It does not itself read or trust referenced records.
+- Parses the binary structure of an already-read `$ATTRIBUTE_LIST` value. The parser returns referenced file-record numbers, sequence numbers, attribute IDs, names, and lowest VCN values.
+- Decodes the FILE header's base-file reference and can validate a referenced record's sequence number and base-record identity, but only when that record is already covered by the initial validated `$MFT` extent.
 
 ### CLI and desktop
 - CLI emits structured JSON for image partition inspection and bounded NTFS metadata preview.
@@ -76,7 +77,7 @@ A safe continuation resolver must not treat an attribute-list file reference as 
 8. Ensure initialized-size and real-size semantics are respected before scanning records.
 9. Preserve a diagnostic trail for every accepted or rejected continuation extent.
 
-The new `NtfsAttributeListParser` implements only the bounded binary-entry decoding prerequisite. It is deliberately not wired into the MFT reader until the identity, recursion, and extent-assembly rules above are implemented and tested.
+The `NtfsAttributeListParser` and bounded referenced-record identity check are implemented as separate primitives. They are not yet wired into automatic MFT continuation discovery: non-resident attribute-list streams, continuation runlist assembly, recursive/cyclic reference handling, and exact VCN continuity still require implementation and adversarial tests.
 
 ## Recovery destination boundary (future)
 
