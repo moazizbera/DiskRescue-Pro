@@ -55,7 +55,8 @@
 ## Phase 5 — Desktop experience
 
 - [x] Initial WPF image selection, MBR/GPT inspection, partition overview, findings, and JSON export
-- [ ] Guided NTFS MFT scan workflow in WPF
+- [x] WPF NTFS preview tab for a selected partition, bounded MFT scan, partial tree, and orphan diagnostics
+- [ ] Expand WPF tree coverage after additional MFT extents and directory indexes are supported
 - [ ] Guided lost-partition scan workflow with clear warnings
 - [ ] Evidence view and confidence explanations
 - [ ] Accessible progress, cancellation, and recovery reports
@@ -66,7 +67,7 @@
 - `DiskRescue.Partitions` validates MBR and GPT metadata. A validated backup GPT copy can be used when the primary GPT header is damaged.
 - `DiskRescue.Filesystems` validates NTFS boot-sector geometry, FILE record USA fixups, bounded attribute headers, mapping-pairs runlists, and resident $FILE_NAME values. `NtfsMftReader` reads records through the initial validated $MFT::$DATA extent and can perform a bounded flat scan. The library can build a conservative tree from supplied flat entries with parent sequence validation, cycle detection, and orphan reporting. The CLI reports both flat entries and a conservative partial tree with orphan diagnostics; the WPF tree preview is not yet wired. Additional extents through $ATTRIBUTE_LIST, directory-index traversal, and file-content recovery are not implemented.
 - The CLI has a `scan-ntfs` command that accepts an image file and explicit volume byte offset/length. CI run 42090410822 passed the synthetic NTFS image generation and end-to-end CLI smoke test; the subsequent sector-size consistency guard is being revalidated in run 42090536737.
-- The WPF desktop currently exposes partition inspection only; the NTFS scan workflow is not yet wired into the desktop UI.
+- The WPF desktop now includes a selected-partition NTFS preview tab. It performs a bounded MFT scan (up to 10,000 records) and displays a partial tree/orphan list. It does not follow additional MFT extents or directory indexes.
 - The PowerShell test-image generator creates disposable MBR, healthy GPT, and damaged-primary-GPT/valid-backup fixtures. CI generates these fixtures and smoke-tests CLI behavior. NTFS parsers, fragmented MFT reads, filename parsing, and bounded scanning have synthetic unit tests.
 
 ## Validation and release gates
