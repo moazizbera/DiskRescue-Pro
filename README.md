@@ -1,73 +1,113 @@
 # DiskRescue Pro
 
-**A safety-first Windows toolkit for disk inspection, lost-partition discovery, and data recovery.**
+**A safety-first Windows disk-image inspection and recovery engineering project.**
 
-DiskRescue Pro is being built to help users understand what happened to a disk before they attempt repairs. The first release focuses on trustworthy, read-only inspection and recovery from disk images.
+DiskRescue Pro is designed to help users understand damaged or missing partition and filesystem metadata before considering recovery. Development is deliberately staged: validate image parsing first, then add discovery and file extraction with enforceable source/destination controls.
 
-> **Early development:** This project is not a recovery utility and is not ready for real-world recovery. Do not use it on the only copy of important data. If a drive is clicking, repeatedly disconnecting, or showing hardware errors, power it down and consider professional recovery.
+> **Development status:** this is an engineering preview, not a complete recovery utility. It supports regular disk-image files only. Do not use it on the only copy of important data. If a drive clicks, repeatedly disconnects, overheats, or returns persistent I/O errors, stop using it and consider professional recovery.
 
-## Project principles
+## Current release scope
 
-- **Read-only by default:** discovery and analysis must never modify the source device.
-- **Image before intervention:** prefer working from a verified sector-by-sector image where practical.
-- **Recover elsewhere:** never write recovered files to the source device.
-- **Explain before action:** show evidence, confidence, and uncertainty; do not promise recovery.
-- **Test without risking data:** use generated virtual disks and disposable disk images.
-- **Transparent engineering:** document supported formats, limitations, and every write-capable operation.
+The current `.NET 10` solution includes:
 
-## Planned capabilities
+- A bounded, read-only random-access image reader for regular files.
+- MBR parsing with signature, entry, bounds, sector-size, protective-MBR, and overlap checks.
+- Independent GPT primary/backup validation, header and partition-array CRC checks, geometry checks, and validated-backup fallback.
+- A WPF Windows desktop preview for image selection, partition overview, findings, JSON report export, and a selected-partition NTFS preview.
+- NTFS boot-sector geometry validation, FILE record update-sequence-array fixups, bounded attribute parsing, and mapping-pairs decoding.
+- MFT record reads through the initial validated unnamed `$MFT::$DATA` extent, including records crossing fragmented physical runs.
+- Resident `$FILE_NAME` parsing, bounded MFT scanning, and a conservative partial directory-tree preview with parent-sequence validation, cycle detection, and orphan reporting.
+- A bounded `$ATTRIBUTE_LIST` entry parser. It decodes entry names, lowest VCN, file-reference record/sequence values, and attribute IDs. It does **not yet resolve continuation records or extend MFT coverage**.
 
-- Physical disk and volume inventory
-- MBR and GPT structure inspection
-- Lost or damaged partition candidate discovery
-- NTFS, FAT, and exFAT metadata inspection
-- Read-only file listing and file extraction to a separate destination
-- Disk-image analysis and recovery reports
+## Safety model
 
-## Technology direction
+- Only regular image files are opened by the current IO implementation.
+- Source reads are bounded; the image reader exposes no write API.
+- No physical disk enumeration, raw-device access, mounting, repair, formatting, initialization, or repartitioning is implemented.
+- JSON reports are written only to a user-selected report path.
+- No file-content recovery is available yet.
+- All automated integration checks use generated disposable images.
+- If file extraction is introduced, output must be written to a verified destination separate from the source.
 
-- Windows desktop application using C# / .NET 10 (WPF)
-- Separate core, device-access, partition, filesystem, and recovery layers
-- Automated tests built around synthetic disk images
-- Optional, carefully reviewed integrations with established open-source forensic libraries
+A warning in the UI is not sufficient protection: future device access must enforce read-only permissions in the device-access layer itself. Do not run filesystem repair commands against a suspect source.
 
-The exact dependency set will be selected only after reviewing maintenance status, platform support, and license compatibility.
+## Build and test
 
-## Safety boundary
+Install the .NET 10 SDK:
 
-The current implementation reads regular image files only. It does not open physical devices and exposes no source-write API. A first command-line inspection preview is available on the feature branch: it emits a JSON report for image geometry, MBR entries, GPT primary/backup headers, partitions, and diagnostics. The initial product will not initialize, format, repartition, repair, or write partition tables. Any future write-capable feature must be isolated, disabled by default, require explicit informed confirmation, and be preceded by a verified backup or image. A UI warning is not a substitute for enforcing read-only access in the device-access layer.
-
-## Repository layout
-
-```text
-docs/       Architecture, safety policy, roadmap, and development notes
-src/        Application and domain projects
-tests/      Unit, integration, and virtual-disk tests
-tools/      Developer utilities and test-image generation
+```powershell
+dotnet restore DiskRescue.sln
+dotnet build DiskRescue.sln --configuration Release --no-restore
+dotnet test DiskRescue.sln --configuration Release --no-build
 ```
 
-## Status
+Inspect an image:
 
-The feature branch now contains:
-- A bounded, read-only regular-image reader.
-- MBR and GPT parsing with CRC, geometry, bounds, overlap, and primary/backup validation.
-- A WPF desktop preview for image selection, partition inspection, findings, and JSON report export.
-- NTFS boot-sector, FILE-record fixup, attribute, and fragmented/sparse runlist parsers.
-- An MFT reader that reads records through the initial validated `$MFT::$DATA` extent, including records crossing fragmented physical extents.
-- Resident `$FILE_NAME` parsing and a bounded flat scan of initialized MFT records.
-- A CLI `scan-ntfs` command for an MFT preview using an explicitly supplied volume byte offset and length. It returns flat filename entries plus a conservative partial directory tree with orphan diagnostics. CI run 42090410822 passed an end-to-end smoke test against a generated NTFS image with a fragmented MFT extent and a `Report.txt` filename entry.
+```powershell
+dotnet run --project src/DiskRescue.Cli -- inspect "C:\Images\sample.img"
+```
 
-The successful Windows CI run [42089190267](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42089190267) validated the bounded MFT scan milestone, including tests, generated-image CLI smoke tests, WPF build, and Windows x64 publishing. Its associated test summary reported 48 passed and zero failed. The current branch also includes a sector-size consistency guard; its latest CI run is revalidating that final change.
+Inspect a 4Kn image:
 
-**This is still an engineering preview, not a data-recovery utility.** Physical-disk access, lost-partition discovery, MFT extent continuation through `$ATTRIBUTE_LIST`, directory-index traversal, full file-tree construction, FAT/exFAT support, and file extraction are not implemented. The WPF desktop now includes a selected-partition NTFS preview tab with a bounded MFT scan and partial tree/orphan display. Windows CI run 42092080846 built and published the updated desktop preview; hands-on Windows interaction remains outstanding. All validation so far uses synthetic images; manual Windows UI testing remains outstanding. Never experiment on the damaged source disk or the only copy of important data.
-## First-version preview
+```powershell
+dotnet run --project src/DiskRescue.Cli -- inspect "C:\Images\sample-4kn.img" --sector-size 4096
+```
 
-See [docs/FIRST-VERSION.md](docs/FIRST-VERSION.md) for CLI usage, [docs/DESKTOP-UI.md](docs/DESKTOP-UI.md) for the initial WPF desktop workflow, and [docs/TEST-IMAGES.md](docs/TEST-IMAGES.md) for safe test images. Windows preview artifacts are published by successful CI runs.
+Preview NTFS metadata after obtaining a volume byte offset and length from a trusted partition report:
 
-## Contributing
+```powershell
+dotnet run --project src/DiskRescue.Cli -- scan-ntfs "C:\Images\sample.img" --offset 1048576 --length 1073741824 --max-records 5000
+```
 
-Contributions should include tests, clear safety implications, and documentation of supported disk layouts and filesystems. Never include real user disk images, recovered personal files, credentials, or other sensitive data in issues or pull requests.
+The NTFS command scans at most the configured number of initialized MFT records covered by the initial validated MFT extent. It does not yet follow additional MFT extents or directory indexes.
+
+## Safe test images
+
+Generate disposable fixtures without touching physical disks:
+
+```powershell
+.\tools\New-DiskRescueTestImages.ps1 -OutputDirectory "$env:USERPROFILE\Documents\DiskRescue-TestImages"
+.\tools\New-NtfsMftPreviewImage.ps1 -OutputPath "$env:USERPROFILE\Documents\ntfs-mft-preview.img"
+```
+
+See [docs/TEST-IMAGES.md](docs/TEST-IMAGES.md) for expected results and desktop testing instructions.
+
+## Windows preview artifacts
+
+Successful Windows CI runs publish:
+- `DiskRescue-Pro-Desktop-win-x64-preview`
+- `DiskRescue-Pro-win-x64-preview`
+- `diskrescue-test-results`
+
+Download them from the [GitHub Actions workflow](https://github.com/moazizbera/DiskRescue-Pro/actions/workflows/ci.yml).
+
+## Repository map
+
+- `src/DiskRescue.IO` — bounded read-only image access.
+- `src/DiskRescue.Partitions` — MBR/GPT parsing.
+- `src/DiskRescue.Filesystems` — NTFS metadata parsers and bounded MFT preview.
+- `src/DiskRescue.Cli` — inspection commands and JSON output.
+- `src/DiskRescue.Desktop` — WPF user interface.
+- `tests` — parser, bounds, malformed metadata, and generated-image tests.
+- `tools` — safe synthetic image generators.
+- `docs` — architecture, safety policy, roadmap, and test procedures.
+
+## Roadmap
+
+The next critical milestones are:
+1. Resolve `$ATTRIBUTE_LIST` entries against referenced MFT records with record-sequence validation, cycle detection, VCN continuity, and strict resource limits.
+2. Parse NTFS directory indexes and validate complete parent relationships.
+3. Discover lost partition candidates from bounded filesystem-signature searches with evidence and confidence explanations.
+4. Add read-only file-content mapping and integrity verification.
+5. Add safe extraction to a demonstrably separate destination, with collision handling, hashes, manifest, cancellation, and resume semantics.
+6. Consider physical-device imaging only after a separate read-only handle design and safety review.
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for status and release gates.
+
+## Contribution rules
+
+Every feature must include automated tests, documented limitations, safe failure behavior, and source-write prevention. Never upload real user disk images, recovered personal files, credentials, or sensitive data to issues or pull requests.
 
 ## License
 
-The project license will be finalized after the initial dependency and distribution review.
+The project license will be finalized after dependency and distribution review.
