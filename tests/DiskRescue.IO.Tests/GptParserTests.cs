@@ -97,7 +97,7 @@ public sealed class GptParserTests
     [Fact]
     public void RejectsTruncatedAndNonSectorAlignedImages()
     {
-        using var image = new SyntheticDiskImageBuilder(totalSectors: 8);
+        using var image = new SyntheticDiskImageBuilder();
         image.WriteGptCopies();
         var bytes = File.ReadAllBytes(image.Path);
         File.WriteAllBytes(image.Path, bytes[..^1]);
