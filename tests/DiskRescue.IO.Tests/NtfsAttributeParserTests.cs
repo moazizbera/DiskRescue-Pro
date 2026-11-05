@@ -13,7 +13,7 @@ public sealed class NtfsAttributeParserTests
         var parsedRecord = NtfsFileRecordParser.Parse(record, 512);
         Assert.True(parsedRecord.IsValid);
         var result = NtfsAttributeParser.Parse(parsedRecord.Record!);
-        Assert.True(result.IsValid);
+        Assert.True(result.IsValid, string.Join("; ", result.Issues));
         var attribute = Assert.Single(result.Attributes);
         Assert.Equal(0x10u, attribute.Type);
         Assert.False(attribute.IsNonResident);
