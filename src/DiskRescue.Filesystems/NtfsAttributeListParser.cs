@@ -66,7 +66,7 @@ public static class NtfsAttributeListParser
             }
             else
             {
-                if (nameOffset < MinimumEntryLength || nameOffset > length || nameBytes > length - nameOffset)
+                if (nameOffset < MinimumEntryLength || (nameOffset & 1) != 0 || nameOffset > length || nameBytes > length - nameOffset)
                     return Invalid("$ATTRIBUTE_LIST name range is outside its entry.");
                 name = Encoding.Unicode.GetString(value.Slice(offset + nameOffset, nameBytes));
             }
