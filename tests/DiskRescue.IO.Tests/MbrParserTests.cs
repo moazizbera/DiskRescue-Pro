@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using DiskRescue.IO;
 using DiskRescue.Partitions;
 using Xunit;
@@ -10,8 +9,9 @@ public sealed class MbrParserTests
     [Fact]
     public void ParsesValidPartitionAndCalculatesByteRange()
     {
-        using var image = new MbrImage(4096);
-        image.AddPartition(0, 0x83, 1, 4);
+        using var image = new SyntheticDiskImageBuilder(totalSectors: 8);
+        image.AddMbrPartition(0, 0x83, 1, 4);
+        image.WriteMbr();
         using var reader = FileImageReader.Open(image.Path);
         var result = MbrParser.Parse(reader);
         Assert.True(result.HasValidSignature);
@@ -25,8 +25,9 @@ public sealed class MbrParserTests
     [Fact]
     public void DoesNotTrustEntriesWhenSignatureIsMissing()
     {
-        using var image = new MbrImage(4096, validSignature: false);
-        image.AddPartition(0, 0x83, 1, 2);
+        using var image = new SyntheticDiskImageBuilder(totalSectors: 8);
+        image.AddMbrPartition(0, 0x83, 1, 2);
+        image.WriteMbr(validSignature: false);
         using var reader = FileImageReader.Open(image.Path);
         var result = MbrParser.Parse(reader);
         Assert.False(result.HasValidSignature);
@@ -36,8 +37,9 @@ public sealed class MbrParserTests
     [Fact]
     public void RejectsPartitionThatExtendsPastImage()
     {
-        using var image = new MbrImage(4096);
-        image.AddPartition(0, 0x07, 7, 2);
+        using var image = new SyntheticDiskImageBuilder(totalSectors: 8);
+        image.AddMbrPartition(0, 0x07, 7, 2);
+        image.WriteMbr();
         using var reader = FileImageReader.Open(image.Path);
         var result = MbrParser.Parse(reader);
         Assert.Empty(result.Partitions);
@@ -47,8 +49,9 @@ public sealed class MbrParserTests
     [Fact]
     public void ReportsInvalidBootIndicator()
     {
-        using var image = new MbrImage(4096);
-        image.AddPartition(0, 0x83, 1, 2, boot: 0x7F);
+        using var image = new SyntheticDiskImageBuilder(totalSectors: 8);
+        image.AddMbrPartition(0, 0x83, 1, 2, bootIndicator: 0x7F);
+        image.WriteMbr();
         using var reader = FileImageReader.Open(image.Path);
         var result = MbrParser.Parse(reader);
         Assert.Empty(result.Partitions);
@@ -58,8 +61,9 @@ public sealed class MbrParserTests
     [Fact]
     public void DetectsProtectiveGptEntry()
     {
-        using var image = new MbrImage(4096);
-        image.AddPartition(0, 0xEE, 1, 7);
+        using var image = new SyntheticDiskImageBuilder(totalSectors: 8);
+        image.AddMbrPartition(0, 0xEE, 1, 7);
+        image.WriteMbr();
         using var reader = FileImageReader.Open(image.Path);
         Assert.True(MbrParser.Parse(reader).IsProtectiveMbr);
     }
@@ -67,8 +71,9 @@ public sealed class MbrParserTests
     [Fact]
     public void UsesLogicalSectorSizeForLbaConversion()
     {
-        using var image = new MbrImage(16384);
-        image.AddPartition(0, 0x83, 1, 1);
+        using var image = new SyntheticDiskImageBuilder(totalSectors: 8, sectorSize: 4096);
+        image.AddMbrPartition(0, 0x83, 1, 1);
+        image.WriteMbr();
         using var reader = FileImageReader.Open(image.Path);
         var result = MbrParser.Parse(reader, 4096);
         Assert.Equal(4096, Assert.Single(result.Partitions).ByteOffset);
@@ -77,9 +82,10 @@ public sealed class MbrParserTests
     [Fact]
     public void ReportsOverlappingPartitions()
     {
-        using var image = new MbrImage(8192);
-        image.AddPartition(0, 0x83, 1, 4);
-        image.AddPartition(1, 0x07, 3, 2);
+        using var image = new SyntheticDiskImageBuilder(totalSectors: 16);
+        image.AddMbrPartition(0, 0x83, 1, 4);
+        image.AddMbrPartition(1, 0x07, 3, 2);
+        image.WriteMbr();
         using var reader = FileImageReader.Open(image.Path);
         var result = MbrParser.Parse(reader);
         Assert.Equal(2, result.Partitions.Count);
@@ -89,31 +95,9 @@ public sealed class MbrParserTests
     [Fact]
     public void RejectsUnsupportedSectorSize()
     {
-        using var image = new MbrImage(4096);
+        using var image = new SyntheticDiskImageBuilder(totalSectors: 8);
+        image.WriteMbr();
         using var reader = FileImageReader.Open(image.Path);
         Assert.Throws<ArgumentOutOfRangeException>(() => MbrParser.Parse(reader, 1000));
-    }
-
-    private sealed class MbrImage : IDisposable
-    {
-        private readonly byte[] _bytes;
-        public MbrImage(int length, bool validSignature = true)
-        {
-            _bytes = new byte[length];
-            if (validSignature) { _bytes[510] = 0x55; _bytes[511] = 0xAA; }
-            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"diskrescue-mbr-{Guid.NewGuid():N}.img");
-            File.WriteAllBytes(Path, _bytes);
-        }
-        public string Path { get; }
-        public void AddPartition(int index, byte type, uint startLba, uint sectors, byte boot = 0)
-        {
-            var offset = 446 + index * 16;
-            _bytes[offset] = boot;
-            _bytes[offset + 4] = type;
-            BinaryPrimitives.WriteUInt32LittleEndian(_bytes.AsSpan(offset + 8, 4), startLba);
-            BinaryPrimitives.WriteUInt32LittleEndian(_bytes.AsSpan(offset + 12, 4), sectors);
-            File.WriteAllBytes(Path, _bytes);
-        }
-        public void Dispose() => File.Delete(Path);
     }
 }
