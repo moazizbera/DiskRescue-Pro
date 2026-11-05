@@ -48,10 +48,18 @@ tools/      Developer utilities and test-image generation
 
 ## Status
 
-The project has moved beyond documentation-only foundation. The current feature branch contains a bounded read-only image-file reader, initial MBR and GPT parsers with CRC and range validation, a reusable synthetic-image test builder, expanded parser tests, a JSON-reporting inspection CLI, and a Windows .NET 10 CI workflow. Windows CI runs 21 and 37 passed for the image-reader/MBR and GPT milestones respectively.
+The feature branch now contains:
+- A bounded, read-only regular-image reader.
+- MBR and GPT parsing with CRC, geometry, bounds, overlap, and primary/backup validation.
+- A WPF desktop preview for image selection, partition inspection, findings, and JSON report export.
+- NTFS boot-sector, FILE-record fixup, attribute, and fragmented/sparse runlist parsers.
+- An MFT reader that reads records through the initial validated `$MFT::$DATA` extent, including records crossing fragmented physical extents.
+- Resident `$FILE_NAME` parsing and a bounded flat scan of initialized MFT records.
+- A CLI `scan-ntfs` command for a flat MFT preview using an explicitly supplied volume byte offset and length. Its latest CLI integration is awaiting CI validation.
 
-Physical-disk inventory, device identity/geometry reporting, lost-partition discovery, filesystem parsing, and recovery are not implemented. An initial WPF desktop shell for image selection, MBR/GPT inspection, partition review, diagnostics, and JSON report export is now included on the feature branch; it still requires CI validation and hands-on Windows testing. The current code has been validated against synthetic images only and is not ready for real-world recovery or testing on a user's disk. A separate read-only NTFS boot-sector validator now checks volume geometry and MFT pointer bounds; it does not yet parse the MFT or enumerate files. Use [the safe test-image guide](docs/TEST-IMAGES.md) to create disposable MBR/GPT fixtures without touching physical disks.
+The successful Windows CI run [42089190267](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42089190267) validated the bounded MFT scan milestone, including tests, generated-image CLI smoke tests, WPF build, and Windows x64 publishing. Its associated test summary reported 48 passed and zero failed. The newer CLI command has a separate CI run in progress.
 
+**This is still an engineering preview, not a data-recovery utility.** Physical-disk access, lost-partition discovery, MFT extent continuation through `$ATTRIBUTE_LIST`, directory-index traversal, full file-tree construction, FAT/exFAT support, and file extraction are not implemented. The WPF desktop does not yet expose the NTFS scan. All validation so far uses synthetic images; manual Windows UI testing remains outstanding. Never experiment on the damaged source disk or the only copy of important data.
 ## First-version preview
 
 See [docs/FIRST-VERSION.md](docs/FIRST-VERSION.md) for CLI usage, [docs/DESKTOP-UI.md](docs/DESKTOP-UI.md) for the initial WPF desktop workflow, and [docs/TEST-IMAGES.md](docs/TEST-IMAGES.md) for safe test images. Windows preview artifacts are published by successful CI runs.
