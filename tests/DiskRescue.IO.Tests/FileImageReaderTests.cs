@@ -40,6 +40,12 @@ public sealed class FileImageReaderTests
         reader.ReadExactlyAt(3, Span<byte>.Empty);
     }
 
+    [Fact]
+    public void RejectsWindowsPhysicalDevicePath()
+    {
+        Assert.Throws<ArgumentException>(() => FileImageReader.Open(@"\\.\PhysicalDrive0"));
+    }
+
     private sealed class TemporaryImage : IDisposable
     {
         public TemporaryImage(byte[] data)
