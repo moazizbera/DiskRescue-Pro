@@ -72,6 +72,6 @@
 
 ## Validation and release gates
 
-Windows CI run 42089190267 passed restore, build, all automated tests, generated-image CLI smoke tests, WPF build, and Windows x64 preview publishing at commit 71d0be8b3ac0b0fc76af653ae1dc798f426a1a2f. A subsequent successful run 42089091231 also validated the bounded MFT scan implementation at commit 22a22fd38a77f5cca6ee7ce0b3d9d1aa37a4e7c7. CI run 42090410822 also passed the new synthetic NTFS MFT CLI smoke test; run 42090536737 is validating the subsequent sector-size guard and current branch head. Manual Windows desktop interaction is still required.
+Windows CI run 42092500799 passed restore, build, all 53 automated tests, MBR/GPT/NTFS fixture generation, CLI smoke tests, WPF NTFS preview build, and Windows x64 desktop/CLI publishing at commit ce83689e456ab80b384598386c95fd77c9e3643d. The current head adds an additional CI assertion for the synthetic NTFS MBR partition geometry; run 42092721926 is validating that check. Manual Windows desktop interaction is still required.
 
 A feature is not complete until it has automated tests, documented limitations, safe failure behavior, and evidence that source media cannot be modified. No destructive repair feature is included in this roadmap.
