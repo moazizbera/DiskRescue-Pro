@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><EnableWindowsTargeting>true</EnableWindowsTargeting><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
+<ItemGroup><ProjectReference Include="../DiskRescue.IO/DiskRescue.IO.csproj"/><ProjectReference Include="../DiskRescue.Partitions/DiskRescue.Partitions.csproj"/><ProjectReference Include="../DiskRescue.Filesystems/DiskRescue.Filesystems.csproj"/></ItemGroup>
+</Project>

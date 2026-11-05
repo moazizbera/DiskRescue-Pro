@@ -2,9 +2,9 @@
 
 **A safety-first Windows toolkit for disk inspection, lost-partition discovery, and data recovery.**
 
-DiskRescue Pro is an open-source project being built to help users understand what happened to a disk before they attempt repairs. The first release will focus on trustworthy, read-only inspection and recovery from disk images.
+DiskRescue Pro is being built to help users understand what happened to a disk before they attempt repairs. The first release focuses on trustworthy, read-only inspection and recovery from disk images.
 
-> **Early development:** This project is not yet a recovery utility. Do not use it on the only copy of important data. If a drive is clicking, repeatedly disconnecting, or showing hardware errors, power it down and consider professional recovery.
+> **Early development:** This project is not a recovery utility and is not ready for real-world recovery. Do not use it on the only copy of important data. If a drive is clicking, repeatedly disconnecting, or showing hardware errors, power it down and consider professional recovery.
 
 ## Project principles
 
@@ -35,7 +35,7 @@ The exact dependency set will be selected only after reviewing maintenance statu
 
 ## Safety boundary
 
-The initial product will not initialize, format, repartition, repair, or write partition tables. Any future write-capable feature must be isolated, disabled by default, require explicit informed confirmation, and be preceded by a verified backup or image. A UI warning is not a substitute for enforcing read-only access in the device-access layer.
+The current implementation reads regular image files only. It does not open physical devices and exposes no source-write API. A first command-line inspection preview is available on the feature branch: it emits a JSON report for image geometry, MBR entries, GPT primary/backup headers, partitions, and diagnostics. The initial product will not initialize, format, repartition, repair, or write partition tables. Any future write-capable feature must be isolated, disabled by default, require explicit informed confirmation, and be preceded by a verified backup or image. A UI warning is not a substitute for enforcing read-only access in the device-access layer.
 
 ## Repository layout
 
@@ -48,7 +48,21 @@ tools/      Developer utilities and test-image generation
 
 ## Status
 
-The repository is at the project-foundation stage. The first engineering milestone is a read-only disk inventory and image-inspection foundation, validated against synthetic test images before any real-device testing.
+The feature branch now contains:
+- A bounded, read-only regular-image reader.
+- MBR and GPT parsing with CRC, geometry, bounds, overlap, and primary/backup validation.
+- A WPF desktop preview for image selection, partition inspection, findings, and JSON report export.
+- NTFS boot-sector, FILE-record fixup, attribute, and fragmented/sparse runlist parsers.
+- An MFT reader that reads records through the initial validated `$MFT::$DATA` extent, including records crossing fragmented physical extents.
+- Resident `$FILE_NAME` parsing and a bounded flat scan of initialized MFT records.
+- A CLI `scan-ntfs` command for an MFT preview using an explicitly supplied volume byte offset and length. It returns flat filename entries plus a conservative partial directory tree with orphan diagnostics. CI run 42090410822 passed an end-to-end smoke test against a generated NTFS image with a fragmented MFT extent and a `Report.txt` filename entry.
+
+The successful Windows CI run [42089190267](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42089190267) validated the bounded MFT scan milestone, including tests, generated-image CLI smoke tests, WPF build, and Windows x64 publishing. Its associated test summary reported 48 passed and zero failed. The current branch also includes a sector-size consistency guard; its latest CI run is revalidating that final change.
+
+**This is still an engineering preview, not a data-recovery utility.** Physical-disk access, lost-partition discovery, MFT extent continuation through `$ATTRIBUTE_LIST`, directory-index traversal, full file-tree construction, FAT/exFAT support, and file extraction are not implemented. The WPF desktop now includes a selected-partition NTFS preview tab with a bounded MFT scan and partial tree/orphan display. Windows CI run 42092080846 built and published the updated desktop preview; hands-on Windows interaction remains outstanding. All validation so far uses synthetic images; manual Windows UI testing remains outstanding. Never experiment on the damaged source disk or the only copy of important data.
+## First-version preview
+
+See [docs/FIRST-VERSION.md](docs/FIRST-VERSION.md) for CLI usage, [docs/DESKTOP-UI.md](docs/DESKTOP-UI.md) for the initial WPF desktop workflow, and [docs/TEST-IMAGES.md](docs/TEST-IMAGES.md) for safe test images. Windows preview artifacts are published by successful CI runs.
 
 ## Contributing
 
