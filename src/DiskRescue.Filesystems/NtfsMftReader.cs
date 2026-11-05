@@ -95,6 +95,8 @@ public sealed class NtfsMftReader
                 return InvalidOpen("MFT record 0 must contain exactly one unnamed non-resident $DATA attribute starting at VCN 0.");
 
             var data = dataAttributes[0];
+            if ((data.Flags & (0x0001 | 0x4000 | 0x8000)) != 0)
+                return InvalidOpen("Compressed, encrypted, or sparse $MFT data attributes are not supported.");
             if (data.MappingPairs is null || data.RealSize is null || data.InitializedSize is null ||
                 data.AllocatedSize is null || data.HighestVcn is null)
                 return InvalidOpen("The unnamed $MFT::$DATA attribute is missing required size or mapping-pairs metadata.");
