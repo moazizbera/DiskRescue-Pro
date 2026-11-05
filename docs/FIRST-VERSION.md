@@ -67,3 +67,8 @@ Treat all findings as inspection evidence, not a guarantee that data can be reco
 ## Validation status
 
 Windows CI run 42089190267 passed restore, build, automated tests, safe fixture generation, CLI smoke tests, WPF build, and Windows x64 publishing for the bounded MFT scan milestone. The run's associated test summary reported 48 passed and zero failed. CI run 42090410822 also passed the synthetic NTFS MFT image generation and `scan-ntfs` smoke test. A subsequent sector-size consistency guard is being validated by the latest CI run. Manual Windows desktop interaction with generated images is still required.
+
+
+## Desktop NTFS preview
+
+The WPF preview now has an NTFS tab. After inspecting an image, select a partition and choose **Scan selected partition**. It scans up to 10,000 records from the initial validated MFT extent and displays a partial tree plus unlinked entries. This does not follow additional MFT extents or directory indexes and does not recover file contents. The updated desktop workflow is awaiting CI validation.
