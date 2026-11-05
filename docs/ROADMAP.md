@@ -38,7 +38,8 @@
 - [x] CLI command for bounded read-only NTFS MFT preview, with generated-image end-to-end smoke coverage
 - [ ] Resolve additional MFT extents through $ATTRIBUTE_LIST with VCN continuity and cycle checks
 - [x] Build a conservative tree from scanned entries with parent sequence validation, cycle detection, and orphan reporting
-- [ ] Wire the tree builder into CLI/WPF previews and validate complete parent coverage
+- [x] Include conservative directory-tree preview and orphan diagnostics in CLI NTFS JSON output
+- [ ] Wire the tree builder into WPF previews and validate complete parent coverage
 - [ ] Parse $INDEX_ROOT and $INDEX_ALLOCATION directory indexes
 - [ ] FAT32 and exFAT boot-sector and metadata parsers
 - [ ] Parser fuzzing and malformed-image regression suite
@@ -63,7 +64,7 @@
 
 - `DiskRescue.IO` supports regular image files only; physical devices are not opened.
 - `DiskRescue.Partitions` validates MBR and GPT metadata. A validated backup GPT copy can be used when the primary GPT header is damaged.
-- `DiskRescue.Filesystems` validates NTFS boot-sector geometry, FILE record USA fixups, bounded attribute headers, mapping-pairs runlists, and resident $FILE_NAME values. `NtfsMftReader` reads records through the initial validated $MFT::$DATA extent and can perform a bounded flat scan. The library can build a conservative tree from supplied flat entries with parent sequence validation, cycle detection, and orphan reporting. The CLI still returns flat entries; the tree builder is not yet wired into CLI/WPF previews. Additional extents through $ATTRIBUTE_LIST, directory-index traversal, and file-content recovery are not implemented.
+- `DiskRescue.Filesystems` validates NTFS boot-sector geometry, FILE record USA fixups, bounded attribute headers, mapping-pairs runlists, and resident $FILE_NAME values. `NtfsMftReader` reads records through the initial validated $MFT::$DATA extent and can perform a bounded flat scan. The library can build a conservative tree from supplied flat entries with parent sequence validation, cycle detection, and orphan reporting. The CLI reports both flat entries and a conservative partial tree with orphan diagnostics; the WPF tree preview is not yet wired. Additional extents through $ATTRIBUTE_LIST, directory-index traversal, and file-content recovery are not implemented.
 - The CLI has a `scan-ntfs` command that accepts an image file and explicit volume byte offset/length. CI run 42090410822 passed the synthetic NTFS image generation and end-to-end CLI smoke test; the subsequent sector-size consistency guard is being revalidated in run 42090536737.
 - The WPF desktop currently exposes partition inspection only; the NTFS scan workflow is not yet wired into the desktop UI.
 - The PowerShell test-image generator creates disposable MBR, healthy GPT, and damaged-primary-GPT/valid-backup fixtures. CI generates these fixtures and smoke-tests CLI behavior. NTFS parsers, fragmented MFT reads, filename parsing, and bounded scanning have synthetic unit tests.
