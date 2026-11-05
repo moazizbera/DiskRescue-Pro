@@ -43,8 +43,8 @@ public static class NtfsFileRecordParser
         var expectedUsaCount = (rawRecord.Length / bytesPerSector) + 1;
         if (usaCount != expectedUsaCount)
             return Invalid("NTFS update-sequence-array count does not match the FILE record sector count.");
-        if (usaOffset < MinimumRecordHeaderSize)
-            return Invalid("NTFS update-sequence array overlaps the FILE record header.");
+        if (usaOffset < MinimumRecordHeaderSize || (usaOffset & 1) != 0)
+            return Invalid("NTFS update-sequence array overlaps the FILE record header or is not 2-byte aligned.");
 
         int usaLength;
         int usaEnd;
