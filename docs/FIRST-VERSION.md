@@ -9,7 +9,7 @@ The `inspect` command emits a JSON report containing:
 - MBR signature, protective-GPT indicator, partition entries, and diagnostics
 - GPT primary and backup header validity, partition entries, CRC validation results, and copy-consistency diagnostics
 
-The new `scan-ntfs` command validates an NTFS volume boot sector and performs a bounded, flat scan of initialized MFT records covered by the initial validated `$MFT::$DATA` extent. It can report resident `$FILE_NAME` values and parent references. It does not build a directory hierarchy or recover file contents. The command's latest implementation is awaiting its CI build/test result.
+The new `scan-ntfs` command validates an NTFS volume boot sector and performs a bounded, flat scan of initialized MFT records covered by the initial validated `$MFT::$DATA` extent. It can report resident `$FILE_NAME` values and parent references. It does not build a directory hierarchy or recover file contents. The command passed an end-to-end CI smoke test against a generated 64 KiB NTFS fixture containing a filename entry that crosses fragmented MFT extents. The current branch adds a sector-size consistency guard that is being revalidated.
 
 ## What it does not do
 
@@ -66,4 +66,4 @@ Treat all findings as inspection evidence, not a guarantee that data can be reco
 
 ## Validation status
 
-Windows CI run 42089190267 passed restore, build, automated tests, safe fixture generation, CLI smoke tests, WPF build, and Windows x64 publishing for the bounded MFT scan milestone. The run's associated test summary reported 48 passed and zero failed. The subsequent `scan-ntfs` CLI integration is awaiting its own successful CI run. Manual Windows desktop interaction with generated images is still required.
+Windows CI run 42089190267 passed restore, build, automated tests, safe fixture generation, CLI smoke tests, WPF build, and Windows x64 publishing for the bounded MFT scan milestone. The run's associated test summary reported 48 passed and zero failed. CI run 42090410822 also passed the synthetic NTFS MFT image generation and `scan-ntfs` smoke test. A subsequent sector-size consistency guard is being validated by the latest CI run. Manual Windows desktop interaction with generated images is still required.
