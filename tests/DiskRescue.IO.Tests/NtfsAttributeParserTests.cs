@@ -18,6 +18,7 @@ public sealed class NtfsAttributeParserTests
         Assert.Equal(0x10u, attribute.Type);
         Assert.False(attribute.IsNonResident);
         Assert.Equal(4u, attribute.ResidentValueLength);
+        Assert.Equal("DATA", System.Text.Encoding.ASCII.GetString(attribute.ResidentValue!));
     }
 
     [Fact]
