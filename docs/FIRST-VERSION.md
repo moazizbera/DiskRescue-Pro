@@ -9,7 +9,7 @@ The `inspect` command emits a JSON report containing:
 - MBR signature, protective-GPT indicator, partition entries, and diagnostics
 - GPT primary and backup header validity, partition entries, CRC validation results, and copy-consistency diagnostics
 
-The new `scan-ntfs` command validates an NTFS volume boot sector and performs a bounded, flat scan of initialized MFT records covered by the initial validated `$MFT::$DATA` extent. It can report resident `$FILE_NAME` values and parent references. It does not build a directory hierarchy or recover file contents. The command passed an end-to-end CI smoke test against a generated 64 KiB NTFS fixture containing a filename entry that crosses fragmented MFT extents. The current branch adds a sector-size consistency guard that is being revalidated.
+The new `scan-ntfs` command validates an NTFS volume boot sector and performs a bounded, flat scan of initialized MFT records covered by the initial validated `$MFT::$DATA` extent. It can report resident `$FILE_NAME` values and parent references, plus a conservative partial directory tree when parent records and sequence numbers are present. Unresolved or cyclic entries remain in an orphan list. It does not follow directory indexes or recover file contents. The command passed an end-to-end CI smoke test against a generated 64 KiB NTFS fixture containing a filename entry that crosses fragmented MFT extents. The current branch adds a sector-size consistency guard that is being revalidated.
 
 ## What it does not do
 
@@ -44,7 +44,7 @@ To preview NTFS MFT records, provide the volume's byte offset and length. Obtain
 dotnet run --project src/DiskRescue.Cli -- scan-ntfs "C:\Images\sample.img" --offset 1048576 --length 1073741824 --max-records 5000
 ```
 
-The NTFS scan output is a flat JSON list, not a verified folder tree. Its coverage is limited to the initial MFT data extent. Redirect reports to a separate output file if needed:
+The NTFS scan includes flat JSON entries and a conservative partial tree, not a complete verified folder tree. Its coverage is limited to the initial MFT data extent. Redirect reports to a separate output file if needed:
 
 ```powershell
 dotnet run --project src/DiskRescue.Cli -- scan-ntfs "C:\Images\sample.img" --offset 1048576 --length 1073741824 > ntfs-preview.json
