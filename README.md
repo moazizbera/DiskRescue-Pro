@@ -55,9 +55,9 @@ The feature branch now contains:
 - NTFS boot-sector, FILE-record fixup, attribute, and fragmented/sparse runlist parsers.
 - An MFT reader that reads records through the initial validated `$MFT::$DATA` extent, including records crossing fragmented physical extents.
 - Resident `$FILE_NAME` parsing and a bounded flat scan of initialized MFT records.
-- A CLI `scan-ntfs` command for a flat MFT preview using an explicitly supplied volume byte offset and length. Its latest CLI integration is awaiting CI validation.
+- A CLI `scan-ntfs` command for a flat MFT preview using an explicitly supplied volume byte offset and length. CI run 42090410822 passed an end-to-end smoke test against a generated NTFS image with a fragmented MFT extent and a `Report.txt` filename entry.
 
-The successful Windows CI run [42089190267](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42089190267) validated the bounded MFT scan milestone, including tests, generated-image CLI smoke tests, WPF build, and Windows x64 publishing. Its associated test summary reported 48 passed and zero failed. The newer CLI command has a separate CI run in progress.
+The successful Windows CI run [42089190267](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42089190267) validated the bounded MFT scan milestone, including tests, generated-image CLI smoke tests, WPF build, and Windows x64 publishing. Its associated test summary reported 48 passed and zero failed. The current branch also includes a sector-size consistency guard; its latest CI run is revalidating that final change.
 
 **This is still an engineering preview, not a data-recovery utility.** Physical-disk access, lost-partition discovery, MFT extent continuation through `$ATTRIBUTE_LIST`, directory-index traversal, full file-tree construction, FAT/exFAT support, and file extraction are not implemented. The WPF desktop does not yet expose the NTFS scan. All validation so far uses synthetic images; manual Windows UI testing remains outstanding. Never experiment on the damaged source disk or the only copy of important data.
 ## First-version preview
