@@ -64,6 +64,18 @@ public sealed class NtfsAttributeListParserTests
     }
 
     [Fact]
+    public void RejectsOddUtf16NameOffset()
+    {
+        var value = new byte[32];
+        WriteEntry(value, 0x80, 32, null, 0, 1, 1, 1);
+        value[6] = 1;
+        value[7] = 27;
+        var result = NtfsAttributeListParser.Parse(value);
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, x => x.Contains("name range", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void RejectsTruncatedTrailingHeader()
     {
         var value = new byte[33];
@@ -95,6 +107,6 @@ public sealed class NtfsAttributeListParserTests
         var reference = ((ulong)sequence << 48) | (recordNumber & 0x0000_FFFF_FFFF_FFFF);
         BinaryPrimitives.WriteUInt64LittleEndian(target.Slice(16), reference);
         BinaryPrimitives.WriteUInt16LittleEndian(target.Slice(24), attributeId);
-        nameBytes.CopyTo(target.Slice(26));
+        nameBytes.AsSpan().CopyTo(target.Slice(26));
     }
 }
