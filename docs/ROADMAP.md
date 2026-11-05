@@ -5,7 +5,7 @@
 - [x] Create project repository and safety-first project charter
 - [x] Define architecture boundaries and data-preservation policy
 - [x] Add initial .NET solution, project structure, and Windows CI workflow
-- [ ] Add synthetic disk-image builder and reusable baseline fixtures
+- [ ] Add reusable synthetic disk-image builder and baseline fixtures (current tests generate temporary MBR/GPT images directly)
 
 ## Phase 1 — Read-only inspection
 
@@ -13,7 +13,7 @@
 - [ ] Disk and volume inventory (Windows)
 - [ ] Device identity and sector geometry reporting
 - [x] Add initial MBR parsing with signature, boot-indicator, sector-size, range, protective-MBR, and overlap diagnostics
-- [ ] GPT primary/backup parsing, CRC checks, and disagreement reporting
+- [x] Add initial GPT primary/backup parsing with header and partition-array CRC32 validation, bounded entry arrays, image-bound checks, and copy-consistency diagnostics (latest CI validation pending)
 
 ## Phase 2 — Lost partition discovery
 
@@ -46,9 +46,9 @@
 ## Current implementation notes
 
 - `DiskRescue.IO` reads regular image files only; it exposes no physical-device access or source-write API. Device namespace paths, directories, and reparse points are rejected.
-- `DiskRescue.Partitions` contains an initial MBR parser. It refuses to trust entries when the 0x55AA signature is absent and validates boot indicators, sector-size input, image bounds, protective MBR entries, and overlapping partition ranges.
-- Tests use generated temporary image files. Windows CI run 21 completed restore, build, and test successfully for the image reader, device-path guard, and MBR parser changes.
-- GPT, physical-disk inventory, lost-partition discovery, filesystem parsing, recovery, and the desktop application are not implemented.
+- `DiskRescue.Partitions` contains initial MBR and GPT parsers. MBR parsing requires the 0x55AA signature. GPT parsing validates revision, header CRC, partition-array CRC, header placement, bounded entry counts/sizes, image bounds, usable-LBA ranges, duplicate GUIDs, overlaps, and primary/backup metadata consistency.
+- Tests use generated temporary image files, including synthetic primary/backup GPT copies. The latest GPT parser and test changes require a successful Windows CI run before they can be considered validated.
+- Physical-disk inventory, lost-partition discovery, filesystem parsing, recovery, and the desktop application are not implemented.
 
 ## Release gates
 
