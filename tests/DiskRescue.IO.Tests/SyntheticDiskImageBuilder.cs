@@ -68,6 +68,14 @@ internal sealed class SyntheticDiskImageBuilder : IDisposable
     public void WriteGptCopies(uint? declaredEntryCount = null)
     {
         var count = declaredEntryCount ?? checked((uint)GptEntryCount);
+        // A GPT disk must carry a protective MBR at LBA 0.
+        var protective = _image.AsSpan(446, 16);
+        protective.Clear();
+        protective[4] = 0xEE;
+        BinaryPrimitives.WriteUInt32LittleEndian(protective.Slice(8, 4), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(protective.Slice(12, 4), uint.MaxValue);
+        _image[510] = 0x55;
+        _image[511] = 0xAA;
         var entriesCrc = ComputeCrc32(_gptEntries);
         _gptEntries.CopyTo(_image, checked(2 * _sectorSize));
         _gptEntries.CopyTo(_image, checked((TotalSectors - 2) * _sectorSize));
