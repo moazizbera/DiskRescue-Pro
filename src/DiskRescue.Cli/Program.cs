@@ -190,7 +190,8 @@ static int RunNtfsScan(string[] args)
         }
 
         var scan = mftResult.Reader.ScanRecords(maximumRecords);
-        var report = new
+        var tree = NtfsDirectoryTreeBuilder.Build(scan.Entries);
+        var report =
         {
             product = "DiskRescue Pro",
             reportVersion = 1,
@@ -222,6 +223,7 @@ static int RunNtfsScan(string[] args)
                 scan.RecordsSkipped,
                 scan.WasCancelled,
                 scan.Entries,
+                directoryTree = new { tree.Roots, tree.Orphans, diagnostics = tree.Issues },
                 diagnostics = scan.Issues,
                 scope = "Initial validated $MFT::$DATA extent only; additional extents and directory indexes are not followed."
             }
