@@ -84,7 +84,7 @@ function New-FileRecord([UInt32]$RecordNumber, [bool]$IncludeMftData, [bool]$Inc
         Write-U16 $record 70 1
         Write-U32 $record 72 86
         Write-U16 $record 76 24
-        Write-U64 $record 80 (([UInt64]2 -shl 48) -bor [UInt64]5)
+        Write-U64 $record 80 562949953421317
         Write-U64 $record 120 4096
         Write-U64 $record 128 2048
         Write-U32 $record 136 0x20
