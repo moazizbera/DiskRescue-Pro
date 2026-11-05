@@ -35,12 +35,16 @@ public partial class MainWindow : Window
             MessageBox.Show(this, "Choose an existing regular disk-image file first. Physical disk paths are not supported.", "Image required", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
+        // Capture all UI values on the dispatcher thread before entering Task.Run.
+        // WPF controls must never be accessed from the worker thread.
+        var imagePath = ImagePathBox.Text;
         var sectorSize = int.Parse(((ComboBoxItem)SectorSizeBox.SelectedItem).Tag.ToString()!);
-        InspectButton.IsEnabled = false; ExportButton.IsEnabled = false; Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
+        InspectButton.IsEnabled = false; BrowseButton.IsEnabled = false; SectorSizeBox.IsEnabled = false;
+        ExportButton.IsEnabled = false; Mouse.OverrideCursor = Cursors.Wait;
         StatusText.Text = "Inspecting image read-only…";
         try
         {
-            var result = await Task.Run(() => InspectImage(ImagePathBox.Text, sectorSize));
+            var result = await Task.Run(() => InspectImage(imagePath, sectorSize));
             _lastReport = result.Json; _lastReportPath = ImagePathBox.Text;
             ImageSizeText.Text = FormatBytes(result.Length); PartitionCountText.Text = result.Rows.Count.ToString(); TableTypeText.Text = result.TableType;
             ValidationText.Text = result.HasWarnings ? "Review findings" : "Checks passed";
@@ -55,7 +59,7 @@ public partial class MainWindow : Window
             StatusText.Text = "Inspection failed safely";
             MessageBox.Show(this, ex.Message, "Could not inspect image", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        finally { InspectButton.IsEnabled = true; Mouse.OverrideCursor = null; }
+        finally { InspectButton.IsEnabled = true; BrowseButton.IsEnabled = true; SectorSizeBox.IsEnabled = true; Mouse.OverrideCursor = null; }
     }
 
     private static InspectionResult InspectImage(string path, int sectorSize)
@@ -64,15 +68,30 @@ public partial class MainWindow : Window
         var mbr = MbrParser.Parse(image, sectorSize);
         var gpt = GptParser.ParsePrimaryAndBackup(image, checked((uint)sectorSize));
         var rows = new List<PartitionRow>();
-        foreach (var p in mbr.Partitions) rows.Add(new(p.Index, "MBR", $"Type 0x{p.PartitionType:X2}", p.StartLba.ToString(), FormatBytes(p.ByteLength)));
+        var hasGpt = gpt.Primary.HeaderValid || gpt.Backup.HeaderValid || mbr.IsProtectiveMbr;
+        foreach (var p in mbr.Partitions)
+        {
+            // The 0xEE protective MBR entry describes GPT compatibility, not a user partition.
+            if (hasGpt && p.PartitionType == 0xEE) continue;
+            rows.Add(new(p.Index, "MBR", $"Type 0x{p.PartitionType:X2}", p.StartLba.ToString(), FormatBytes(p.ByteLength)));
+        }
         foreach (var p in gpt.Primary.Partitions) rows.Add(new(p.Index, "GPT", string.IsNullOrWhiteSpace(p.Name) ? p.TypeGuid.ToString() : p.Name, p.FirstLba.ToString(), FormatBytes(p.ByteLength)));
         var notes = new List<string> { $"Image: {Path.GetFileName(path)}", $"Length: {image.Length:N0} bytes", $"Logical sector size: {sectorSize:N0} bytes", "", $"MBR signature: {(mbr.HasValidSignature ? "Valid" : "Not detected")}", $"Protective GPT MBR: {(mbr.IsProtectiveMbr ? "Yes" : "No")}" };
         notes.AddRange(mbr.Issues.Select(x => "• MBR: " + x));
-        notes.Add(""); notes.Add($"GPT primary header: {(gpt.Primary.HeaderValid ? "Valid" : "Not valid / not detected")}"); notes.Add($"GPT backup header: {(gpt.Backup.HeaderValid ? "Valid" : "Not valid / not detected")}");
-        notes.AddRange(gpt.Primary.Issues.Select(x => "• GPT primary: " + x)); notes.AddRange(gpt.Backup.Issues.Select(x => "• GPT backup: " + x)); notes.AddRange(gpt.ConsistencyIssues.Select(x => "• GPT consistency: " + x));
+        notes.Add("");
+        if (hasGpt)
+        {
+            notes.Add($"GPT primary header: {(gpt.Primary.HeaderValid ? "Valid" : "Not valid")}");
+            notes.Add($"GPT backup header: {(gpt.Backup.HeaderValid ? "Valid" : "Not valid")}");
+            notes.AddRange(gpt.Primary.Issues.Select(x => "• GPT primary: " + x));
+            notes.AddRange(gpt.Backup.Issues.Select(x => "• GPT backup: " + x));
+            notes.AddRange(gpt.ConsistencyIssues.Select(x => "• GPT consistency: " + x));
+        }
+        else notes.Add("GPT metadata: not detected (expected for an MBR-only image).");
         notes.Add(""); notes.Add("Safety boundary: image file only; no physical devices, source writes, repair, or recovery.");
-        var hasGpt = gpt.Primary.HeaderValid || gpt.Backup.HeaderValid;
-        var hasWarnings = mbr.Issues.Count > 0 || gpt.Primary.Issues.Count > 0 || gpt.Backup.Issues.Count > 0 || gpt.ConsistencyIssues.Count > 0 || (!mbr.HasValidSignature && !hasGpt);
+        var hasWarnings = mbr.Issues.Count > 0 ||
+            (hasGpt && (gpt.Primary.Issues.Count > 0 || gpt.Backup.Issues.Count > 0 || gpt.ConsistencyIssues.Count > 0)) ||
+            (!mbr.HasValidSignature && !hasGpt);
         var report = new { product = "DiskRescue Pro", reportVersion = 1, mode = "read-only-image-inspection", source = new { fileName = Path.GetFileName(path), lengthBytes = image.Length, logicalSectorSizeBytes = sectorSize }, safety = new { sourceOpenedReadOnly = true, physicalDevicesSupported = false, sourceWriteOperationsAvailable = false, recoveryAvailable = false }, mbr = new { signatureValid = mbr.HasValidSignature, protectiveGptEntryDetected = mbr.IsProtectiveMbr, partitions = mbr.Partitions, diagnostics = mbr.Issues }, gpt = new { primaryHeaderValid = gpt.Primary.HeaderValid, primaryHeader = gpt.Primary.Header, primaryPartitions = gpt.Primary.Partitions, primaryDiagnostics = gpt.Primary.Issues, backupHeaderValid = gpt.Backup.HeaderValid, backupHeader = gpt.Backup.Header, backupPartitions = gpt.Backup.Partitions, backupDiagnostics = gpt.Backup.Issues, consistencyDiagnostics = gpt.ConsistencyIssues } };
         return new(image.Length, rows, hasGpt ? "GPT" : mbr.HasValidSignature ? "MBR" : "Unknown", hasWarnings, string.Join(Environment.NewLine, notes), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
     }
