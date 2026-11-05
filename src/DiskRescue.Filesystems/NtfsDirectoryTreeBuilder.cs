@@ -32,8 +32,15 @@ public static class NtfsDirectoryTreeBuilder
 
         var issues = new List<string>();
         var canonicalEntries = entries
-            .GroupBy(e => (e.RecordNumber, e.ParentRecordNumber, e.ParentSequenceNumber, Name: e.Name.ToUpperInvariant()))
-            .Select(g => g.OrderBy(e => NamespacePriority(e.Namespace)).First())
+            .GroupBy(e => (e.RecordNumber, e.ParentRecordNumber, e.ParentSequenceNumber))
+            .SelectMany(group =>
+            {
+                var nonDosNames = group.Where(e => e.Namespace != 2).ToArray();
+                var candidates = nonDosNames.Length > 0 ? nonDosNames : group.ToArray();
+                return candidates
+                    .GroupBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+                    .Select(names => names.OrderBy(e => NamespacePriority(e.Namespace)).First());
+            })
             .OrderBy(e => e.RecordNumber)
             .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
