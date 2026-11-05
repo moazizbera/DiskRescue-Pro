@@ -73,7 +73,7 @@ function New-FileRecord([UInt32]$RecordNumber, [bool]$IncludeMftData, [bool]$Inc
         $record[124] = 5
         $record[125] = 8
         $record[126] = 0
-        Write-U32 $record 128 0xFFFFFFFF
+        Write-U32 $record 128 [UInt32]::MaxValue
         Write-U32 $record 24 132
     }
     elseif ($IncludeFileName) {
@@ -91,11 +91,11 @@ function New-FileRecord([UInt32]$RecordNumber, [bool]$IncludeMftData, [bool]$Inc
         $record[144] = 10
         $record[145] = 1
         [Text.Encoding]::Unicode.GetBytes("Report.txt").CopyTo($record, 146)
-        Write-U32 $record 168 0xFFFFFFFF
+        Write-U32 $record 168 [UInt32]::MaxValue
         Write-U32 $record 24 172
     }
     else {
-        Write-U32 $record 56 0xFFFFFFFF
+        Write-U32 $record 56 [UInt32]::MaxValue
         Write-U32 $record 24 60
     }
     return ,$record
