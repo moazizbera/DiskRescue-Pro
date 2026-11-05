@@ -79,15 +79,19 @@ public static class NtfsDirectoryTreeBuilder
         var cyclicNodes = new HashSet<NodeBuilder>();
         foreach (var node in nodes)
         {
-            var path = new HashSet<NodeBuilder>();
+            var path = new List<NodeBuilder>();
+            var positions = new Dictionary<NodeBuilder, int>();
             var current = node;
             while (current.Parent is not null)
             {
-                if (!path.Add(current))
+                if (positions.TryGetValue(current, out var cycleStart))
                 {
-                    foreach (var member in path) cyclicNodes.Add(member);
+                    for (var i = cycleStart; i < path.Count; i++)
+                        cyclicNodes.Add(path[i]);
                     break;
                 }
+                positions[current] = path.Count;
+                path.Add(current);
                 current = current.Parent;
             }
         }
