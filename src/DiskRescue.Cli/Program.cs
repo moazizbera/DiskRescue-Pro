@@ -191,7 +191,7 @@ static int RunNtfsScan(string[] args)
 
         var scan = mftResult.Reader.ScanRecords(maximumRecords);
         var tree = NtfsDirectoryTreeBuilder.Build(scan.Entries);
-        var report =
+        var report = new
         {
             product = "DiskRescue Pro",
             reportVersion = 1,
@@ -213,7 +213,8 @@ static int RunNtfsScan(string[] args)
                 sourceOpenedReadOnly = true,
                 physicalDevicesSupported = false,
                 sourceWriteOperationsAvailable = false,
-                directoryHierarchyBuilt = false,
+                directoryTreePreviewGenerated = true,
+                completeDirectoryTreeAvailable = false,
                 fileRecoveryAvailable = false
             },
             scan = new
@@ -253,5 +254,5 @@ static void PrintUsage()
     Console.WriteLine("  diskrescue scan-ntfs sample.img --offset 1048576 --length 1073741824 --max-records 5000");
     Console.WriteLine();
     Console.WriteLine("Only regular image files are supported. Physical disks are not opened.");
-    Console.WriteLine("NTFS scan returns a bounded flat MFT preview, not a directory tree or file recovery.");
+    Console.WriteLine("NTFS scan returns a bounded partial MFT and directory-tree preview, not file recovery.");
 }
