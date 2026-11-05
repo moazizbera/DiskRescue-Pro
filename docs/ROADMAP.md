@@ -4,15 +4,15 @@
 
 - [x] Create project repository and safety-first project charter
 - [x] Define architecture boundaries and data-preservation policy
-- [ ] Add solution, project structure, formatting, and CI
-- [ ] Add synthetic disk-image builder and baseline fixtures
+- [x] Add initial .NET solution, project structure, and Windows CI workflow (PR validation still required for the latest parser changes)
+- [ ] Add synthetic disk-image builder and reusable baseline fixtures
 
 ## Phase 1 — Read-only inspection
 
-- [ ] Read-only image abstraction with bounded random access
+- [x] Add bounded, read-only image-file random access (regular image files only; physical-device namespace paths and reparse points rejected)
 - [ ] Disk and volume inventory (Windows)
 - [ ] Device identity and sector geometry reporting
-- [ ] MBR parsing with validation and diagnostics
+- [x] Add initial MBR parsing with signature, boot-indicator, sector-size, range, protective-MBR, and overlap diagnostics (latest CI validation pending)
 - [ ] GPT primary/backup parsing, CRC checks, and disagreement reporting
 
 ## Phase 2 — Lost partition discovery
@@ -42,6 +42,13 @@
 - [ ] Disk/image selection and identity confirmation
 - [ ] Evidence view for partition candidates
 - [ ] Accessible progress, cancellation, and reports
+
+## Current implementation notes
+
+- `DiskRescue.IO` currently reads regular image files only; it does not expose physical-device access or any write API.
+- `DiskRescue.Partitions` contains an initial MBR parser. It refuses to trust entries when the 0x55AA signature is absent and checks partition byte ranges against the image length.
+- Tests use generated temporary image files. The latest MBR and device-path guard changes still require a successful Windows CI run before they can be considered validated.
+- GPT, physical-disk inventory, filesystem parsing, recovery, and the desktop application are not implemented.
 
 ## Release gates
 
