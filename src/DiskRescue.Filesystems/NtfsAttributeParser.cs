@@ -18,7 +18,8 @@ public sealed record NtfsAttribute(
     ulong? AllocatedSize,
     ulong? RealSize,
     ulong? InitializedSize,
-    byte[]? MappingPairs);
+    byte[]? MappingPairs,
+    byte[]? ResidentValue);
 
 public sealed record NtfsAttributeParseResult(
     bool IsValid,
@@ -89,7 +90,7 @@ public static class NtfsAttributeParser
                 if (nameLength > 0 && RangesOverlap(nameOffset, nameByteLength, valueOffset, checked((int)valueLength)))
                     return Invalid("Resident attribute name overlaps its value.");
                 attributes.Add(new(type, length, false, attributeId, attributeFlags, name, valueLength, valueOffset,
-                    null, null, null, null, null, null, null));
+                    null, null, null, null, null, null, null, attribute.Slice(valueOffset, checked((int)valueLength)).ToArray()));
             }
             else
             {
@@ -111,7 +112,7 @@ public static class NtfsAttributeParser
                     return Invalid("Non-resident attribute name overlaps mapping pairs.");
                 attributes.Add(new(type, length, true, attributeId, attributeFlags, name, null, null,
                     lowestVcn, highestVcn, mappingPairsOffset, allocatedSize, realSize, initializedSize,
-                    attribute.Slice(mappingPairsOffset).ToArray()));
+                    attribute.Slice(mappingPairsOffset).ToArray(), null));
             }
 
             offset = checked(offset + (int)length);
