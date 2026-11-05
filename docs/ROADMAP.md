@@ -1,77 +1,99 @@
-# Roadmap
+# Product Roadmap
 
-## Phase 0 — Foundation
+DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox means the behavior exists and has automated evidence; it does not imply complete filesystem or device coverage.
 
-- [x] Define safety-first project charter and data-preservation policy
-- [x] Add .NET 10 solution, layered projects, and Windows CI
-- [x] Add reusable synthetic disk-image fixtures
+## Phase 0 — Engineering foundation
 
-## Phase 1 — Read-only image inspection
+- [x] Define data-preservation and read-only principles
+- [x] Create .NET 10 solution and Windows CI
+- [x] Add generated disposable disk-image fixtures
+- [x] Publish self-contained Windows x64 CLI and WPF preview artifacts
+
+## Phase 1 — Image and partition inspection
 
 - [x] Bounded read-only random access for regular image files
-- [x] MBR parsing with signature, entry, bounds, sector-size, protective-MBR, and overlap checks
-- [x] GPT primary/backup parsing with header and array CRC32, bounds, and copy-consistency checks
-- [x] Fall back to a validated backup GPT copy when the primary header is damaged
-- [x] CLI JSON partition-inspection report
-- [x] Initial WPF image selection, MBR/GPT inspection, partition overview, findings, and JSON export
-- [x] Generate disposable MBR/GPT images for repeatable manual testing
-- [x] Windows CI build, parser tests, fixture smoke tests, and self-contained x64 preview publishing
-- [ ] Manual Windows desktop smoke test with generated images
-- [ ] Disk and volume inventory with device identity and geometry (future read-only milestone)
+- [x] MBR signature, entry, bounds, geometry, protective-entry, and overlap validation
+- [x] GPT primary/backup parsing and independent header/array CRC validation
+- [x] Validated backup-GPT fallback when primary header is damaged
+- [x] CLI structured JSON inspection report
+- [x] WPF image selection, partition overview, findings, and JSON export
+- [x] Generated MBR/GPT images and CLI smoke tests
+- [ ] Manual Windows desktop smoke test recorded against generated MBR/GPT images
+- [ ] Lost-partition candidate discovery and confidence scoring
+- [ ] Physical disk inventory and acquisition (separate future safety gate)
 
-## Phase 2 — Lost-partition discovery
+## Phase 2 — NTFS metadata preview
 
-- [ ] Bounded search for filesystem boot-sector signatures
-- [ ] Generate partition candidates without modifying source media
-- [ ] Score candidates using independent metadata checks and explain confidence
-- [ ] Compare candidate evidence against primary and backup partition metadata
+- [x] NTFS boot-sector geometry and volume-boundary validation
+- [x] FILE record signature, bounds, and update-sequence-array fixup validation
+- [x] Bounded resident/non-resident attribute-header parsing
+- [x] NTFS mapping-pairs decoding with sparse-run and volume-cluster bounds
+- [x] MFT record-0 validation and initial unnamed `$MFT::$DATA` mapping
+- [x] Read MFT records across fragmented physical runs within initial extent
+- [x] Resident `$FILE_NAME` parsing and parent-reference extraction
+- [x] Bounded flat scan of initialized records in initial MFT extent
+- [x] Conservative partial tree with parent sequence checks, cycle detection, and orphan reporting
+- [x] CLI NTFS scan and WPF selected-partition NTFS preview
+- [x] Bounded binary parser for `$ATTRIBUTE_LIST` entries
+- [ ] Read resident and non-resident `$ATTRIBUTE_LIST` values safely
+- [ ] Resolve continuation records with sequence/base-reference validation
+- [ ] Assemble additional MFT extents with exact VCN continuity and cycle/resource limits
+- [ ] Add fragmented, multi-record, cyclic, stale-reference, and malicious attribute-list fixtures
+- [ ] Parse `$INDEX_ROOT` and `$INDEX_ALLOCATION`
+- [ ] Validate complete parent relationships and build a reliable tree
+- [ ] Add NTFS compression/encryption/reparse-point semantics and explicit unsupported diagnostics
 
-## Phase 3 — Filesystem inspection
+## Phase 3 — Lost-partition discovery
 
-- [x] NTFS boot-sector validation: OEM/signature, sector and cluster geometry, volume bounds, MFT pointer bounds, and record-size encoding
-- [x] NTFS FILE record header validation and update-sequence-array fixup validation
-- [x] Bounded resident/non-resident attribute-header parsing with value, name, and mapping-pairs range checks
-- [x] NTFS mapping-pairs decoder for fragmented and sparse extents with VCN/LCN bounds
-- [x] Read MFT FILE records through the validated initial $MFT::$DATA extent, including records crossing fragmented physical runs
-- [x] Parse resident $FILE_NAME values and parent file references
-- [x] Bounded flat scan of initialized MFT records covered by the initial extent
-- [x] CLI command for bounded read-only NTFS MFT preview, with generated-image end-to-end smoke coverage
-- [ ] Resolve additional MFT extents through $ATTRIBUTE_LIST with VCN continuity and cycle checks
-- [x] Build a conservative tree from scanned entries with parent sequence validation, cycle detection, and orphan reporting
-- [x] Include conservative directory-tree preview and orphan diagnostics in CLI NTFS JSON output
-- [ ] Wire the tree builder into WPF previews and validate complete parent coverage
-- [ ] Parse $INDEX_ROOT and $INDEX_ALLOCATION directory indexes
-- [ ] FAT32 and exFAT boot-sector and metadata parsers
-- [ ] Parser fuzzing and malformed-image regression suite
+- [ ] Bounded filesystem-signature search over image ranges
+- [ ] Candidate generation for NTFS, FAT32, and exFAT
+- [ ] Independent boot-sector and backup-boot-sector validation
+- [ ] Candidate overlap and conflict analysis
+- [ ] Evidence-based confidence explanations (never silent repair)
+- [ ] FAT32 and exFAT metadata parsers with generated regression fixtures
 
-## Phase 4 — Safe recovery
+## Phase 4 — Read-only file-content mapping
 
-- [ ] Recovery preview and file-integrity checks
-- [ ] Enforce source/destination separation
-- [ ] Extract recovered files to a separate destination only
-- [ ] Recovery manifest, hashes, and audit log
-- [ ] Interrupted extraction and collision handling
+- [ ] Resolve unnamed and named `$DATA` attributes for files
+- [ ] Support fragmented files with strict VCN/LCN and logical-size checks
+- [ ] Handle sparse, compressed, encrypted, and resident content safely (or report unsupported)
+- [ ] Detect hard links, alternate data streams, and reparse points
+- [ ] Verify extracted candidate length and hash
+- [ ] Keep file listing separate from claims of recoverability
 
-## Phase 5 — Desktop experience
+## Phase 5 — Safe extraction
 
-- [x] Initial WPF image selection, MBR/GPT inspection, partition overview, findings, and JSON export
-- [x] WPF NTFS preview tab for a selected partition, bounded MFT scan, partial tree, and orphan diagnostics
-- [ ] Expand WPF tree coverage after additional MFT extents and directory indexes are supported
-- [ ] Guided lost-partition scan workflow with clear warnings
-- [ ] Evidence view and confidence explanations
-- [ ] Accessible progress, cancellation, and recovery reports
+- [ ] Enforce source/destination physical identity separation
+- [ ] Canonicalize destination paths and prevent traversal/reparse-point escape
+- [ ] Never overwrite existing destination files by default
+- [ ] Stream with bounded buffers and short-write handling
+- [ ] Support cancellation and safe resume of interrupted extraction
+- [ ] Export manifest, hashes, source offsets, diagnostics, and audit log
+- [ ] Test disk-full, permission failures, collisions, and interrupted writes
 
-## Current implementation boundary
+## Phase 6 — Professional desktop experience
 
-- `DiskRescue.IO` supports regular image files only; physical devices are not opened.
-- `DiskRescue.Partitions` validates MBR and GPT metadata. A validated backup GPT copy can be used when the primary GPT header is damaged.
-- `DiskRescue.Filesystems` validates NTFS boot-sector geometry, FILE record USA fixups, bounded attribute headers, mapping-pairs runlists, and resident $FILE_NAME values. `NtfsMftReader` reads records through the initial validated $MFT::$DATA extent and can perform a bounded flat scan. The library can build a conservative tree from supplied flat entries with parent sequence validation, cycle detection, and orphan reporting. The CLI reports both flat entries and a conservative partial tree with orphan diagnostics; the WPF tree preview is not yet wired. Additional extents through $ATTRIBUTE_LIST, directory-index traversal, and file-content recovery are not implemented.
-- The CLI has a `scan-ntfs` command that accepts an image file and explicit volume byte offset/length. CI run 42090410822 passed the synthetic NTFS image generation and end-to-end CLI smoke test; the subsequent sector-size consistency guard is being revalidated in run 42090536737.
-- The WPF desktop now includes a selected-partition NTFS preview tab. It performs a bounded MFT scan (up to 10,000 records) and displays a partial tree/orphan list. It does not follow additional MFT extents or directory indexes.
-- The PowerShell test-image generator creates disposable MBR, healthy GPT, and damaged-primary-GPT/valid-backup fixtures. CI generates these fixtures and smoke-tests CLI behavior. NTFS parsers, fragmented MFT reads, filename parsing, and bounded scanning have synthetic unit tests.
+- [x] Initial WPF dashboard and partition inspection
+- [x] NTFS partial tree preview
+- [ ] Device/image acquisition wizard with explicit read-only identity checks
+- [ ] Guided lost-partition discovery with evidence/confidence panels
+- [ ] Search, filter, sort, and metadata inspection for file entries
+- [ ] Accessible progress, cancellation, and clear failure states
+- [ ] Recovery destination verification and extraction queue
+- [ ] Signed installer, versioning, release notes, and reproducible release workflow
+- [ ] Manual usability, accessibility, and Windows-version testing
 
-## Validation and release gates
+## Non-negotiable release gates
 
-Windows CI run 42092500799 passed restore, build, all 53 automated tests, MBR/GPT/NTFS fixture generation, CLI smoke tests, WPF NTFS preview build, and Windows x64 desktop/CLI publishing at commit ce83689e456ab80b384598386c95fd77c9e3643d. The current head adds an additional CI assertion for the synthetic NTFS MBR partition geometry; run 42092721926 is validating that check. Manual Windows desktop interaction is still required.
+- Every parser change includes positive, negative, boundary, and adversarial tests.
+- Every read is bounded by the supplied image/volume and uses checked arithmetic.
+- Source write capability is not introduced into the inspection interfaces.
+- Recovery output is written only to a verified separate destination.
+- No destructive repair, format, initialize, or repartition feature is planned for the initial product.
+- No physical-device support ships without a dedicated read-only handle design, device identity validation, threat review, and separate test suite.
 
-A feature is not complete until it has automated tests, documented limitations, safe failure behavior, and evidence that source media cannot be modified. No destructive repair feature is included in this roadmap.
+## Current validation baseline
+
+The post-merge Windows CI run [42095792708](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42095792708) completed successfully on `main`: 53 tests passed, generated MBR/GPT/NTFS fixture generation and CLI smoke tests passed, WPF built, and self-contained Windows x64 CLI and desktop artifacts were published.
+
+The current feature branch adds the first `$ATTRIBUTE_LIST` entry parser and dedicated adversarial/bounds tests. Its CI result is pending. Manual Windows desktop interaction is still outstanding.
