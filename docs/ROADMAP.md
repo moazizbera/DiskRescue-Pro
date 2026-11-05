@@ -2,64 +2,64 @@
 
 ## Phase 0 — Foundation
 
-- [x] Create project repository and safety-first project charter
-- [x] Define architecture boundaries and data-preservation policy
-- [x] Add initial .NET solution, project structure, and Windows CI workflow
-- [x] Add reusable synthetic disk-image builder and baseline MBR/GPT fixtures
+- [x] Define safety-first project charter and data-preservation policy
+- [x] Add .NET 10 solution, layered projects, and Windows CI
+- [x] Add reusable synthetic disk-image fixtures
 
-## Phase 1 — Read-only inspection
+## Phase 1 — Read-only image inspection
 
-- [x] Add bounded, read-only image-file random access (regular image files only; physical-device namespace paths and reparse points rejected)
-- [x] Add initial CLI command to inspect an image and emit a structured JSON report
-- [x] Document first-version preview usage and safety limits
-- [x] Publish a self-contained Windows x64 CLI artifact (CI run 70); runtime smoke test still pending
-- [ ] Disk and volume inventory (Windows)
-- [ ] Device identity and sector geometry reporting
-- [x] Add initial MBR parsing with signature, boot-indicator, sector-size, range, protective-MBR, and overlap diagnostics
-- [x] Add initial GPT primary/backup parsing with header and partition-array CRC32 validation, bounded entry arrays, image-bound checks, and copy-consistency diagnostics
-- [x] Expand synthetic parser coverage for primary/backup GUID mismatch, truncated images, and 4Kn logical sectors
+- [x] Bounded read-only random access for regular image files
+- [x] MBR parsing with signature, entry, bounds, sector-size, protective-MBR, and overlap checks
+- [x] GPT primary/backup parsing with header and array CRC32, bounds, and copy-consistency checks
+- [x] Fall back to a validated backup GPT copy when the primary header is damaged
+- [x] CLI JSON inspection report
+- [x] Initial WPF image-inspection UI and JSON report export
+- [x] Generate disposable MBR/GPT images for repeatable manual testing
+- [x] Windows CI build, parser tests, and self-contained x64 preview publishing
+- [ ] Manual Windows desktop smoke test with generated images
+- [ ] Disk and volume inventory with device identity and geometry (future read-only milestone)
 
-## Phase 2 — Lost partition discovery
+## Phase 2 — Lost-partition discovery
 
-- [ ] Search for filesystem boot-sector signatures in bounded ranges
-- [ ] Generate partition candidates without modifying media
-- [ ] Score candidates using multiple independent metadata checks
-- [ ] Explain confidence and ambiguity to the user
+- [ ] Bounded search for filesystem boot-sector signatures
+- [ ] Generate partition candidates without modifying source media
+- [ ] Score candidates using independent metadata checks and explain confidence
+- [ ] Compare candidate evidence against primary and backup partition metadata
 
 ## Phase 3 — Filesystem inspection
 
 - [x] Initial NTFS boot-sector validation: OEM/signature, sector and cluster geometry, volume bounds, MFT/MFT mirror locations, and record-size encoding
-- [ ] NTFS MFT and attribute parsing with fixup-array validation
-- [ ] Safe directory and file listing where structures are consistent
-- [ ] NTFS read-only metadata inspection
-- [ ] FAT32 and exFAT read-only metadata inspection
-- [ ] FAT32 and exFAT read-only metadata parsers
-- [ ] Safe directory and file listing where structures are consistent
-- [ ] Corruption handling and parser fuzzing
+- [ ] NTFS MFT record parsing with update-sequence-array fixup validation
+- [ ] NTFS attribute and runlist parsing with strict bounds
+- [ ] Read-only directory and file listing
+- [ ] FAT32 and exFAT boot-sector and metadata parsers
+- [ ] Parser fuzzing and malformed-image regression suite
 
 ## Phase 4 — Safe recovery
 
-- [ ] Recovery preview and file integrity checks
-- [ ] Destination validation and source/destination separation
-- [ ] Extraction to a separate disk
-- [ ] Recovery manifest and audit log
+- [ ] Recovery preview and file-integrity checks
+- [ ] Enforce source/destination separation
+- [ ] Extract recovered files to a separate destination only
+- [ ] Recovery manifest, hashes, and audit log
+- [ ] Interrupted extraction and collision handling
 
 ## Phase 5 — Desktop experience
 
-- [x] Initial WPF desktop shell for image selection and MBR/GPT inspection
-- [x] Partition overview, validation findings, and JSON report export
-- [ ] Guided scan workflow with clear risk warnings
-- [ ] Physical disk/image identity confirmation (physical disks remain unsupported)
-- [ ] Evidence view for lost-partition candidates
-- [ ] Accessible progress, cancellation, and reports
+- [x] Initial WPF image selection, MBR/GPT inspection, partition overview, findings, and JSON export
+- [ ] Guided lost-partition scan workflow with clear warnings
+- [ ] Evidence view and confidence explanations
+- [ ] Accessible progress, cancellation, and recovery reports
 
-## Current implementation notes
+## Current implementation boundary
 
-- `DiskRescue.IO` reads regular image files only; it exposes no physical-device access or source-write API. Device namespace paths, directories, and reparse points are rejected.
-- `DiskRescue.Partitions` contains initial MBR and GPT parsers. MBR parsing requires the 0x55AA signature. GPT parsing validates revision, header CRC, partition-array CRC, standard primary/backup placement, bounded entry counts/sizes, image bounds, usable-LBA ranges, duplicate GUIDs, overlaps, and primary/backup metadata consistency.
-- Tests use a shared reusable synthetic-image builder and disposable temporary files; a separate PowerShell utility creates disposable MBR, GPT, and damaged-primary-GPT images for desktop smoke tests. NTFS boot-sector tests use generated image fixtures; fixtures cover MBR validation, GPT primary/backup copies, CRC failures, overlaps, entry-count limits, primary/backup GUID mismatch, truncated images, and 4Kn sector geometry. Earlier Windows CI runs 21 and 37 passed the image-reader/MBR and original GPT milestones. New validation for the shared builder and expanded cases is running on the current feature-branch head.
-- The CLI is an engineering preview, not a finished end-user desktop product. The CI workflow now attempts to publish a self-contained Windows x64 preview artifact; verify that artifact only after the publish job succeeds. Physical-disk inventory, lost-partition discovery, filesystem parsing, and recovery are not implemented. The WPF desktop shell is an initial image-inspection UI and still requires Windows CI validation and hands-on usability testing.
+- `DiskRescue.IO` supports regular image files only; physical devices are not opened.
+- `DiskRescue.Partitions` validates MBR and GPT metadata. A validated backup GPT copy can be used when the primary GPT header is damaged.
+- `DiskRescue.Filesystems` currently validates the NTFS volume boot sector and metadata geometry only. It does not traverse the MFT, list directories, or recover file contents.
+- The desktop UI and CLI currently expose partition inspection. The NTFS validator is a library milestone and is not yet wired into a user workflow.
+- The PowerShell test-image generator creates three disposable fixtures: MBR, healthy GPT, and GPT with a damaged primary header but valid backup copy. CI is being extended to generate these fixtures and smoke-test CLI behavior end to end.
 
-## Release gates
+## Validation and release gates
 
-A feature is not complete until it has automated tests, documented limitations, safe failure behavior, and evidence that it cannot write to source media. No destructive repair feature is included in the initial roadmap.
+Windows CI run 42083397605 passed solution restore/build, all 28 automated tests, WPF build, and Windows x64 CLI and desktop preview publishing at commit 1ca82a6bbcf651ed709fc2ba4479aa786719d45e. The newer CI workflow at the current feature-branch head adds fixture-generation and CLI smoke-test steps; its result must pass before treating that workflow change as validated. Manual Windows desktop interaction is still required.
+
+A feature is not complete until it has automated tests, documented limitations, safe failure behavior, and evidence that source media cannot be modified. No destructive repair feature is included in this roadmap.
