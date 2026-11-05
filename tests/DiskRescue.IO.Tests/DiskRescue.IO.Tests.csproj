@@ -17,5 +17,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/DiskRescue.IO/DiskRescue.IO.csproj" />
+    <ProjectReference Include="../../src/DiskRescue.Partitions/DiskRescue.Partitions.csproj" />
   </ItemGroup>
 </Project>
