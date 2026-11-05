@@ -55,11 +55,11 @@ The feature branch now contains:
 - NTFS boot-sector, FILE-record fixup, attribute, and fragmented/sparse runlist parsers.
 - An MFT reader that reads records through the initial validated `$MFT::$DATA` extent, including records crossing fragmented physical extents.
 - Resident `$FILE_NAME` parsing and a bounded flat scan of initialized MFT records.
-- A CLI `scan-ntfs` command for a flat MFT preview using an explicitly supplied volume byte offset and length. CI run 42090410822 passed an end-to-end smoke test against a generated NTFS image with a fragmented MFT extent and a `Report.txt` filename entry.
+- A CLI `scan-ntfs` command for an MFT preview using an explicitly supplied volume byte offset and length. It returns flat filename entries plus a conservative partial directory tree with orphan diagnostics. CI run 42090410822 passed an end-to-end smoke test against a generated NTFS image with a fragmented MFT extent and a `Report.txt` filename entry.
 
 The successful Windows CI run [42089190267](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42089190267) validated the bounded MFT scan milestone, including tests, generated-image CLI smoke tests, WPF build, and Windows x64 publishing. Its associated test summary reported 48 passed and zero failed. The current branch also includes a sector-size consistency guard; its latest CI run is revalidating that final change.
 
-**This is still an engineering preview, not a data-recovery utility.** Physical-disk access, lost-partition discovery, MFT extent continuation through `$ATTRIBUTE_LIST`, directory-index traversal, full file-tree construction, FAT/exFAT support, and file extraction are not implemented. The WPF desktop does not yet expose the NTFS scan. All validation so far uses synthetic images; manual Windows UI testing remains outstanding. Never experiment on the damaged source disk or the only copy of important data.
+**This is still an engineering preview, not a data-recovery utility.** Physical-disk access, lost-partition discovery, MFT extent continuation through `$ATTRIBUTE_LIST`, directory-index traversal, full file-tree construction, FAT/exFAT support, and file extraction are not implemented. The WPF desktop does not yet expose the NTFS scan or tree preview. All validation so far uses synthetic images; manual Windows UI testing remains outstanding. Never experiment on the damaged source disk or the only copy of important data.
 ## First-version preview
 
 See [docs/FIRST-VERSION.md](docs/FIRST-VERSION.md) for CLI usage, [docs/DESKTOP-UI.md](docs/DESKTOP-UI.md) for the initial WPF desktop workflow, and [docs/TEST-IMAGES.md](docs/TEST-IMAGES.md) for safe test images. Windows preview artifacts are published by successful CI runs.
