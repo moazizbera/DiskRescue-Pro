@@ -125,5 +125,5 @@ if (-not [IO.Directory]::Exists($directory)) {
 $hash = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash
 Write-Output "Created synthetic NTFS MFT preview image: $fullPath"
 Write-Output "Length: $($image.Length) bytes; SHA256: $hash"
-Write-Output "Fixture contains one FILE_NAME entry (Report.txt) and a fragmented $MFT data extent."
+Write-Output 'Fixture contains one FILE_NAME entry (Report.txt) and a fragmented $MFT data extent.'
 Write-Output "This fixture is for parser tests only and is not a mountable NTFS volume."
