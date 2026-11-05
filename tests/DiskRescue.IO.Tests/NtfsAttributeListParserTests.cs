@@ -10,10 +10,10 @@ public sealed class NtfsAttributeListParserTests
     [Fact]
     public void ParsesMultipleEntriesAndSplitsFileReference()
     {
-        var value = new byte[64];
-        WriteEntry(value.AsSpan(0, 32), type: 0x80, length: 32, name: "DATA",
+        var value = new byte[72];
+        WriteEntry(value.AsSpan(0, 40), type: 0x80, length: 40, name: "DATA",
             lowestVcn: 8, recordNumber: 0x123456789ABC, sequence: 0xBEEF, attributeId: 7);
-        WriteEntry(value.AsSpan(32, 32), type: 0x80, length: 32, name: null,
+        WriteEntry(value.AsSpan(40, 32), type: 0x80, length: 32, name: null,
             lowestVcn: 0, recordNumber: 42, sequence: 3, attributeId: 2);
 
         var result = NtfsAttributeListParser.Parse(value);
