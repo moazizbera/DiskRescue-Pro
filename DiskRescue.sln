@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiskRescue.IO.Tests", "test
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiskRescue.Cli", "src\DiskRescue.Cli\DiskRescue.Cli.csproj", "{D4D44444-4444-4444-8444-444444444444}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiskRescue.Desktop", "src\DiskRescue.Desktop\DiskRescue.Desktop.csproj", "{E5E55555-5555-4555-8555-555555555555}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
