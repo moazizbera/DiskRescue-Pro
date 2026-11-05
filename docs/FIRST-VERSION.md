@@ -1,74 +1,80 @@
-# DiskRescue Pro — First Version Preview
+# DiskRescue Pro — Engineering Preview
 
-## What this version does
+## Supported workflows
 
-This is an early Windows x64 command-line and WPF preview for inspecting **regular disk-image files**. It opens the selected image read-only.
+### Image partition inspection
 
-The `inspect` command emits a JSON report containing:
-- Image length and selected logical sector size
-- MBR signature, protective-GPT indicator, partition entries, and diagnostics
-- GPT primary and backup header validity, partition entries, CRC validation results, and copy-consistency diagnostics
+The Windows x64 CLI and WPF preview open regular image files read-only. The inspection workflow reports image size, MBR entries, GPT primary and backup validation, partition boundaries, and parser diagnostics. A validated backup GPT copy may be used when the primary header is damaged; the report preserves the warning.
 
-The new `scan-ntfs` command validates an NTFS volume boot sector and performs a bounded, flat scan of initialized MFT records covered by the initial validated `$MFT::$DATA` extent. It can report resident `$FILE_NAME` values and parent references, plus a conservative partial directory tree when parent records and sequence numbers are present. Unresolved or cyclic entries remain in an orphan list. It does not follow directory indexes or recover file contents. The command passed an end-to-end CI smoke test against a generated 64 KiB NTFS fixture containing a filename entry that crosses fragmented MFT extents. The current branch adds a sector-size consistency guard that is being revalidated.
+### NTFS metadata preview
 
-## What it does not do
+The `scan-ntfs` CLI command and WPF NTFS preview validate the supplied NTFS volume range, boot-sector geometry, MFT record 0, and the initial unnamed `$MFT::$DATA` extent. They read a bounded number of initialized MFT records through the initial extent, including fragmented physical runs, and decode resident `$FILE_NAME` values.
 
-- It does not enumerate or open physical disks or volumes.
-- It does not scan a damaged physical drive.
-- It does not locate lost partitions yet.
-- It does not resolve additional MFT data extents through `$ATTRIBUTE_LIST`.
-- It does not traverse NTFS directory indexes or build a complete file tree.
-- It does not parse FAT32 or exFAT.
-- It does not list file contents or recover files.
-- It does not repair, initialize, format, repartition, or write to any source.
+The preview builds a conservative partial tree from the records actually scanned. Parent sequence numbers are checked; unresolved or cyclic entries are reported as orphans. The tree is not complete because additional MFT extents and directory indexes are not yet followed.
 
-**Do not point this preview at a physical-device path. Do not experiment on the only copy of important data.** If a disk is clicking, repeatedly disconnecting, overheating, or returning repeated I/O errors, stop using it and consider professional recovery.
+### Attribute-list entry parsing
 
-## Run from source
+The filesystem library now includes a bounded parser for an already-read `$ATTRIBUTE_LIST` value. It extracts each entry's attribute type, name, lowest VCN, 48-bit file-record number, 16-bit sequence number, and attribute ID. The parser enforces value-size, entry-count, entry-length, alignment, and name-range limits.
 
-Install the .NET 10 SDK, clone the repository, then run:
+This is a parser prerequisite only. The application does not yet resolve referenced continuation records, read non-resident attribute-list streams, or extend MFT coverage through those entries.
+
+## Not supported
+
+- Physical disk or volume enumeration and raw-device access.
+- Lost-partition discovery or automatic partition reconstruction.
+- Complete NTFS MFT coverage or directory-index traversal.
+- FAT32 or exFAT parsing.
+- File-content preview or recovery.
+- Source repair, initialization, formatting, repartitioning, or writes.
+
+## Build and test
+
+Install the .NET 10 SDK:
+
+```powershell
+dotnet restore DiskRescue.sln
+dotnet build DiskRescue.sln --configuration Release --no-restore
+dotnet test DiskRescue.sln --configuration Release --no-build
+```
+
+Inspect a regular image file:
 
 ```powershell
 dotnet run --project src/DiskRescue.Cli -- inspect "C:\Images\sample.img"
 ```
 
-For a 4Kn image:
-
-```powershell
-dotnet run --project src/DiskRescue.Cli -- inspect "C:\Images\sample-4kn.img" --sector-size 4096
-```
-
-To preview NTFS MFT records, provide the volume's byte offset and length. Obtain these from a trusted partition-inspection report; do not guess the values:
+Preview NTFS metadata using an offset and length obtained from a trusted partition inspection:
 
 ```powershell
 dotnet run --project src/DiskRescue.Cli -- scan-ntfs "C:\Images\sample.img" --offset 1048576 --length 1073741824 --max-records 5000
 ```
 
-The NTFS scan includes flat JSON entries and a conservative partial tree, not a complete verified folder tree. Its coverage is limited to the initial MFT data extent. Redirect reports to a separate output file if needed:
+Never guess the volume offset or length. Do not supply physical-device paths.
+
+## Generate safe fixtures
 
 ```powershell
-dotnet run --project src/DiskRescue.Cli -- scan-ntfs "C:\Images\sample.img" --offset 1048576 --length 1073741824 > ntfs-preview.json
+.\tools\New-DiskRescueTestImages.ps1 -OutputDirectory "$env:USERPROFILE\Documents\DiskRescue-TestImages"
+.\tools\New-NtfsMftPreviewImage.ps1 -OutputPath "$env:USERPROFILE\Documents\ntfs-mft-preview.img"
 ```
 
-## Downloadable preview
+See [TEST-IMAGES.md](TEST-IMAGES.md) for expected output and WPF manual test steps. The synthetic NTFS fixture is a parser fixture, not a mountable NTFS volume.
 
-The Windows CI workflow publishes self-contained Windows x64 CLI and desktop previews as GitHub Actions artifacts:
-- `DiskRescue-Pro-win-x64-preview`
+## Download the Windows preview
+
+Successful Windows CI runs publish:
 - `DiskRescue-Pro-Desktop-win-x64-preview`
+- `DiskRescue-Pro-win-x64-preview`
+- `diskrescue-test-results`
 
-Download and extract the artifacts from a successful workflow run. Example:
+Artifacts are available from [GitHub Actions](https://github.com/moazizbera/DiskRescue-Pro/actions/workflows/ci.yml).
 
-```powershell
-.\DiskRescue.Cli.exe inspect "C:\Images\sample.img"
-```
+## Validation
 
-Treat all findings as inspection evidence, not a guarantee that data can be recovered.
+The post-merge Windows CI run [42095792708](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42095792708) passed all 53 tests, generated-image CLI smoke tests, WPF build, and Windows x64 desktop/CLI publishing.
 
-## Validation status
+The current development branch adds bounded `$ATTRIBUTE_LIST` parsing and dedicated tests. That new code must pass its own CI run before it is considered validated. Manual desktop interaction with generated images is still required.
 
-Windows CI run 42089190267 passed restore, build, automated tests, safe fixture generation, CLI smoke tests, WPF build, and Windows x64 publishing for the bounded MFT scan milestone. The run's associated test summary reported 48 passed and zero failed. CI run 42090410822 also passed the synthetic NTFS MFT image generation and `scan-ntfs` smoke test. A subsequent sector-size consistency guard is being validated by the latest CI run. Manual Windows desktop interaction with generated images is still required.
+## Data preservation
 
-
-## Desktop NTFS preview
-
-The WPF preview now has an NTFS tab. After inspecting an image, select a partition and choose **Scan selected partition**. It scans up to 10,000 records from the initial validated MFT extent and displays a partial tree plus unlinked entries. This does not follow additional MFT extents or directory indexes and does not recover file contents. The updated desktop workflow is awaiting CI validation.
+Use generated images or copies created for testing. Never test against the only copy of important data. If a physical drive clicks, overheats, repeatedly disconnects, or produces persistent I/O errors, stop using it and consult a reputable recovery specialist. Do not run CHKDSK repair, initialize, format, or repartition the source.
