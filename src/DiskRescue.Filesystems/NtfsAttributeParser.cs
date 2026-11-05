@@ -38,7 +38,7 @@ public static class NtfsAttributeParser
     {
         ArgumentNullException.ThrowIfNull(record);
         var bytes = record.FixedUpBytes.AsSpan();
-        if (bytes.Length < 48 || record.BytesInUse > bytes.Length ||
+        if (bytes.Length < 48 || record.BytesInUse < 52 || record.BytesInUse > bytes.Length ||
             record.FirstAttributeOffset < 48 || record.FirstAttributeOffset > record.BytesInUse - 4)
             return Invalid("FILE record bounds or first-attribute offset are invalid.");
 
