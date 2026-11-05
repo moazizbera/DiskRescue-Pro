@@ -10,6 +10,7 @@
 ## Phase 1 — Read-only inspection
 
 - [x] Add bounded, read-only image-file random access (regular image files only; physical-device namespace paths and reparse points rejected)
+- [x] Add initial CLI command to inspect an image and emit a structured JSON report
 - [ ] Disk and volume inventory (Windows)
 - [ ] Device identity and sector geometry reporting
 - [x] Add initial MBR parsing with signature, boot-indicator, sector-size, range, protective-MBR, and overlap diagnostics
@@ -49,7 +50,7 @@
 - `DiskRescue.IO` reads regular image files only; it exposes no physical-device access or source-write API. Device namespace paths, directories, and reparse points are rejected.
 - `DiskRescue.Partitions` contains initial MBR and GPT parsers. MBR parsing requires the 0x55AA signature. GPT parsing validates revision, header CRC, partition-array CRC, standard primary/backup placement, bounded entry counts/sizes, image bounds, usable-LBA ranges, duplicate GUIDs, overlaps, and primary/backup metadata consistency.
 - Tests use a shared reusable synthetic-image builder and disposable temporary files; fixtures cover MBR validation, GPT primary/backup copies, CRC failures, overlaps, entry-count limits, primary/backup GUID mismatch, truncated images, and 4Kn sector geometry. Earlier Windows CI runs 21 and 37 passed the image-reader/MBR and original GPT milestones. New validation for the shared builder and expanded cases is running on the current feature-branch head.
-- Physical-disk inventory, lost-partition discovery, filesystem parsing, recovery, and the desktop application are not implemented.
+- The CLI is an engineering preview, not a finished end-user desktop product. Physical-disk inventory, lost-partition discovery, filesystem parsing, recovery, and the WPF desktop application are not implemented.
 
 ## Release gates
 
