@@ -25,6 +25,22 @@ public sealed class GptParserTests
     }
 
     [Fact]
+    public void ParsesBackupCopyWhenPrimaryHeaderIsCorrupt()
+    {
+        using var image = new SyntheticDiskImageBuilder();
+        image.AddGptPartition(0, 34, 40, "Backup Data");
+        image.WriteGptCopies();
+        image.CorruptByte(512 + 16);
+        using var reader = FileImageReader.Open(image.Path);
+        var result = GptParser.ParsePrimaryAndBackup(reader);
+        Assert.False(result.Primary.HeaderValid);
+        Assert.True(result.Backup.HeaderValid);
+        Assert.Contains(result.ConsistencyIssues, issue => issue.Contains("Primary GPT header is invalid", StringComparison.OrdinalIgnoreCase));
+        var partition = Assert.Single(result.Backup.Partitions);
+        Assert.Equal("Backup Data", partition.Name);
+    }
+
+    [Fact]
     public void RejectsHeaderWithBadCrc()
     {
         using var image = new SyntheticDiskImageBuilder();
