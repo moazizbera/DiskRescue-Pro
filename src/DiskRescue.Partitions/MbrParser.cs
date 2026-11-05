@@ -51,7 +51,16 @@ public static class MbrParser
                 issues.Add($"Partition entry {i + 1} is partially populated (type or sector count is zero).");
                 continue;
             }
-            if (type == ProtectiveGptType) protective = true;
+            if (type == ProtectiveGptType)
+            {
+                // A protective MBR's 0xEE entry is a GPT compatibility marker, not
+                // a usable partition candidate. Its sector count is commonly saturated
+                // at UInt32.MaxValue on large disks, so do not treat that as an overrun.
+                protective = true;
+                if (startLba == 0)
+                    issues.Add($"Protective MBR entry {i + 1} starts at LBA 0, which overlaps the MBR.");
+                continue;
+            }
             if (startLba == 0)
             {
                 issues.Add($"Partition entry {i + 1} starts at LBA 0, which overlaps the MBR.");
