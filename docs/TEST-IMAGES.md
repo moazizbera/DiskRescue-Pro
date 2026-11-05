@@ -34,10 +34,10 @@ A separate generator creates a 65,536-byte parser fixture with a synthetic NTFS 
 Run the bounded MFT preview from the CLI:
 
 ```powershell
-dotnet run --project src/DiskRescue.Cli -- scan-ntfs "$env:USERPROFILE\Documents\ntfs-mft-preview.img" --offset 0 --length 65536 --max-records 4
+dotnet run --project src/DiskRescue.Cli -- scan-ntfs "$env:USERPROFILE\Documents\ntfs-mft-preview.img" --offset 512 --length 65024 --max-records 4
 ```
 
-Expected result: one flat entry named `Report.txt`. This confirms the synthetic boot sector, MFT record fixups, fragmented MFT read, and resident filename parsing are connected. The fixture is deliberately minimal and is **not a mountable NTFS volume**. Do not mount it in Windows.
+Expected result: the image inspection shows one MBR partition. Select that partition in the WPF NTFS preview tab or run the CLI command above; the scan should return one entry named `Report.txt`. This confirms the synthetic MBR partition boundary, boot sector, MFT record fixups, fragmented MFT read, and resident filename parsing are connected. The fixture is deliberately minimal and is **not a mountable NTFS volume**. Do not mount it in Windows.
 
 ## Test in the desktop preview
 
