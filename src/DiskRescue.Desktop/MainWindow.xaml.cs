@@ -173,7 +173,7 @@ public partial class MainWindow : Window
             InspectButton.IsEnabled = true;
             BrowseButton.IsEnabled = true;
             Mouse.OverrideCursor = null;
-            PartitionsGrid_SelectionChanged(PartitionsGrid, new SelectionChangedEventArgs(Selector.SelectionChangedEvent, Array.Empty<object>(), Array.Empty<object>()));
+            UpdateNtfsButtonState();
         }
     }
 
@@ -186,12 +186,12 @@ public partial class MainWindow : Window
 
         var opened = NtfsMftReader.Open(image, offset, length, boot.BootSector);
         if (!opened.IsValid || opened.Reader is null)
-            throw new InvalidDataException("NTFS MFT validation failed: " + string.Join("; ", opened.Issues));
+            throw new IOException("NTFS MFT validation failed: " + string.Join("; ", opened.Issues));
 
         var scan = opened.Reader.ScanRecords(maximumRecords: 10000);
         var tree = NtfsDirectoryTreeBuilder.Build(scan.Entries);
         if (!scan.IsValid || !tree.IsValid)
-            throw new InvalidDataException("NTFS MFT scan could not produce a safe preview.");
+            throw new IOException("NTFS MFT scan could not produce a safe preview.");
         return new NtfsScanUiResult(boot.BootSector, scan, tree);
     }
 
