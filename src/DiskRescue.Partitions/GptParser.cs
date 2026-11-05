@@ -13,6 +13,7 @@ public sealed record GptDiskParseResult(GptParseResult Primary, GptParseResult B
 public static class GptParser
 {
     private const int MinimumHeaderSize = 92;
+    private const uint SupportedRevision = 0x00010000;
     private const uint MaximumEntryCount = 16384;
     private const uint MaximumEntrySize = 4096;
     private const ulong MaximumEntryArrayBytes = 16 * 1024 * 1024;
@@ -53,13 +54,14 @@ public static class GptParser
         if (source.Length <= 0 || source.Length % logicalSectorSize != 0) return Invalid("Image length is not a positive multiple of the logical sector size.");
         var totalSectors = (ulong)source.Length / logicalSectorSize;
         if (headerLba >= totalSectors) return Invalid("GPT header LBA is outside the image.");
-
         ulong headerOffset;
         try { headerOffset = checked(headerLba * logicalSectorSize); }
         catch (OverflowException) { return Invalid("GPT header offset overflows."); }
         var sector = new byte[(int)logicalSectorSize];
         source.ReadExactlyAt(checked((long)headerOffset), sector);
         if (!sector.AsSpan(0, 8).SequenceEqual(Signature)) return Invalid("GPT signature 'EFI PART' is missing.");
+        if (BinaryPrimitives.ReadUInt32LittleEndian(sector.AsSpan(8, 4)) != SupportedRevision)
+            return Invalid("GPT revision is unsupported; only revision 1.0 is accepted.");
 
         var headerSize = BinaryPrimitives.ReadUInt32LittleEndian(sector.AsSpan(12, 4));
         var storedHeaderCrc = BinaryPrimitives.ReadUInt32LittleEndian(sector.AsSpan(16, 4));
@@ -83,6 +85,8 @@ public static class GptParser
         if (backupLba >= totalSectors || backupLba == currentLba) return Invalid("GPT backup-LBA is invalid.");
         if (diskGuid == Guid.Empty) return Invalid("GPT disk GUID is empty.");
         if (firstUsable < 2 || firstUsable > lastUsable || lastUsable >= totalSectors - 1) return Invalid("GPT usable-LBA range is invalid.");
+        if ((currentLba >= firstUsable && currentLba <= lastUsable) || (backupLba >= firstUsable && backupLba <= lastUsable))
+            return Invalid("GPT header LBA overlaps the usable partition-LBA range.");
         if (entryCount == 0 || entryCount > MaximumEntryCount) return Invalid("GPT partition-entry count exceeds safe limits.");
         if (entrySize < 128 || entrySize > MaximumEntrySize || entrySize % 128 != 0) return Invalid("GPT partition-entry size is invalid or exceeds safe limits.");
 
@@ -100,8 +104,7 @@ public static class GptParser
             return Invalid("GPT partition-entry array extends beyond the image.");
         if ((entriesLba <= headerLba && headerLba <= arrayEndLba) || (entriesLba <= backupLba && backupLba <= arrayEndLba))
             return Invalid("GPT partition-entry array overlaps a GPT header.");
-        if (entriesLba <= lastUsable && arrayEndLba >= firstUsable)
-            return Invalid("GPT partition-entry array overlaps the usable partition-LBA range.");
+        if (entriesLba <= lastUsable && arrayEndLba >= firstUsable) return Invalid("GPT partition-entry array overlaps the usable partition-LBA range.");
 
         var array = new byte[checked((int)arrayBytes)];
         source.ReadExactlyAt(checked((long)arrayOffset), array);
