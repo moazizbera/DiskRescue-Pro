@@ -93,11 +93,13 @@ public partial class MainWindow : Window
             BrowseButton.IsEnabled = true;
             SectorSizeBox.IsEnabled = true;
             Mouse.OverrideCursor = null;
-            PartitionsGrid_SelectionChanged(PartitionsGrid, new SelectionChangedEventArgs(Selector.SelectionChangedEvent, Array.Empty<object>(), Array.Empty<object>()));
+            UpdateNtfsButtonState();
         }
     }
 
-    private void PartitionsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void PartitionsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateNtfsButtonState();
+
+    private void UpdateNtfsButtonState()
     {
         ScanNtfsButton.IsEnabled = _lastImagePath is not null &&
             PartitionsGrid.SelectedItem is PartitionRow row &&
@@ -180,7 +182,7 @@ public partial class MainWindow : Window
         using var image = FileImageReader.Open(path);
         var boot = NtfsBootSectorParser.Parse(image, offset, length);
         if (!boot.IsValid || boot.BootSector is null)
-            throw new InvalidDataException("NTFS boot-sector validation failed: " + string.Join("; ", boot.Issues));
+            throw new IOException("NTFS boot-sector validation failed: " + string.Join("; ", boot.Issues));
 
         var opened = NtfsMftReader.Open(image, offset, length, boot.BootSector);
         if (!opened.IsValid || opened.Reader is null)
