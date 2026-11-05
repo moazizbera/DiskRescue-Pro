@@ -34,7 +34,7 @@
 - [x] NTFS mapping-pairs decoder for fragmented and sparse extents with VCN/LCN bounds
 - [x] Read MFT FILE records through the validated initial $MFT::$DATA mapping-pairs extent with volume and initialized-size bounds
 - [x] Read FILE records through the validated initial $MFT::$DATA extent, including records crossing fragmented physical runs\n- [x] Parse resident $FILE_NAME values and parent file references\n- [ ] Resolve additional MFT extents through $ATTRIBUTE_LIST with VCN continuity and cycle checks\n- [ ] NTFS attribute and runlist integration with strict bounds
-- [ ] Read-only directory and file listing
+- [x] Bounded flat scan of initialized MFT records and resident $FILE_NAME entries (no hierarchy inference)\n- [ ] Validate parent record sequence references and build a read-only directory/file tree
 - [ ] FAT32 and exFAT boot-sector and metadata parsers
 - [ ] Parser fuzzing and malformed-image regression suite
 
