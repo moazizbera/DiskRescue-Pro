@@ -51,7 +51,7 @@ public sealed class NtfsAttributeParserTests
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(4, 2), 48);
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(6, 2), 3);
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(20, 2), 56);
-        BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(24, 4), 88);
+        BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(24, 4), 92);
         BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(28, 4), 1024);
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(48, 2), 0x5A5A);
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(50, 2), 0xAAAA);
