@@ -35,7 +35,7 @@ The exact dependency set will be selected only after reviewing maintenance statu
 
 ## Safety boundary
 
-The current implementation reads regular image files only. It does not open physical devices and exposes no source-write API. The initial product will not initialize, format, repartition, repair, or write partition tables. Any future write-capable feature must be isolated, disabled by default, require explicit informed confirmation, and be preceded by a verified backup or image. A UI warning is not a substitute for enforcing read-only access in the device-access layer.
+The current implementation reads regular image files only. It does not open physical devices and exposes no source-write API. A first command-line inspection preview is available on the feature branch: it emits a JSON report for image geometry, MBR entries, GPT primary/backup headers, partitions, and diagnostics. The initial product will not initialize, format, repartition, repair, or write partition tables. Any future write-capable feature must be isolated, disabled by default, require explicit informed confirmation, and be preceded by a verified backup or image. A UI warning is not a substitute for enforcing read-only access in the device-access layer.
 
 ## Repository layout
 
@@ -48,9 +48,9 @@ tools/      Developer utilities and test-image generation
 
 ## Status
 
-The project has moved beyond documentation-only foundation. The current feature branch contains a bounded read-only image-file reader, initial MBR and GPT parsers with CRC and range validation, generated temporary-image tests, and a Windows .NET 10 CI workflow. Windows CI runs 21 and 37 passed for the image-reader/MBR and GPT milestones respectively.
+The project has moved beyond documentation-only foundation. The current feature branch contains a bounded read-only image-file reader, initial MBR and GPT parsers with CRC and range validation, a reusable synthetic-image test builder, expanded parser tests, a JSON-reporting inspection CLI, and a Windows .NET 10 CI workflow. Windows CI runs 21 and 37 passed for the image-reader/MBR and GPT milestones respectively.
 
-Physical-disk inventory, device identity/geometry reporting, lost-partition discovery, filesystem parsing, recovery, and the WPF application are not implemented. The current code has been validated against synthetic images only and is not ready for real-world recovery or testing on a user's disk.
+Physical-disk inventory, device identity/geometry reporting, lost-partition discovery, filesystem parsing, recovery, and the WPF desktop application are not implemented. The current code has been validated against synthetic images only and is not ready for real-world recovery or testing on a user's disk.
 
 ## Contributing
 
