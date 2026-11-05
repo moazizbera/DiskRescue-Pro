@@ -82,7 +82,9 @@ public static class NtfsAttributeListParser
             offset = checked(offset + length);
         }
 
-        return entries.Count == 0\n            ? Invalid("$ATTRIBUTE_LIST contains no entries.")\n            : new(true, entries, Array.Empty<string>());
+        return entries.Count == 0
+            ? Invalid("$ATTRIBUTE_LIST contains no entries.")
+            : new(true, entries, Array.Empty<string>());
     }
 
     private static NtfsAttributeListParseResult Invalid(string issue) =>
