@@ -73,7 +73,7 @@ Artifacts are available from [GitHub Actions](https://github.com/moazizbera/Disk
 
 The post-merge Windows CI run [42095792708](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42095792708) passed all 53 tests, generated-image CLI smoke tests, WPF build, and Windows x64 desktop/CLI publishing.
 
-The current development branch adds bounded `$ATTRIBUTE_LIST` parsing and dedicated tests. That new code must pass its own CI run before it is considered validated. Manual desktop interaction with generated images is still required.
+The current development branch adds bounded `$ATTRIBUTE_LIST` parsing and dedicated tests. Windows CI run [42097467414](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42097467414) passed all 60 tests, generated-image CLI smoke tests, WPF build, and Windows x64 desktop/CLI publishing. Manual desktop interaction with generated images is still required.
 
 ## Data preservation
 
