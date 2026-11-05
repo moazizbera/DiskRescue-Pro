@@ -17,7 +17,7 @@ public sealed record NtfsMftRecordReadResult(
 /// The source is borrowed, never disposed, and is accessed exclusively through bounded reads.
 /// No directory-index traversal or writes are performed.
 /// </summary>
-public sealed class NtfsMftReader
+public sealed partial class NtfsMftReader
 {
     private const uint DataAttributeType = 0x80;
     private readonly IReadOnlyRandomAccessSource _source;
