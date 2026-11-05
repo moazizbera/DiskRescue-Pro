@@ -69,6 +69,19 @@ public sealed class MbrParserTests
     }
 
     [Fact]
+    public void AcceptsSaturatedProtectiveMbrEntryWithoutTreatingItAsPartition()
+    {
+        using var image = new SyntheticDiskImageBuilder(totalSectors: 100);
+        image.AddMbrPartition(0, 0xEE, 1, uint.MaxValue);
+        image.WriteMbr();
+        using var reader = FileImageReader.Open(image.Path);
+        var result = MbrParser.Parse(reader);
+        Assert.True(result.IsProtectiveMbr);
+        Assert.Empty(result.Partitions);
+        Assert.Empty(result.Issues);
+    }
+
+    [Fact]
     public void UsesLogicalSectorSizeForLbaConversion()
     {
         using var image = new SyntheticDiskImageBuilder(totalSectors: 8, sectorSize: 4096);
