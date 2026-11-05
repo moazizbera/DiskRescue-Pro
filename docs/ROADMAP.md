@@ -96,4 +96,4 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 
 The post-merge Windows CI run [42095792708](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42095792708) completed successfully on `main`: 53 tests passed, generated MBR/GPT/NTFS fixture generation and CLI smoke tests passed, WPF built, and self-contained Windows x64 CLI and desktop artifacts were published.
 
-The current feature branch adds the first `$ATTRIBUTE_LIST` entry parser and dedicated adversarial/bounds tests. Its CI result is pending. Manual Windows desktop interaction is still outstanding.
+The current feature branch adds the first `$ATTRIBUTE_LIST` entry parser and dedicated bounds tests. Windows CI run [42097467414](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42097467414) passed all 60 tests, generated-image CLI smoke tests, WPF build, and Windows x64 desktop/CLI publishing. Manual Windows desktop interaction is still outstanding.
