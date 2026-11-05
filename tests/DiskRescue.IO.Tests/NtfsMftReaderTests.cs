@@ -53,9 +53,11 @@ public sealed class NtfsMftReaderTests
     {
         var bytes = new byte[128 * 512];
         CreateFileRecord(recordZeroNumber, includeMftDataAttribute: true).CopyTo(bytes, 4 * 512);
-        CreateFileRecord(1, includeMftDataAttribute: false).CopyTo(bytes, 6 * 512);
-        CreateFileRecord(2, includeMftDataAttribute: false).CopyTo(bytes, 4 * 512 + 2 * 1024);
-        CreateFileRecord(3, includeMftDataAttribute: false).CopyTo(bytes, 4 * 512 + 3 * 1024);
+        var recordOne = CreateFileRecord(1, includeMftDataAttribute: false);
+        recordOne.AsSpan(0, 512).CopyTo(bytes.AsSpan(6 * 512, 512));
+        recordOne.AsSpan(512, 512).CopyTo(bytes.AsSpan(12 * 512, 512));
+        CreateFileRecord(2, includeMftDataAttribute: false).CopyTo(bytes, 13 * 512);
+        CreateFileRecord(3, includeMftDataAttribute: false).CopyTo(bytes, 15 * 512);
         return new MemoryImage(bytes);
     }
 
@@ -89,7 +91,9 @@ public sealed class NtfsMftReaderTests
             BinaryPrimitives.WriteUInt64LittleEndian(raw.AsSpan(96, 8), 4096);
             BinaryPrimitives.WriteUInt64LittleEndian(raw.AsSpan(104, 8), 4096);
             BinaryPrimitives.WriteUInt64LittleEndian(raw.AsSpan(112, 8), 4096);
-            raw[120] = 0x11; raw[121] = 0x08; raw[122] = 0x04; raw[123] = 0;
+            // VCN 0..2 at LCN 4, then VCN 3..7 at LCN 12 (fragmented extent).
+            raw[120] = 0x11; raw[121] = 0x03; raw[122] = 0x04;
+            raw[123] = 0x11; raw[124] = 0x05; raw[125] = 0x08; raw[126] = 0;
             BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(128, 4), 0xFFFFFFFF);
             BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(24, 4), 132);
         }
