@@ -176,7 +176,7 @@ static int RunNtfsScan(string[] args)
             return 1;
         }
 
-        var mftResult = NtfsMftReader.Open(image, volumeOffset.Value, volumeLength.Value, bootResult.BootSector);
+        if (bootResult.BootSector.BytesPerSector != sectorSize)\n        {\n            Console.Error.WriteLine($"Requested sector size {sectorSize} does not match NTFS BPB value {bootResult.BootSector.BytesPerSector}.");\n            return 1;\n        }\n\n        var mftResult = NtfsMftReader.Open(image, volumeOffset.Value, volumeLength.Value, bootResult.BootSector);
         if (!mftResult.IsValid || mftResult.Reader is null)
         {
             Console.Error.WriteLine("NTFS MFT validation failed: " + string.Join("; ", mftResult.Issues));
