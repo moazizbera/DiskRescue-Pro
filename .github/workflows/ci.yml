@@ -25,6 +25,18 @@ jobs:
         run: dotnet build DiskRescue.sln --configuration Release --no-restore
       - name: Test
         run: dotnet test DiskRescue.sln --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+      - name: Generate safe disk-image fixtures
+        shell: pwsh
+        run: ./tools/New-DiskRescueTestImages.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiskRescue-TestImages"
+      - name: Smoke-test CLI against generated fixtures
+        shell: pwsh
+        run: |
+          $mbr = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- inspect "$env:RUNNER_TEMP/DiskRescue-TestImages/mbr-valid.img" | ConvertFrom-Json
+          if ($mbr.mbr.partitions.Count -ne 1) { throw "MBR fixture did not produce exactly one partition." }
+          $gpt = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- inspect "$env:RUNNER_TEMP/DiskRescue-TestImages/gpt-valid.img" | ConvertFrom-Json
+          if (-not $gpt.gpt.primaryHeaderValid -or -not $gpt.gpt.backupHeaderValid -or $gpt.gpt.selectedPartitions.Count -ne 1) { throw "Valid GPT fixture did not validate as expected." }
+          $backup = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- inspect "$env:RUNNER_TEMP/DiskRescue-TestImages/gpt-primary-header-damaged.img" | ConvertFrom-Json
+          if ($backup.gpt.primaryHeaderValid -or -not $backup.gpt.backupHeaderValid -or $backup.gpt.selectedPartitionSource -ne "backup" -or $backup.gpt.selectedPartitions.Count -ne 1) { throw "Damaged-primary fixture did not fall back to the validated backup copy." }
       - name: Build WPF desktop application
         run: dotnet build src/DiskRescue.Desktop/DiskRescue.Desktop.csproj --configuration Release --no-restore
       - name: Publish Windows x64 desktop preview
