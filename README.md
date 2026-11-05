@@ -2,9 +2,9 @@
 
 **A safety-first Windows toolkit for disk inspection, lost-partition discovery, and data recovery.**
 
-DiskRescue Pro is an open-source project being built to help users understand what happened to a disk before they attempt repairs. The first release will focus on trustworthy, read-only inspection and recovery from disk images.
+DiskRescue Pro is being built to help users understand what happened to a disk before they attempt repairs. The first release focuses on trustworthy, read-only inspection and recovery from disk images.
 
-> **Early development:** This project is not yet a recovery utility. Do not use it on the only copy of important data. If a drive is clicking, repeatedly disconnecting, or showing hardware errors, power it down and consider professional recovery.
+> **Early development:** This project is not a recovery utility and is not ready for real-world recovery. Do not use it on the only copy of important data. If a drive is clicking, repeatedly disconnecting, or showing hardware errors, power it down and consider professional recovery.
 
 ## Project principles
 
@@ -35,7 +35,7 @@ The exact dependency set will be selected only after reviewing maintenance statu
 
 ## Safety boundary
 
-The initial product will not initialize, format, repartition, repair, or write partition tables. Any future write-capable feature must be isolated, disabled by default, require explicit informed confirmation, and be preceded by a verified backup or image. A UI warning is not a substitute for enforcing read-only access in the device-access layer.
+The current implementation reads regular image files only. It does not open physical devices and exposes no source-write API. The initial product will not initialize, format, repartition, repair, or write partition tables. Any future write-capable feature must be isolated, disabled by default, require explicit informed confirmation, and be preceded by a verified backup or image. A UI warning is not a substitute for enforcing read-only access in the device-access layer.
 
 ## Repository layout
 
@@ -48,7 +48,9 @@ tools/      Developer utilities and test-image generation
 
 ## Status
 
-The repository is at the project-foundation stage. The first engineering milestone is a read-only disk inventory and image-inspection foundation, validated against synthetic test images before any real-device testing.
+The project has moved beyond documentation-only foundation. The current feature branch contains a bounded read-only image-file reader, initial MBR and GPT parsers with CRC and range validation, generated temporary-image tests, and a Windows .NET 10 CI workflow. Windows CI runs 21 and 37 passed for the image-reader/MBR and GPT milestones respectively.
+
+Physical-disk inventory, device identity/geometry reporting, lost-partition discovery, filesystem parsing, recovery, and the WPF application are not implemented. The current code has been validated against synthetic images only and is not ready for real-world recovery or testing on a user's disk.
 
 ## Contributing
 
