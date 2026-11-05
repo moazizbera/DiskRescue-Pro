@@ -8,6 +8,7 @@ public sealed record NtfsAttribute(
     uint Length,
     bool IsNonResident,
     ushort AttributeId,
+    ushort Flags,
     string Name,
     uint? ResidentValueLength,
     ushort? ResidentValueOffset,
@@ -16,7 +17,8 @@ public sealed record NtfsAttribute(
     ushort? MappingPairsOffset,
     ulong? AllocatedSize,
     ulong? RealSize,
-    ulong? InitializedSize);
+    ulong? InitializedSize,
+    byte[]? MappingPairs);
 
 public sealed record NtfsAttributeParseResult(
     bool IsValid,
@@ -60,6 +62,7 @@ public static class NtfsAttributeParser
             var nonResidentFlag = bytes[offset + 8];
             var nameLength = bytes[offset + 9];
             var nameOffset = BinaryPrimitives.ReadUInt16LittleEndian(bytes.Slice(offset + 10, 2));
+            var attributeFlags = BinaryPrimitives.ReadUInt16LittleEndian(bytes.Slice(offset + 12, 2));
             var attributeId = BinaryPrimitives.ReadUInt16LittleEndian(bytes.Slice(offset + 14, 2));
 
             if (length < ResidentHeaderSize || (length & 7) != 0 || length > record.BytesInUse - offset)
@@ -85,8 +88,8 @@ public static class NtfsAttributeParser
                     return Invalid("Resident attribute value range is outside its attribute record.");
                 if (nameLength > 0 && RangesOverlap(nameOffset, nameByteLength, valueOffset, checked((int)valueLength)))
                     return Invalid("Resident attribute name overlaps its value.");
-                attributes.Add(new(type, length, false, attributeId, name, valueLength, valueOffset,
-                    null, null, null, null, null, null));
+                attributes.Add(new(type, length, false, attributeId, attributeFlags, name, valueLength, valueOffset,
+                    null, null, null, null, null, null, null));
             }
             else
             {
@@ -106,8 +109,9 @@ public static class NtfsAttributeParser
                     return Invalid("Non-resident attribute size fields are inconsistent.");
                 if (nameLength > 0 && RangesOverlap(nameOffset, nameByteLength, mappingPairsOffset, (int)length - mappingPairsOffset))
                     return Invalid("Non-resident attribute name overlaps mapping pairs.");
-                attributes.Add(new(type, length, true, attributeId, name, null, null,
-                    lowestVcn, highestVcn, mappingPairsOffset, allocatedSize, realSize, initializedSize));
+                attributes.Add(new(type, length, true, attributeId, attributeFlags, name, null, null,
+                    lowestVcn, highestVcn, mappingPairsOffset, allocatedSize, realSize, initializedSize,
+                    attribute.Slice(mappingPairsOffset).ToArray()));
             }
 
             offset = checked(offset + (int)length);
