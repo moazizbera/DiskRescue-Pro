@@ -78,6 +78,24 @@ public sealed class NtfsDirectoryTreeBuilderTests
         Assert.Equal("LongFileName.txt", file.Name);
     }
 
+
+    [Fact]
+    public void PreservesDistinctHardLinkNamesForSameFileRecord()
+    {
+        var entries = new[]
+        {
+            Entry(5, 7, 5, 7, "Root", true),
+            Entry(20, 4, 5, 7, "FirstName.txt", false, 1, 1),
+            Entry(20, 4, 5, 7, "SecondName.txt", false, 1, 1)
+        };
+
+        var result = NtfsDirectoryTreeBuilder.Build(entries);
+        var root = Assert.Single(result.Roots);
+        Assert.Equal(2, root.Children.Count);
+        Assert.Contains(root.Children, child => child.Name == "FirstName.txt");
+        Assert.Contains(root.Children, child => child.Name == "SecondName.txt");
+    }
+
     private static NtfsMftEntry Entry(
         ulong record,
         ushort sequence,
