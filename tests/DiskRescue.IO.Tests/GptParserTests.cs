@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using DiskRescue.IO;
 using DiskRescue.Partitions;
 using Xunit;
@@ -104,6 +105,22 @@ public sealed class GptParserTests
         var result = GptParser.ParseAtLba(reader, 512, 1);
         Assert.False(result.HeaderValid);
         Assert.Contains(result.Issues, issue => issue.Contains("multiple", StringComparison.OrdinalIgnoreCase));
+    }
+
+
+    [Fact]
+    public void ParsesGptUsingFourKnLogicalSectors()
+    {
+        using var image = new SyntheticDiskImageBuilder(sectorSize: 4096);
+        image.AddGptPartition(0, 34, 40, "4Kn Data");
+        image.WriteGptCopies();
+        using var reader = FileImageReader.Open(image.Path);
+        var result = GptParser.ParsePrimaryAndBackup(reader, 4096);
+        Assert.True(result.Primary.HeaderValid);
+        Assert.True(result.Backup.HeaderValid);
+        var partition = Assert.Single(result.Primary.Partitions);
+        Assert.Equal(34L * 4096, partition.ByteOffset);
+        Assert.Equal(7L * 4096, partition.ByteLength);
     }
 
     private static uint ComputeCrc32(ReadOnlySpan<byte> data)
