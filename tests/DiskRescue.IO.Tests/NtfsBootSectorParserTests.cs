@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Text;
 using DiskRescue.Filesystems;
 using DiskRescue.IO;
 using Xunit;
