@@ -39,6 +39,8 @@ jobs:
           if (-not $gpt.gpt.primaryHeaderValid -or -not $gpt.gpt.backupHeaderValid -or $gpt.gpt.selectedPartitions.Count -ne 1) { throw "Valid GPT fixture did not validate as expected." }
           $backup = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- inspect "$env:RUNNER_TEMP/DiskRescue-TestImages/gpt-primary-header-damaged.img" | ConvertFrom-Json
           if ($backup.gpt.primaryHeaderValid -or -not $backup.gpt.backupHeaderValid -or $backup.gpt.selectedPartitionSource -ne "backup" -or $backup.gpt.selectedPartitions.Count -ne 1) { throw "Damaged-primary fixture did not fall back to the validated backup copy." }
+          $ntfsDisk = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- inspect "$env:RUNNER_TEMP/DiskRescue-TestImages/ntfs-mft-preview.img" | ConvertFrom-Json
+          if ($ntfsDisk.mbr.partitions.Count -ne 1 -or $ntfsDisk.mbr.partitions[0].byteOffset -ne 512 -or $ntfsDisk.mbr.partitions[0].byteLength -ne 65024) { throw "Synthetic NTFS image did not expose the expected MBR partition boundary." }
           $ntfs = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- scan-ntfs "$env:RUNNER_TEMP/DiskRescue-TestImages/ntfs-mft-preview.img" --offset 512 --length 65024 --max-records 4 | ConvertFrom-Json
           if ($ntfs.scan.entries.Count -ne 1 -or $ntfs.scan.entries[0].name -ne "Report.txt") { throw "Synthetic NTFS MFT fixture did not return the expected Report.txt entry." }
           if ($ntfs.scan.recordsExamined -ne 4 -or -not $ntfs.safety.sourceOpenedReadOnly -or $ntfs.safety.fileRecoveryAvailable) { throw "NTFS scan safety or record-count assertions failed." }
