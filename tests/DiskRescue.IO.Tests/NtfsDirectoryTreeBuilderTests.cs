@@ -51,12 +51,14 @@ public sealed class NtfsDirectoryTreeBuilderTests
         {
             Entry(5, 7, 5, 7, "Root", true),
             Entry(10, 1, 11, 1, "A", true),
-            Entry(11, 1, 10, 1, "B", true)
+            Entry(11, 1, 10, 1, "B", true),
+            Entry(12, 1, 10, 1, "Child.txt", false)
         };
 
         var result = NtfsDirectoryTreeBuilder.Build(entries);
         Assert.True(result.IsValid);
         Assert.Equal(2, result.Orphans.Count);
+        Assert.Contains(result.Orphans, x => x.Children.Any(child => child.Name == "Child.txt"));
         Assert.Contains(result.Issues, x => x.Contains("cycle", StringComparison.OrdinalIgnoreCase));
     }
 
