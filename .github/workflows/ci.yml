@@ -25,6 +25,16 @@ jobs:
         run: dotnet build DiskRescue.sln --configuration Release --no-restore
       - name: Test
         run: dotnet test DiskRescue.sln --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+      - name: Build WPF desktop application
+        run: dotnet build src/DiskRescue.Desktop/DiskRescue.Desktop.csproj --configuration Release --no-restore
+      - name: Publish Windows x64 desktop preview
+        run: dotnet publish src/DiskRescue.Desktop/DiskRescue.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/DiskRescue-Pro-Desktop-win-x64
+      - name: Upload Windows x64 desktop preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiskRescue-Pro-Desktop-win-x64-preview
+          path: artifacts/DiskRescue-Pro-Desktop-win-x64/**
+          if-no-files-found: error
       - name: Publish Windows x64 CLI preview
         run: dotnet publish src/DiskRescue.Cli/DiskRescue.Cli.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/DiskRescue-Pro-win-x64
       - name: Upload Windows x64 CLI preview
