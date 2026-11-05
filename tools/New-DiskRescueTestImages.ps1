@@ -17,15 +17,16 @@ function Set-U64([byte[]]$Buffer, [int]$Offset, [UInt64]$Value) {
     [Array]::Copy([BitConverter]::GetBytes($Value), 0, $Buffer, $Offset, 8)
 }
 function Get-Crc32([byte[]]$Data) {
-    [UInt32]$crc = 0xFFFFFFFF
+    # Use Int64 intermediates because PowerShell parses 0xFFFFFFFF as signed -1.
+    [long]$crc = 4294967295
     foreach ($value in $Data) {
-        $crc = $crc -bxor [UInt32]$value
+        $crc = $crc -bxor [long]$value
         for ($bit = 0; $bit -lt 8; $bit++) {
-            if (($crc -band 1) -ne 0) { $crc = ($crc -shr 1) -bxor [UInt32]0xEDB88320 }
+            if (($crc -band 1) -ne 0) { $crc = ($crc -shr 1) -bxor 3988292384 }
             else { $crc = $crc -shr 1 }
         }
     }
-    return [UInt32]($crc -bxor [UInt32]0xFFFFFFFF)
+    return [UInt32]($crc -bxor 4294967295)
 }
 function Save-NewImage([string]$Name, [byte[]]$Bytes) {
     $path = Join-Path $resolved $Name
