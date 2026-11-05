@@ -1,0 +1,31 @@
+# Build outputs
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+
+# Test and coverage outputs
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# IDE
+.idea/
+.vscode/
+
+# Local artifacts and disk images (never commit user data)
+artifacts/
+*.img
+*.dd
+*.raw
+*.vhd
+*.vhdx
+*.vmdk
+*.iso
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
