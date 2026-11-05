@@ -26,6 +26,7 @@ public sealed class NtfsMftReader
     private readonly NtfsBootSector _boot;
     private readonly IReadOnlyList<NtfsDataRun> _runs;
     private readonly ulong _mftInitializedSize;
+    private readonly ulong _mftMappedBytes;
 
     private NtfsMftReader(
         IReadOnlyRandomAccessSource source,
@@ -33,7 +34,8 @@ public sealed class NtfsMftReader
         long volumeLength,
         NtfsBootSector boot,
         IReadOnlyList<NtfsDataRun> runs,
-        ulong initializedSize)
+        ulong initializedSize,
+        ulong mappedBytes)
     {
         _source = source;
         _volumeOffset = volumeOffset;
@@ -41,6 +43,7 @@ public sealed class NtfsMftReader
         _boot = boot;
         _runs = runs;
         _mftInitializedSize = initializedSize;
+        _mftMappedBytes = mappedBytes;
     }
 
     public ulong InitializedSize => _mftInitializedSize;
@@ -62,12 +65,17 @@ public sealed class NtfsMftReader
         catch (OverflowException) { return InvalidOpen("The supplied NTFS volume range overflows."); }
         if (volumeEnd > source.Length)
             return InvalidOpen("The supplied NTFS volume range exceeds the image boundary.");
-        if (boot.ClusterSizeBytes == 0 || boot.FileRecordSizeBytes is < 512 or > 1024 * 1024 ||
+        if (boot.BytesPerSector is not (512 or 1024 or 2048 or 4096) || boot.ClusterSizeBytes == 0 ||
+            boot.ClusterSizeBytes % boot.BytesPerSector != 0 || boot.FileRecordSizeBytes is < 512 or > 1024 * 1024 ||
             boot.MftByteOffset < volumeOffset || boot.MftByteOffset > volumeEnd - boot.FileRecordSizeBytes)
             return InvalidOpen("NTFS boot-sector metadata contains invalid MFT geometry.");
 
         try
         {
+            var expectedMftOffset = checked(volumeOffset + checked((long)(boot.MftCluster * boot.ClusterSizeBytes)));
+            if (expectedMftOffset != boot.MftByteOffset)
+                return InvalidOpen("NTFS MFT byte offset does not match its validated cluster location.");
+
             var firstRecordBytes = new byte[checked((int)boot.FileRecordSizeBytes)];
             source.ReadExactlyAt(boot.MftByteOffset, firstRecordBytes);
             var firstRecordResult = NtfsFileRecordParser.Parse(firstRecordBytes, boot.BytesPerSector);
@@ -99,12 +107,14 @@ public sealed class NtfsMftReader
                 return InvalidOpen("The $MFT mapping pairs contain no allocated extents.");
             if (runlist.TotalClusters - 1 != data.HighestVcn.Value)
                 return InvalidOpen("$MFT highest VCN does not match the decoded mapping-pairs extent.");
-            if (data.InitializedSize.Value > data.RealSize.Value ||
-                data.RealSize.Value > checked(runlist.TotalClusters * boot.ClusterSizeBytes))
-                return InvalidOpen("$MFT real or initialized size exceeds its mapped extents.");
+            if (data.InitializedSize.Value > data.RealSize.Value || data.RealSize.Value > data.AllocatedSize.Value)
+                return InvalidOpen("$MFT real and initialized size fields are inconsistent.");
+            var mappedBytes = checked(runlist.TotalClusters * boot.ClusterSizeBytes);
+            if (mappedBytes < boot.FileRecordSizeBytes)
+                return InvalidOpen("The initial $MFT extent is too small to contain a complete FILE record.");
 
             return new(true,
-                new NtfsMftReader(source, volumeOffset, volumeLength, boot, runlist.Runs, data.InitializedSize.Value),
+                new NtfsMftReader(source, volumeOffset, volumeLength, boot, runlist.Runs, data.InitializedSize.Value, mappedBytes),
                 Array.Empty<string>());
         }
         catch (Exception ex) when (ex is IOException or OverflowException or ArgumentOutOfRangeException)
@@ -119,8 +129,9 @@ public sealed class NtfsMftReader
         try { logicalOffset = checked(recordNumber * _boot.FileRecordSizeBytes); }
         catch (OverflowException) { return InvalidRecord("Requested MFT record offset overflows."); }
 
-        if (logicalOffset > _mftInitializedSize ||
-            _boot.FileRecordSizeBytes > _mftInitializedSize - logicalOffset)
+        var readableBytes = Math.Min(_mftInitializedSize, _mftMappedBytes);
+        if (logicalOffset > readableBytes ||
+            _boot.FileRecordSizeBytes > readableBytes - logicalOffset)
             return InvalidRecord("Requested MFT record is beyond the initialized $MFT data range.");
 
         try
