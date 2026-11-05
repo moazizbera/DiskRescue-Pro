@@ -50,11 +50,11 @@ tools/      Developer utilities and test-image generation
 
 The project has moved beyond documentation-only foundation. The current feature branch contains a bounded read-only image-file reader, initial MBR and GPT parsers with CRC and range validation, a reusable synthetic-image test builder, expanded parser tests, a JSON-reporting inspection CLI, and a Windows .NET 10 CI workflow. Windows CI runs 21 and 37 passed for the image-reader/MBR and GPT milestones respectively.
 
-Physical-disk inventory, device identity/geometry reporting, lost-partition discovery, filesystem parsing, and recovery are not implemented. An initial WPF desktop shell for image selection, MBR/GPT inspection, partition review, diagnostics, and JSON report export is now included on the feature branch; it still requires CI validation and hands-on Windows testing. The current code has been validated against synthetic images only and is not ready for real-world recovery or testing on a user's disk.
+Physical-disk inventory, device identity/geometry reporting, lost-partition discovery, filesystem parsing, and recovery are not implemented. An initial WPF desktop shell for image selection, MBR/GPT inspection, partition review, diagnostics, and JSON report export is now included on the feature branch; it still requires CI validation and hands-on Windows testing. The current code has been validated against synthetic images only and is not ready for real-world recovery or testing on a user's disk. A separate read-only NTFS boot-sector validator now checks volume geometry and MFT pointer bounds; it does not yet parse the MFT or enumerate files. Use [the safe test-image guide](docs/TEST-IMAGES.md) to create disposable MBR/GPT fixtures without touching physical disks.
 
 ## First-version preview
 
-See [docs/FIRST-VERSION.md](docs/FIRST-VERSION.md) for CLI usage and [docs/DESKTOP-UI.md](docs/DESKTOP-UI.md) for the initial WPF desktop workflow. Windows preview artifacts are published by successful CI runs.
+See [docs/FIRST-VERSION.md](docs/FIRST-VERSION.md) for CLI usage, [docs/DESKTOP-UI.md](docs/DESKTOP-UI.md) for the initial WPF desktop workflow, and [docs/TEST-IMAGES.md](docs/TEST-IMAGES.md) for safe test images. Windows preview artifacts are published by successful CI runs.
 
 ## Contributing
 
