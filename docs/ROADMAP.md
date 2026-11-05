@@ -33,7 +33,7 @@
 - [x] Bounded resident/non-resident attribute-header parsing with value, name, and mapping-pairs range checks
 - [x] NTFS mapping-pairs decoder for fragmented and sparse extents with VCN/LCN bounds
 - [x] Read MFT FILE records through the validated initial $MFT::$DATA mapping-pairs extent with volume and initialized-size bounds
-- [ ] NTFS attribute and runlist integration with strict bounds
+- [x] Read FILE records through the validated initial $MFT::$DATA extent, including records crossing fragmented physical runs\n- [x] Parse resident $FILE_NAME values and parent file references\n- [ ] Resolve additional MFT extents through $ATTRIBUTE_LIST with VCN continuity and cycle checks\n- [ ] NTFS attribute and runlist integration with strict bounds
 - [ ] Read-only directory and file listing
 - [ ] FAT32 and exFAT boot-sector and metadata parsers
 - [ ] Parser fuzzing and malformed-image regression suite
