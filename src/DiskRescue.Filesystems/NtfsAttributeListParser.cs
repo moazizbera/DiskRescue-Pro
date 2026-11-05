@@ -54,18 +54,6 @@ public static class NtfsAttributeListParser
             var fileReference = BinaryPrimitives.ReadUInt64LittleEndian(entry.Slice(16, 8));
             var attributeId = BinaryPrimitives.ReadUInt16LittleEndian(entry.Slice(24, 2));
 
-            if (type == 0xFFFFFFFF)
-            {
-                if (length != 0 || nameLength != 0 || nameOffset != 0 ||
-                    lowestVcn != 0 || fileReference != 0 || attributeId != 0)
-                    return Invalid("$ATTRIBUTE_LIST terminator contains unexpected data.");
-                if (value[(offset + 4)..].IndexOfAnyExcept((byte)0) >= 0)
-                    return Invalid("$ATTRIBUTE_LIST contains non-zero data after its terminator.");
-                return entries.Count == 0
-                    ? Invalid("$ATTRIBUTE_LIST contains no entries.")
-                    : new(true, entries, Array.Empty<string>());
-            }
-
             if (length < MinimumEntryLength || (length & 7) != 0 || length > value.Length - offset)
                 return Invalid("$ATTRIBUTE_LIST entry length is invalid, unaligned, or truncated.");
 
@@ -94,7 +82,7 @@ public static class NtfsAttributeListParser
             offset = checked(offset + length);
         }
 
-        return new(true, entries, Array.Empty<string>());
+        return entries.Count == 0\n            ? Invalid("$ATTRIBUTE_LIST contains no entries.")\n            : new(true, entries, Array.Empty<string>());
     }
 
     private static NtfsAttributeListParseResult Invalid(string issue) =>
