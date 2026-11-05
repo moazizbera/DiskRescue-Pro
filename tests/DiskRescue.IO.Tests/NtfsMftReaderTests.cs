@@ -53,7 +53,7 @@ public sealed class NtfsMftReaderTests
     {
         var bytes = new byte[128 * 512];
         CreateFileRecord(recordZeroNumber, includeMftDataAttribute: true).CopyTo(bytes, 4 * 512);
-        var recordOne = CreateFileRecord(1, includeMftDataAttribute: false);
+        var recordOne = CreateFileRecord(1, includeMftDataAttribute: false, includeFileName: true);
         recordOne.AsSpan(0, 512).CopyTo(bytes.AsSpan(6 * 512, 512));
         recordOne.AsSpan(512, 512).CopyTo(bytes.AsSpan(12 * 512, 512));
         CreateFileRecord(2, includeMftDataAttribute: false).CopyTo(bytes, 13 * 512);
@@ -61,7 +61,7 @@ public sealed class NtfsMftReaderTests
         return new MemoryImage(bytes);
     }
 
-    private static byte[] CreateFileRecord(uint recordNumber, bool includeMftDataAttribute)
+    private static byte[] CreateFileRecord(uint recordNumber, bool includeMftDataAttribute, bool includeFileName = false, bool isDirectory = false)
     {
         var raw = new byte[1024];
         "FILE"u8.CopyTo(raw);
@@ -70,7 +70,7 @@ public sealed class NtfsMftReaderTests
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(16, 2), 9);
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(18, 2), 1);
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(20, 2), 56);
-        BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(22, 2), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(22, 2), (ushort)(1 | (isDirectory ? 2 : 0)));
         BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(28, 4), 1024);
         BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(44, 4), recordNumber);
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(48, 2), 0x5A5A);
