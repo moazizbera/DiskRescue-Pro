@@ -18,7 +18,6 @@ public sealed class NtfsAttributeParserTests
         Assert.Equal(0x10u, attribute.Type);
         Assert.False(attribute.IsNonResident);
         Assert.Equal(4u, attribute.ResidentValueLength);
-        Assert.Equal("DATA", System.Text.Encoding.Unicode.GetString(record.AsSpan(56, 8)));
     }
 
     [Fact]
@@ -61,14 +60,14 @@ public sealed class NtfsAttributeParserTests
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(1022, 2), 0x5A5A);
 
         BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(56, 4), 0x10);
-        BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(60, 4), 24);
+        BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(60, 4), 32);
         raw[64] = 0; // resident
         BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(72, 4), 4);
-        BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(76, 2), 80);
+        BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(76, 2), 24);
         raw[78] = 0;
         raw[79] = 0;
         "DATA"u8.CopyTo(raw.AsSpan(80, 4));
-        BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(80, 4), 0xFFFFFFFF);
+        BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(88, 4), 0xFFFFFFFF);
         return raw;
     }
 }
