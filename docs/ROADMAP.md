@@ -29,8 +29,11 @@
 ## Phase 3 — Filesystem inspection
 
 - [x] Initial NTFS boot-sector validation: OEM/signature, sector and cluster geometry, volume bounds, MFT/MFT mirror locations, and record-size encoding
-- [ ] NTFS MFT record parsing with update-sequence-array fixup validation
-- [ ] NTFS attribute and runlist parsing with strict bounds
+- [x] NTFS FILE record header validation and update-sequence-array fixup validation
+- [x] Bounded resident/non-resident attribute-header parsing with value, name, and mapping-pairs range checks
+- [x] NTFS mapping-pairs decoder for fragmented and sparse extents with VCN/LCN bounds
+- [ ] Integrate validated MFT record reading through decoded extents
+- [ ] NTFS attribute and runlist integration with strict bounds
 - [ ] Read-only directory and file listing
 - [ ] FAT32 and exFAT boot-sector and metadata parsers
 - [ ] Parser fuzzing and malformed-image regression suite
@@ -54,9 +57,9 @@
 
 - `DiskRescue.IO` supports regular image files only; physical devices are not opened.
 - `DiskRescue.Partitions` validates MBR and GPT metadata. A validated backup GPT copy can be used when the primary GPT header is damaged.
-- `DiskRescue.Filesystems` currently validates the NTFS volume boot sector and metadata geometry only. It does not traverse the MFT, list directories, or recover file contents.
+- `DiskRescue.Filesystems` validates NTFS boot-sector geometry, FILE record USA fixups, bounded attribute headers, and mapping-pairs runlists. These are parser building blocks only: the application does not yet traverse the MFT, list directories, follow attribute lists, decode indexes, or recover file contents.
 - The desktop UI and CLI currently expose partition inspection. The NTFS validator is a library milestone and is not yet wired into a user workflow.
-- The PowerShell test-image generator creates three disposable fixtures: MBR, healthy GPT, and GPT with a damaged primary header but valid backup copy. CI is being extended to generate these fixtures and smoke-test CLI behavior end to end.
+- The PowerShell test-image generator creates three disposable fixtures: MBR, healthy GPT, and GPT with a damaged primary header but valid backup copy. CI generates these fixtures and smoke-tests CLI behavior end to end. NTFS record, attribute, and runlist parsers have dedicated synthetic unit tests.
 
 ## Validation and release gates
 
