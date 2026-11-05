@@ -46,6 +46,8 @@ static int Run(string[] args)
         using var image = FileImageReader.Open(imagePath);
         var mbr = MbrParser.Parse(image, sectorSize);
         var gpt = GptParser.ParsePrimaryAndBackup(image, checked((uint)sectorSize));
+        var hasGpt = gpt.Primary.HeaderValid || gpt.Backup.HeaderValid;
+        var selectedGpt = gpt.Primary.HeaderValid ? gpt.Primary : gpt.Backup;
 
         var report = new
         {
@@ -83,7 +85,9 @@ static int Run(string[] args)
                 backupHeader = gpt.Backup.Header,
                 backupPartitions = gpt.Backup.Partitions,
                 backupDiagnostics = gpt.Backup.Issues,
-                consistencyDiagnostics = gpt.ConsistencyIssues
+                consistencyDiagnostics = gpt.ConsistencyIssues,
+                selectedPartitionSource = gpt.Primary.HeaderValid ? "primary" : gpt.Backup.HeaderValid ? "backup" : "none",
+                selectedPartitions = selectedGpt.Partitions
             }
         };
 
