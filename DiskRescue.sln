@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiskRescue.Partitions", "sr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiskRescue.IO.Tests", "tests\DiskRescue.IO.Tests\DiskRescue.IO.Tests.csproj", "{B2B22222-2222-4222-8222-222222222222}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiskRescue.Cli", "src\DiskRescue.Cli\DiskRescue.Cli.csproj", "{D4D44444-4444-4444-8444-444444444444}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,5 +28,9 @@ Global
 		{B2B22222-2222-4222-8222-222222222222}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B2B22222-2222-4222-8222-222222222222}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B2B22222-2222-4222-8222-222222222222}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D4D44444-4444-4444-8444-444444444444}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D4D44444-4444-4444-8444-444444444444}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D4D44444-4444-4444-8444-444444444444}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D4D44444-4444-4444-8444-444444444444}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
