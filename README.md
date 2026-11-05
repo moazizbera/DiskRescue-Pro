@@ -52,6 +52,10 @@ The project has moved beyond documentation-only foundation. The current feature 
 
 Physical-disk inventory, device identity/geometry reporting, lost-partition discovery, filesystem parsing, recovery, and the WPF desktop application are not implemented. The current code has been validated against synthetic images only and is not ready for real-world recovery or testing on a user's disk.
 
+## First-version preview
+
+See [docs/FIRST-VERSION.md](docs/FIRST-VERSION.md) for usage instructions, the exact safety boundaries, and how to obtain the Windows x64 preview artifact from a successful CI run.
+
 ## Contributing
 
 Contributions should include tests, clear safety implications, and documentation of supported disk layouts and filesystems. Never include real user disk images, recovered personal files, credentials, or other sensitive data in issues or pull requests.
