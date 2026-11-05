@@ -12,10 +12,10 @@
 - [x] MBR parsing with signature, entry, bounds, sector-size, protective-MBR, and overlap checks
 - [x] GPT primary/backup parsing with header and array CRC32, bounds, and copy-consistency checks
 - [x] Fall back to a validated backup GPT copy when the primary header is damaged
-- [x] CLI JSON inspection report
-- [x] Initial WPF image-inspection UI and JSON report export
+- [x] CLI JSON partition-inspection report
+- [x] Initial WPF image selection, MBR/GPT inspection, partition overview, findings, and JSON export
 - [x] Generate disposable MBR/GPT images for repeatable manual testing
-- [x] Windows CI build, parser tests, and self-contained x64 preview publishing
+- [x] Windows CI build, parser tests, fixture smoke tests, and self-contained x64 preview publishing
 - [ ] Manual Windows desktop smoke test with generated images
 - [ ] Disk and volume inventory with device identity and geometry (future read-only milestone)
 
@@ -28,13 +28,17 @@
 
 ## Phase 3 — Filesystem inspection
 
-- [x] Initial NTFS boot-sector validation: OEM/signature, sector and cluster geometry, volume bounds, MFT/MFT mirror locations, and record-size encoding
+- [x] NTFS boot-sector validation: OEM/signature, sector and cluster geometry, volume bounds, MFT pointer bounds, and record-size encoding
 - [x] NTFS FILE record header validation and update-sequence-array fixup validation
 - [x] Bounded resident/non-resident attribute-header parsing with value, name, and mapping-pairs range checks
 - [x] NTFS mapping-pairs decoder for fragmented and sparse extents with VCN/LCN bounds
-- [x] Read MFT FILE records through the validated initial $MFT::$DATA mapping-pairs extent with volume and initialized-size bounds
-- [x] Read FILE records through the validated initial $MFT::$DATA extent, including records crossing fragmented physical runs\n- [x] Parse resident $FILE_NAME values and parent file references\n- [ ] Resolve additional MFT extents through $ATTRIBUTE_LIST with VCN continuity and cycle checks\n- [ ] NTFS attribute and runlist integration with strict bounds
-- [x] Bounded flat scan of initialized MFT records and resident $FILE_NAME entries (no hierarchy inference)\n- [ ] Validate parent record sequence references and build a read-only directory/file tree
+- [x] Read MFT FILE records through the validated initial $MFT::$DATA extent, including records crossing fragmented physical runs
+- [x] Parse resident $FILE_NAME values and parent file references
+- [x] Bounded flat scan of initialized MFT records covered by the initial extent
+- [x] CLI command for bounded read-only NTFS MFT preview (latest CLI integration is awaiting CI validation)
+- [ ] Resolve additional MFT extents through $ATTRIBUTE_LIST with VCN continuity and cycle checks
+- [ ] Validate parent record sequence references and build a read-only directory/file tree
+- [ ] Parse $INDEX_ROOT and $INDEX_ALLOCATION directory indexes
 - [ ] FAT32 and exFAT boot-sector and metadata parsers
 - [ ] Parser fuzzing and malformed-image regression suite
 
@@ -49,6 +53,7 @@
 ## Phase 5 — Desktop experience
 
 - [x] Initial WPF image selection, MBR/GPT inspection, partition overview, findings, and JSON export
+- [ ] Guided NTFS MFT scan workflow in WPF
 - [ ] Guided lost-partition scan workflow with clear warnings
 - [ ] Evidence view and confidence explanations
 - [ ] Accessible progress, cancellation, and recovery reports
@@ -57,12 +62,13 @@
 
 - `DiskRescue.IO` supports regular image files only; physical devices are not opened.
 - `DiskRescue.Partitions` validates MBR and GPT metadata. A validated backup GPT copy can be used when the primary GPT header is damaged.
-- `DiskRescue.Filesystems` validates NTFS boot-sector geometry, FILE record USA fixups, bounded attribute headers, mapping-pairs runlists, and can read FILE records through the validated initial $MFT::$DATA extent. It does not yet resolve additional MFT attribute extents through $ATTRIBUTE_LIST, enumerate directories, decode indexes, or recover file contents.
-- The desktop UI and CLI currently expose partition inspection. The NTFS validator is a library milestone and is not yet wired into a user workflow.
-- The PowerShell test-image generator creates three disposable fixtures: MBR, healthy GPT, and GPT with a damaged primary header but valid backup copy. CI generates these fixtures and smoke-tests CLI behavior end to end. NTFS record, attribute, runlist, and initial MFT-reader components have dedicated synthetic unit tests.
+- `DiskRescue.Filesystems` validates NTFS boot-sector geometry, FILE record USA fixups, bounded attribute headers, mapping-pairs runlists, and resident $FILE_NAME values. `NtfsMftReader` reads records through the initial validated $MFT::$DATA extent and can perform a bounded flat scan. It does not resolve additional extents through $ATTRIBUTE_LIST, validate a complete parent hierarchy, traverse directory indexes, or recover file contents.
+- The CLI has a new `scan-ntfs` command that accepts an image file and explicit volume byte offset/length. Its latest build and tests are awaiting CI completion.
+- The WPF desktop currently exposes partition inspection only; the NTFS scan workflow is not yet wired into the desktop UI.
+- The PowerShell test-image generator creates disposable MBR, healthy GPT, and damaged-primary-GPT/valid-backup fixtures. CI generates these fixtures and smoke-tests CLI behavior. NTFS parsers, fragmented MFT reads, filename parsing, and bounded scanning have synthetic unit tests.
 
 ## Validation and release gates
 
-Windows CI run 42083397605 passed solution restore/build, all 28 automated tests, WPF build, and Windows x64 CLI and desktop preview publishing at commit 1ca82a6bbcf651ed709fc2ba4479aa786719d45e. The newer CI workflow at the current feature-branch head adds fixture-generation and CLI smoke-test steps; its result must pass before treating that workflow change as validated. Manual Windows desktop interaction is still required.
+Windows CI run 42089190267 passed restore, build, all automated tests, generated-image CLI smoke tests, WPF build, and Windows x64 preview publishing at commit 71d0be8b3ac0b0fc76af653ae1dc798f426a1a2f. A subsequent successful run 42089091231 also validated the bounded MFT scan implementation at commit 22a22fd38a77f5cca6ee7ce0b3d9d1aa37a4e7c7. The newer CLI command requires its own passing CI run. Manual Windows desktop interaction is still required.
 
 A feature is not complete until it has automated tests, documented limitations, safe failure behavior, and evidence that source media cannot be modified. No destructive repair feature is included in this roadmap.
