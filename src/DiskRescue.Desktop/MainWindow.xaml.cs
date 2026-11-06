@@ -45,7 +45,10 @@ public partial class MainWindow : Window
 
             foreach (var disk in result.Disks)
             {
-                notes.Add($"PhysicalDrive{disk.DiskNumber} · {FormatBytes(disk.LengthBytes)} · {disk.BytesPerSector:N0} bytes/sector");
+                notes.Add($"PhysicalDrive{disk.DiskNumber} · {disk.DisplayIdentity} · {FormatBytes(disk.LengthBytes)}");
+                notes.Add($"Vendor: {disk.Vendor ?? "Not reported"} · Model: {disk.Model ?? "Not reported"}");
+                notes.Add($"Serial: {disk.SerialNumber ?? "Not reported"}");
+                notes.Add($"Logical sector size: {disk.BytesPerSector:N0} bytes · Bus type: {(disk.BusType?.ToString() ?? "Not reported")} · Removable: {(disk.RemovableMedia?.ToString() ?? "Not reported")}");
                 notes.Add($"Device path: {disk.DevicePath}");
                 notes.Add("Access mode: read-only metadata probe; no sector scan was started.");
                 notes.Add("");
@@ -58,7 +61,7 @@ public partial class MainWindow : Window
                 notes.Add("");
             }
 
-            notes.Add("IMPORTANT: Disk numbers are temporary Windows locators, not verified hardware identities. Model/serial identification and system/boot-disk exclusion are not implemented. This inventory does not authorize scanning or recovery.");
+            notes.Add("SAFETY: Hardware identity fields are best-effort and may be absent, duplicated, or altered by storage bridges/controllers. Disk numbers remain temporary locators. System/boot-disk and mounted-volume exclusion are not implemented, so physical sector scanning is intentionally unavailable. This inventory does not authorize scanning or recovery.");
             FindingsBox.Text = string.Join(Environment.NewLine, notes);
             StatusText.Text = $"Physical disk inventory complete · {result.Disks.Count} device(s) reported · No sector scan performed";
         }
