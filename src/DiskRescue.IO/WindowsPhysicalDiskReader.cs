@@ -12,9 +12,18 @@ public sealed record PhysicalDiskDescriptor(
     int DiskNumber,
     string DevicePath,
     long LengthBytes,
-    uint BytesPerSector)
+    uint BytesPerSector,
+    string? Vendor = null,
+    string? Model = null,
+    string? SerialNumber = null,
+    uint? BusType = null,
+    bool? RemovableMedia = null)
 {
     public bool IsReadOnly => true;
+
+    public string DisplayIdentity =>
+        !string.IsNullOrWhiteSpace(Model) ? Model! :
+        !string.IsNullOrWhiteSpace(Vendor) ? Vendor! : "Hardware identity unavailable";
 }
 
 /// <summary>Result of probing Windows physical-disk device paths.</summary>
@@ -36,6 +45,8 @@ public static class WindowsPhysicalDiskDiscovery
     private const uint FileAttributeNormal = 0x00000080;
     private const uint IoctlDiskGetDriveGeometry = 0x00070000;
     private const uint IoctlDiskGetLengthInfo = 0x0007405C;
+    private const uint IoctlStorageQueryProperty = 0x002D1400;
+    private const int StorageDescriptorBufferSize = 64 * 1024;
 
     /// <summary>
     /// Probes disk numbers from zero up to (but excluding) maxDiskNumberExclusive.
@@ -107,7 +118,66 @@ public static class WindowsPhysicalDiskDiscovery
         if (lengthInfo.Length % sectorSize != 0)
             throw new InvalidDataException("The reported disk capacity is not aligned to its logical sector size.");
 
-        return new PhysicalDiskDescriptor(diskNumber, path, lengthInfo.Length, sectorSize);
+        var identity = TryReadStorageIdentity(handle);
+        return new PhysicalDiskDescriptor(
+            diskNumber, path, lengthInfo.Length, sectorSize,
+            identity.Vendor, identity.Model, identity.SerialNumber,
+            identity.BusType, identity.RemovableMedia);
+    }
+
+    internal static (string? Vendor, string? Model, string? SerialNumber, uint? BusType, bool? RemovableMedia)
+        ParseStorageDeviceDescriptor(ReadOnlySpan<byte> data)
+    {
+        // STORAGE_DEVICE_DESCRIPTOR fixed header is 36 bytes on Windows.
+        if (data.Length < 36)
+            throw new InvalidDataException("Storage device descriptor is shorter than its fixed header.");
+
+        var version = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(data);
+        var declaredSize = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(data[4..]);
+        if (version < 36 || declaredSize < 36 || declaredSize > data.Length)
+            throw new InvalidDataException("Storage device descriptor reports an invalid size.");
+
+        static string? ReadString(ReadOnlySpan<byte> bytes, uint offset, uint size)
+        {
+            if (offset == 0 || offset >= size) return null;
+            var start = checked((int)offset);
+            var end = start;
+            while (end < size && bytes[end] != 0) end++;
+            var value = System.Text.Encoding.ASCII.GetString(bytes[start..end]).Trim();
+            return value.Length == 0 ? null : value;
+        }
+
+        var vendor = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(data[12..]);
+        var product = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(data[16..]);
+        var serial = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(data[24..]);
+        var bus = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(data[28..]);
+        return (
+            ReadString(data, vendor, declaredSize),
+            ReadString(data, product, declaredSize),
+            ReadString(data, serial, declaredSize),
+            bus,
+            data[10] != 0);
+    }
+
+    private static (string? Vendor, string? Model, string? SerialNumber, uint? BusType, bool? RemovableMedia)
+        TryReadStorageIdentity(SafeFileHandle handle)
+    {
+        var query = new uint[] { 0, 0, 0 }; // StorageDeviceProperty, PropertyStandardQuery, additional parameters.
+        var output = new byte[StorageDescriptorBufferSize];
+        if (!NativeMethods.DeviceIoControl(
+                handle, IoctlStorageQueryProperty, query, sizeof(uint) * query.Length,
+                output, output.Length, out var bytesReturned, IntPtr.Zero))
+            return (null, null, null, null, null);
+
+        try
+        {
+            var parsed = ParseStorageDeviceDescriptor(output.AsSpan(0, bytesReturned));
+            return parsed;
+        }
+        catch (InvalidDataException)
+        {
+            return (null, null, null, null, null);
+        }
     }
 
     internal static void EnsureWindows()
@@ -143,6 +213,18 @@ public static class WindowsPhysicalDiskDiscovery
             uint creationDisposition,
             uint flagsAndAttributes,
             IntPtr templateFile);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool DeviceIoControl(
+            SafeFileHandle device,
+            uint controlCode,
+            [In] uint[] inputBuffer,
+            int inputBufferSize,
+            [Out] byte[] outputBuffer,
+            int outputBufferSize,
+            out int bytesReturned,
+            IntPtr overlapped);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
