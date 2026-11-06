@@ -207,4 +207,60 @@ public sealed class WindowsPhysicalDiskReaderTests
         Assert.False(WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(expected, expected with { RemovableMedia = true }));
     }
 
+    [Fact]
+    public void PhysicalDiskPreflightBlocksUntilBootExclusionAndVerifiedImageExist()
+    {
+        var disk = new PhysicalDiskDescriptor(
+            3, @"\\.\PhysicalDrive3", 4L * 1024 * 1024 * 1024, 512,
+            "ACME", "Model Z", "SERIAL-Z", 17, false);
+        var inventory = new PhysicalDiskDiscoveryResult(new[] { disk }, Array.Empty<string>());
+        var volumes = new PhysicalVolumeMappingResult(
+            true, new Dictionary<int, IReadOnlyList<string>>(), Array.Empty<string>());
+
+        var result = PhysicalDiskSafety.Assess(disk, inventory, volumes);
+
+        Assert.False(result.CanStartSectorScan);
+        Assert.Contains(result.Blockers, x => x.Contains("boot-device exclusion", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Blockers, x => x.Contains("sector image", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void PhysicalDiskPreflightBlocksMountedVolumesAndIncompleteEnumeration()
+    {
+        var disk = new PhysicalDiskDescriptor(
+            3, @"\\.\PhysicalDrive3", 4L * 1024 * 1024 * 1024, 512,
+            "ACME", "Model Z", "SERIAL-Z", 17, false);
+        var inventory = new PhysicalDiskDiscoveryResult(new[] { disk }, Array.Empty<string>());
+        var mapped = new PhysicalVolumeMappingResult(
+            true,
+            new Dictionary<int, IReadOnlyList<string>> { [3] = new[] { @"\\?\Volume{test}\" } },
+            Array.Empty<string>());
+        var incomplete = new PhysicalVolumeMappingResult(
+            false, new Dictionary<int, IReadOnlyList<string>>(), new[] { "Volume query failed." });
+
+        Assert.Contains(PhysicalDiskSafety.Assess(disk, inventory, mapped).Blockers,
+            x => x.Contains("mounted filesystems", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(PhysicalDiskSafety.Assess(disk, inventory, incomplete).Blockers,
+            x => x.Contains("incomplete", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void PhysicalDiskPreflightRejectsDuplicateSerialAndLayeredBus()
+    {
+        var disk = new PhysicalDiskDescriptor(
+            3, @"\\.\PhysicalDrive3", 4L * 1024 * 1024 * 1024, 512,
+            "ACME", "Model Z", "DUPLICATE", 8, false);
+        var other = new PhysicalDiskDescriptor(
+            4, @"\\.\PhysicalDrive4", 4L * 1024 * 1024 * 1024, 512,
+            "ACME", "Model Z", "DUPLICATE", 8, false);
+        var inventory = new PhysicalDiskDiscoveryResult(new[] { disk, other }, Array.Empty<string>());
+        var volumes = new PhysicalVolumeMappingResult(
+            true, new Dictionary<int, IReadOnlyList<string>>(), Array.Empty<string>());
+
+        var result = PhysicalDiskSafety.Assess(disk, inventory, volumes, true, true);
+
+        Assert.Contains(result.Blockers, x => x.Contains("duplicated", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Blockers, x => x.Contains("layered/virtual", StringComparison.OrdinalIgnoreCase));
+    }
+
 }
