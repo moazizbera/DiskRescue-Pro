@@ -257,7 +257,7 @@ public sealed class WindowsPhysicalDiskReaderTests
         var volumes = new PhysicalVolumeMappingResult(
             true, new Dictionary<int, IReadOnlyList<string>>(), Array.Empty<string>());
 
-        var result = PhysicalDiskSafety.Assess(disk, inventory, volumes, true, true);
+        var result = PhysicalDiskSafety.Assess(disk, inventory, volumes);
 
         Assert.Contains(result.Blockers, x => x.Contains("duplicated", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Blockers, x => x.Contains("layered/virtual", StringComparison.OrdinalIgnoreCase));
