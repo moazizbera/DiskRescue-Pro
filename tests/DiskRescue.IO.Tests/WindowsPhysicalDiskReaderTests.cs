@@ -1,3 +1,5 @@
+using Xunit;
+
 using DiskRescue.IO;
 
 namespace DiskRescue.IO.Tests;
