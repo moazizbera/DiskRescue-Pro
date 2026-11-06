@@ -24,6 +24,18 @@ public sealed class NtfsMftExtentMapTests
     }
 
     [Fact]
+    public void AllowsAttributeIdsToDifferAcrossContinuationRecords()
+    {
+        var result = NtfsMftExtentMap.Assemble(
+            [DataExtent(0, 1, [0x11, 0x02, 0x04, 0x00], sizes: true, attributeId: 3),
+             DataExtent(2, 3, [0x11, 0x02, 0x02, 0x00], attributeId: 8)],
+            128, 512);
+
+        Assert.True(result.IsValid, string.Join("; ", result.Issues));
+        Assert.Equal(2, result.Runs.Count);
+    }
+
+    [Fact]
     public void RejectsGapBetweenExtents()
     {
         var result = NtfsMftExtentMap.Assemble(
@@ -109,9 +121,9 @@ public sealed class NtfsMftExtentMapTests
         ulong lowestVcn,
         ulong highestVcn,
         byte[] mappingPairs,
-        bool sizes = false) =>
+        bool sizes = false,\n        ushort attributeId = 7) =>
         new(
-            0x80, 72, true, 7, 0, string.Empty,
+            0x80, 72, true, attributeId, 0, string.Empty,
             null, null, lowestVcn, highestVcn, 64,
             sizes ? 2048UL : 0UL,
             sizes ? 2048UL : 0UL,
