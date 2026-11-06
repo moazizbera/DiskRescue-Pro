@@ -15,6 +15,14 @@ DiskRescue Pro handles storage devices that may contain irreplaceable data. Data
 9. Never automatically mount a suspect volume read-write.
 10. Test only with generated fixtures, disposable virtual disks, and images created for testing.
 
+## Current physical-device implementation boundary
+
+The initial Windows physical-device layer is limited to bounded disk-number probing and a read-only random-access handle. It requests `GENERIC_READ` and never requests `GENERIC_WRITE`. The current code validates reported capacity and logical sector size when opening a selected device.
+
+This initial layer is not yet integrated with the desktop application or partition scanner. It does not yet retrieve stable hardware identity (model/serial/device ID), perform acquisition/imaging, or provide a complete guarantee against changes by Windows, filesystem drivers, or other processes. A disk number can refer to a different device after removal/reconnection. The UI must not present a disk as confirmed solely by its disk number.
+
+Do not test this feature against the user's damaged or only copy of a disk. Before any real-device scan workflow is enabled, require a separate review of device identity, system/boot disk exclusion, removable-device handling, volume/mount interaction, failure behavior, and imaging-first guidance. Prefer disposable virtual disks for end-to-end physical-device tests.
+
 ## Engineering enforcement
 
 - Device handles must be created using read-only access.
