@@ -187,12 +187,10 @@ public static class WindowsPhysicalDiskDiscovery
         ArgumentNullException.ThrowIfNull(expected);
         ArgumentNullException.ThrowIfNull(current);
 
-        // Geometry is checked separately. Require at least one reported identity string;
-        // matching only a disk number and capacity is not sufficient for a recovery session.
-        var hasIdentity = !string.IsNullOrWhiteSpace(expected.SerialNumber) ||
-            !string.IsNullOrWhiteSpace(expected.Model) ||
-            !string.IsNullOrWhiteSpace(expected.Vendor);
-        if (!hasIdentity)
+        // Geometry is checked separately. Require a reported serial number;
+        // matching only a disk number, capacity, vendor, or generic model is insufficient.
+        if (string.IsNullOrWhiteSpace(expected.SerialNumber) ||
+            string.IsNullOrWhiteSpace(current.SerialNumber))
             return false;
 
         static bool MatchesKnown(string? before, string? after) =>
