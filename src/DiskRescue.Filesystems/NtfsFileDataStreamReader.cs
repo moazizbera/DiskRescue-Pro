@@ -197,8 +197,9 @@ public sealed partial class NtfsMftReader
                 : "The requested $DATA stream has multiple extents or ambiguous attributes; multi-extent file streams are not yet supported.");
 
         var attribute = data[0];
-        if (attribute.Flags != 0)
-            return InvalidDataStream("Compressed, encrypted, sparse-flagged, or otherwise flagged file streams are not yet supported.");
+        if ((attribute.Flags & (CompressedAttributeFlag | EncryptedAttributeFlag)) != 0 ||
+            (attribute.Flags & ~0x8000) != 0)
+            return InvalidDataStream("Compressed, encrypted, or otherwise unsupported flagged file streams are not yet supported.");
 
         if (!attribute.IsNonResident)
         {
