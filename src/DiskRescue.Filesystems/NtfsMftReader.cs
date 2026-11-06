@@ -153,6 +153,30 @@ public sealed partial class NtfsMftReader
         }
     }
 
+    /// <summary>
+    /// Reads an MFT reference only when its record is covered by the currently
+    /// validated initial $MFT extent, then verifies sequence and base-record identity.
+    /// This method does not resolve continuation extents.
+    /// </summary>
+    public NtfsMftRecordReadResult ReadReferencedRecord(
+        NtfsFileReference reference,
+        NtfsFileReference expectedBaseReference)
+    {
+        if (reference.IsNull)
+            return InvalidRecord("A null MFT file reference cannot identify a continuation record.");
+        if (reference.RecordNumber > uint.MaxValue)
+            return InvalidRecord("Referenced MFT record number exceeds the supported FILE-record number range.");
+
+        var result = ReadRecord(reference.RecordNumber);
+        if (!result.IsValid || result.Record is null)
+            return result;
+        if (result.Record.SequenceNumber != reference.SequenceNumber)
+            return InvalidRecord("Referenced MFT record sequence number does not match the attribute-list reference.");
+        if (result.Record.BaseFileReference != expectedBaseReference)
+            return InvalidRecord("Referenced MFT record base-file reference does not match the expected base record.");
+        return result;
+    }
+
     private void ReadMftBytes(ulong logicalOffset, Span<byte> destination)
     {
         var completed = 0;

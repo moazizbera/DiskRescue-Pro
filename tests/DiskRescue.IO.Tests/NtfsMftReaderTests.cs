@@ -25,6 +25,49 @@ public sealed class NtfsMftReaderTests
     }
 
     [Fact]
+    public void ReadsReferencedRecordOnlyWhenSequenceAndBaseReferenceMatch()
+    {
+        const ulong baseReference = (9UL << 48);
+        using var image = CreateImage(recordTwoBaseReferenceRaw: baseReference);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        var result = opened.Reader!.ReadReferencedRecord(
+            new NtfsFileReference(2, 9), new NtfsFileReference(0, 9));
+
+        Assert.True(result.IsValid, string.Join("; ", result.Issues));
+        Assert.Equal((uint)2, result.Record!.RecordNumber);
+    }
+
+    [Fact]
+    public void RejectsReferencedRecordWithStaleSequenceNumber()
+    {
+        using var image = CreateImage(recordTwoBaseReferenceRaw: (9UL << 48));
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        var result = opened.Reader!.ReadReferencedRecord(
+            new NtfsFileReference(2, 8), new NtfsFileReference(0, 9));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, x => x.Contains("sequence number", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void RejectsReferencedRecordWithWrongBaseFileReference()
+    {
+        using var image = CreateImage(recordTwoBaseReferenceRaw: (9UL << 48) | 1UL);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        var result = opened.Reader!.ReadReferencedRecord(
+            new NtfsFileReference(2, 9), new NtfsFileReference(0, 9));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, x => x.Contains("base-file reference", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void RejectsRecordOutsideInitializedMftData()
     {
         using var image = CreateImage();
@@ -49,19 +92,19 @@ public sealed class NtfsMftReaderTests
     private static NtfsBootSector CreateBootSector() =>
         new(512, 1, 512, 128, 4, 8, 1024, 1024, 123, 2048, 4096);
 
-    private static MemoryImage CreateImage(uint recordZeroNumber = 0)
+    private static MemoryImage CreateImage(uint recordZeroNumber = 0, ulong recordTwoBaseReferenceRaw = 0)
     {
         var bytes = new byte[128 * 512];
         CreateFileRecord(recordZeroNumber, includeMftDataAttribute: true).CopyTo(bytes, 4 * 512);
         var recordOne = CreateFileRecord(1, includeMftDataAttribute: false, includeFileName: true);
         recordOne.AsSpan(0, 512).CopyTo(bytes.AsSpan(6 * 512, 512));
         recordOne.AsSpan(512, 512).CopyTo(bytes.AsSpan(12 * 512, 512));
-        CreateFileRecord(2, includeMftDataAttribute: false).CopyTo(bytes, 13 * 512);
+        CreateFileRecord(2, includeMftDataAttribute: false, baseFileReferenceRaw: recordTwoBaseReferenceRaw).CopyTo(bytes, 13 * 512);
         CreateFileRecord(3, includeMftDataAttribute: false).CopyTo(bytes, 15 * 512);
         return new MemoryImage(bytes);
     }
 
-    private static byte[] CreateFileRecord(uint recordNumber, bool includeMftDataAttribute, bool includeFileName = false, bool isDirectory = false)
+    private static byte[] CreateFileRecord(uint recordNumber, bool includeMftDataAttribute, bool includeFileName = false, bool isDirectory = false, ulong baseFileReferenceRaw = 0)
     {
         var raw = new byte[1024];
         "FILE"u8.CopyTo(raw);
@@ -72,6 +115,7 @@ public sealed class NtfsMftReaderTests
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(20, 2), 56);
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(22, 2), (ushort)(1 | (isDirectory ? 2 : 0)));
         BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(28, 4), 1024);
+        BinaryPrimitives.WriteUInt64LittleEndian(raw.AsSpan(32, 8), baseFileReferenceRaw);
         BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(44, 4), recordNumber);
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(48, 2), 0x5A5A);
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(50, 2), 0xAAAA);

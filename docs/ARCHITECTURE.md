@@ -1,79 +1,111 @@
-# Architecture
+# Architecture and Engineering Boundaries
 
-## Goals
+## Product objective
 
-Build a maintainable Windows application that can inspect disks and disk images without modifying source media. Keep parsing logic independent from Windows device APIs so it can be tested against byte arrays and synthetic images.
+DiskRescue Pro is a Windows-first, safety-first disk-image inspection and recovery project. The first responsibility is preserving evidence and protecting the source. A parser finding is evidence, not proof that a partition or file can be recovered.
 
-## Initial technology direction
-
-- C# and .NET 10
-- WPF desktop shell for the first Windows release
-- xUnit for unit and integration tests
-- Windows-specific raw-device access isolated behind an interface
-- No external recovery dependency until its license, provenance, maintenance, and safety properties are reviewed
-
-## Proposed solution
+## Implemented solution
 
 ```text
-src/
-  DiskRescue.Domain/       Models, results, offsets, confidence and diagnostics
-  DiskRescue.IO/           Read-only random-access abstraction and image readers
-  DiskRescue.Partitions/   MBR/GPT parsing and candidate discovery
-  DiskRescue.Filesystems/  Read-only filesystem metadata parsers
-  DiskRescue.Recovery/     File carving and safe extraction workflows
-  DiskRescue.Desktop/      WPF presentation and user workflows
-tests/
-  DiskRescue.Domain.Tests/
-  DiskRescue.IO.Tests/
-  DiskRescue.Partitions.Tests/
-  DiskRescue.Filesystems.Tests/
-  DiskRescue.VirtualDisk.Tests/
-tools/
-  DiskRescue.TestImageBuilder/
+DiskRescue.sln
+├── src/
+│   ├── DiskRescue.IO/             Bounded read-only image-file access
+│   ├── DiskRescue.Partitions/     MBR and GPT parsing
+│   ├── DiskRescue.Filesystems/    NTFS boot, FILE, attribute, MFT and tree parsing
+│   ├── DiskRescue.Cli/            Inspection commands and JSON reports
+│   └── DiskRescue.Desktop/        WPF desktop preview
+├── tests/
+│   └── DiskRescue.IO.Tests/       Parser and generated-image tests
+├── tools/                         Disposable image generators
+└── docs/                           Safety, architecture, roadmap and test guides
 ```
 
-Projects will be introduced incrementally; do not create empty projects just to fill this diagram.
+The project structure is intentionally incremental. Do not add empty abstraction projects simply to match a proposed diagram.
 
-## Layer boundaries
+## Layer responsibilities
 
-- Domain contains no Windows APIs and no UI dependencies.
-- IO exposes bounded random-access reads. Image files and physical devices implement the same read-only abstraction.
-- Partition parsers consume the read-only abstraction and return findings with offsets, validation status, and confidence.
-- Filesystem parsers never mutate metadata.
-- Recovery writes only to a user-selected destination that is demonstrably separate from the source.
-- Desktop orchestrates workflows; it must not implement parsing or raw device access itself.
+### IO
+- Opens regular image files using read-only random-access access.
+- Exposes bounded reads through `IReadOnlyRandomAccessSource`.
+- Rejects unsupported paths and invalid ranges.
+- Does not expose a write method or physical-device implementation.
 
-## Disk address model
+### Partitions
+- Parses MBR entries and validates signature, boot flags, offsets, bounds, overlaps, and sector geometry.
+- Parses GPT primary and backup copies independently.
+- Validates header and partition-array CRC32, geometry, bounds, and copy consistency.
+- May select a validated backup GPT copy when the primary header is damaged; diagnostics retain the discrepancy.
 
-Use unsigned 64-bit sector and byte offsets where appropriate. Validate every multiplication and addition for overflow. Record logical and physical sector sizes separately. Never assume 512-byte sectors or trust partition metadata without checking bounds against the device/image length.
+### Filesystems
+- Validates NTFS boot-sector geometry against the supplied image range.
+- Validates FILE record signatures and update-sequence-array fixups before exposing fixed-up bytes.
+- Parses bounded resident and non-resident attribute headers.
+- Decodes NTFS mapping pairs with VCN/LCN bounds and sparse-run awareness.
+- Opens MFT record 0 and validates the initial unnamed `$MFT::$DATA` extent.
+- Reads records through fragmented physical runs, bounded by initialized and mapped sizes.
+- Parses resident `$FILE_NAME` values and parent references.
+- Scans a bounded number of initialized records covered by the initial MFT extent.
+- Builds a conservative partial tree with parent-sequence checks, cycle handling, and orphan reporting.
+- Parses resident `$ATTRIBUTE_LIST` values from already-parsed attributes; non-resident list streams are rejected as unsupported.
+- Matches parsed list entries against caller-supplied, already validated FILE records. It validates record number and sequence, base-file reference, and exact attribute type/name/ID/lowest-VCN identity, and returns structured diagnostics for rejected or ambiguous entries.
+- Bounds list parsing to 16 MiB and 65,536 entries; matching is bounded to 4,096 records, 16 MiB of candidate record bytes, 4,096 parsed attributes, and 1,000,000 attribute comparisons per operation.
+- The matcher performs no disk reads and does not discover or fetch referenced records. Current MFT reader can read references only if they fall within the initial validated MFT extent.
 
-## Parsing strategy
+### CLI and desktop
+- CLI emits structured JSON for image partition inspection and bounded NTFS metadata preview.
+- WPF supports image selection, MBR/GPT inspection, partition selection, NTFS preview, findings, and JSON export.
+- Presentation code does not implement raw-device access or parsing logic.
 
-1. Read only the minimum required metadata.
-2. Validate signatures, version fields, sizes, bounds, and checksums where defined.
-3. Parse primary and backup GPT independently and report disagreement.
-4. Treat MBR partition entries and GPT entries as untrusted input.
-5. Return structured diagnostics rather than silently repairing malformed metadata.
-6. Preserve raw evidence and provenance for each candidate.
+## Address and bounds model
 
-## Testing
+- Image and volume offsets are signed 64-bit byte positions at the IO boundary; on-disk NTFS cluster and VCN fields are decoded as unsigned values.
+- Every conversion and multiplication must be checked before issuing a read.
+- Every partition and filesystem parser must enforce the caller-supplied image/volume boundary, not merely metadata-declared size.
+- Sector size is explicit. Never silently assume 512 bytes.
+- Untrusted counts, attribute lengths, run counts, recursion depth, and output sizes must have documented limits.
+- Short reads, arithmetic overflow, malformed metadata, and unsupported compression/encryption must fail closed with useful diagnostics.
 
-Use small generated byte-level fixtures for parser tests and disposable virtual disk images for integration tests. Include malformed headers, truncated images, overflow attempts, overlapping partitions, bad CRCs, unusual sector sizes, and inconsistent primary/backup GPT metadata. Fuzz parsers and assert bounded reads and deterministic failures.
+## Remaining NTFS continuation work
 
-## Current implementation boundary
+A safe continuation resolver must not treat an attribute-list file reference as sufficient proof of identity. The bounded matcher now enforces the identity checks below for records already supplied by its caller. The full resolver must additionally:
 
-- `DiskRescue.IO` supports regular image files only; physical devices are not opened.
-- `DiskRescue.Partitions` validates MBR and GPT structures, including independent primary/backup GPT copies.
-- `DiskRescue.Filesystems` validates NTFS boot-sector geometry, FILE record USA fixups, bounded resident/non-resident attribute headers, and mapping-pairs runlists. `NtfsMftReader` reads FILE records through the initial validated `$MFT::$DATA` extent with volume, mapped-range, and initialized-size bounds, including records that cross fragmented physical extents. `NtfsFileNameParser` decodes resident `$FILE_NAME` values and parent references. `NtfsMftReader.ScanRecords` performs a bounded flat scan of initialized records covered by the initial MFT extent.
-- The CLI exposes partition inspection and a new `scan-ntfs` command that accepts an image file and explicit volume byte offset/length. The latter is awaiting CI validation.
-- The WPF desktop exposes partition inspection only; NTFS scanning has not yet been wired into the UI.
-- Additional MFT extents via `$ATTRIBUTE_LIST`, parent-sequence validation, directory-index traversal, full directory hierarchy, FAT/exFAT support, and file recovery are not implemented.
+1. Read referenced records only through a validated, bounded MFT mapping, then validate their FILE fixups.
+2. Discover list entries recursively only if cycle and depth limits are defined and tested.
+3. Decode continuation runlists and enforce exact VCN continuity, no overlap, no gaps, and volume bounds.
+4. Ensure initialized-size and real-size semantics are respected before scanning records.
+5. Add non-resident `$ATTRIBUTE_LIST` stream support with separate bounds and tests.
+6. Preserve diagnostics for every accepted or rejected extent and ensure a partial scan is never reported as complete.
 
+`NtfsAttributeListParser` and `NtfsAttributeListMatcher` are separate in-memory primitives and are not wired into automatic MFT continuation discovery. They do not provide complete MFT extension coverage, fragmented-file reconstruction, file extraction, or recovery. Non-resident attribute-list streams, reading references outside the initial MFT extent, recursive discovery, and continuation runlist assembly remain unimplemented.
 
-## Next recovery milestones
+## Recovery destination boundary (future)
 
-1. Add NTFS MFT record parsing with update-sequence-array (fixup) validation and strict record/attribute bounds.
-2. Resolve resident and non-resident attributes, runlists, and directory indexes with bounded reads.
-3. Build a read-only file-tree preview and report uncertainty rather than guessing at damaged metadata.
-4. Add recovery extraction only after a destination policy proves the output is separate from the source and tests cover short writes, collisions, and interrupted extraction.
-5. Add image acquisition and physical-device support only after a dedicated read-only handle design, identity checks, and safety review. No physical-device access is currently implemented.
+A future extractor must:
+- Accept a destination selected separately from the source image.
+- Resolve canonical paths and reject source/destination identity or ancestry conflicts.
+- Avoid following reparse points or writing through links outside the chosen destination.
+- Create output files safely without overwriting existing data by default.
+- Stream bounded reads and writes, handle short writes, cancellation, and interrupted operations.
+- Verify output length and hashes where source metadata supports them.
+- Write a manifest and audit log without logging recovered content.
+- Never write to or repair the source.
+
+## Test strategy
+
+Use generated fixtures, never a user's only copy:
+- Valid and malformed MBR/GPT metadata.
+- Damaged primary GPT with a valid backup copy.
+- NTFS boot geometry, FILE fixups, attributes, runlists, MFT records, resident filenames, and directory-tree edge cases.
+- Truncated values, overflows, excessive counts, invalid references, and malformed UTF-16.
+- End-to-end CLI smoke tests against disposable images.
+- Future fuzzing with deterministic seeds, bounded runtime, and memory budgets.
+
+## Release gates
+
+A feature is not complete because it compiles. Require:
+- Tests for valid, malformed, boundary, and adversarial input.
+- Explicit limitations and useful diagnostics.
+- Evidence that the source cannot be modified through the feature's interfaces.
+- Windows CI build/test/package success.
+- Manual UI testing with generated images before release claims.
+- A separate safety review before physical-device access or any write-capable workflow.

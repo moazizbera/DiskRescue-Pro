@@ -2,6 +2,11 @@ using System.Buffers.Binary;
 
 namespace DiskRescue.Filesystems;
 
+public sealed record NtfsFileReference(ulong RecordNumber, ushort SequenceNumber)
+{
+    public bool IsNull => RecordNumber == 0 && SequenceNumber == 0;
+}
+
 public sealed record NtfsFileRecord(
     ushort SequenceNumber,
     ushort LinkCount,
@@ -10,6 +15,7 @@ public sealed record NtfsFileRecord(
     uint BytesAllocated,
     ushort FirstAttributeOffset,
     uint RecordNumber,
+    NtfsFileReference BaseFileReference,
     byte[] FixedUpBytes);
 
 public sealed record NtfsFileRecordParseResult(
@@ -64,6 +70,10 @@ public static class NtfsFileRecordParser
         var flags = BinaryPrimitives.ReadUInt16LittleEndian(rawRecord.Slice(22, 2));
         var bytesInUse = BinaryPrimitives.ReadUInt32LittleEndian(rawRecord.Slice(24, 4));
         var bytesAllocated = BinaryPrimitives.ReadUInt32LittleEndian(rawRecord.Slice(28, 4));
+        var baseFileReferenceRaw = BinaryPrimitives.ReadUInt64LittleEndian(rawRecord.Slice(32, 8));
+        var baseFileReference = new NtfsFileReference(
+            baseFileReferenceRaw & 0x0000_FFFF_FFFF_FFFFUL,
+            (ushort)(baseFileReferenceRaw >> 48));
         var recordNumber = BinaryPrimitives.ReadUInt32LittleEndian(rawRecord.Slice(44, 4));
 
         if (bytesAllocated != rawRecord.Length)
@@ -94,6 +104,7 @@ public static class NtfsFileRecordParser
             bytesAllocated,
             firstAttributeOffset,
             recordNumber,
+            baseFileReference,
             fixedBytes);
         return new(true, record, Array.Empty<string>());
     }
