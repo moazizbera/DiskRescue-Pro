@@ -16,7 +16,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<PartitionRow> _rows = new();
     private string? _lastReport;
     private string? _lastReportPath;
-    private string? _lastImagePath;
+    private string? _lastImagePath;\n    private CancellationTokenSource? _scanCancellation;
 
     public MainWindow()
     {
@@ -212,7 +212,7 @@ public partial class MainWindow : Window
             {
                 using var image = FileImageReader.Open(imagePath);
                 return NtfsPartitionScanner.Scan(image, sectorSize, known,
-                    maximumScanBytes: image.Length, progress: progress);
+                    maximumScanBytes: image.Length, cancellationToken: _scanCancellation.Token, progress: progress);
             });
 
             for (var i = _rows.Count - 1; i >= 0; i--)
@@ -279,7 +279,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private static NtfsScanUiResult ScanNtfsPartition(string path, long offset, long length)
+    private void CancelScan_Click(object sender, RoutedEventArgs e)\n    {\n        _scanCancellation?.Cancel();\n        ScanProgressText.Text = "Cancellation requested…";\n    }\n\n    private static NtfsScanUiResult ScanNtfsPartition(string path, long offset, long length)
     {
         using var image = FileImageReader.Open(path);
         var boot = NtfsBootSectorParser.Parse(image, offset, length);
