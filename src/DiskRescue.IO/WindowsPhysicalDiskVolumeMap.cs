@@ -41,15 +41,14 @@ public static class WindowsPhysicalDiskVolumeMap
         var complete = true;
         var volumeName = new StringBuilder(1024);
         var findHandle = NativeMethods.FindFirstVolume(volumeName, volumeName.Capacity);
-        if (findHandle.IsInvalid)
+        if (findHandle == IntPtr.Zero || findHandle == new IntPtr(-1))
         {
             var error = Marshal.GetLastWin32Error();
-            findHandle.Dispose();
             return new(false, new Dictionary<int, IReadOnlyList<string>>(),
                 new[] { $"Unable to begin volume enumeration (Win32 {error})." });
         }
 
-        using (findHandle)
+        try
         {
             var count = 0;
             while (true)
@@ -113,6 +112,10 @@ public static class WindowsPhysicalDiskVolumeMap
                 }
             }
         }
+        finally
+        {
+            _ = NativeMethods.FindVolumeClose(findHandle);
+        }
 
         return new(complete,
             byDisk.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value.AsReadOnly()),
@@ -151,12 +154,6 @@ public static class WindowsPhysicalDiskVolumeMap
         return disks.Order().ToArray();
     }
 
-    private sealed class SafeVolumeFindHandle : SafeHandleZeroOrMinusOneIsInvalid
-    {
-        public SafeVolumeFindHandle() : base(true) { }
-        protected override bool ReleaseHandle() => NativeMethods.FindVolumeClose(handle);
-    }
-
     private static class NativeMethods
     {
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -164,11 +161,11 @@ public static class WindowsPhysicalDiskVolumeMap
         internal static extern bool FindVolumeClose(IntPtr findHandle);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        internal static extern SafeVolumeFindHandle FindFirstVolume(StringBuilder volumeName, int bufferLength);
+        internal static extern IntPtr FindFirstVolume(StringBuilder volumeName, int bufferLength);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        internal static extern bool FindNextVolume(SafeVolumeFindHandle findHandle, StringBuilder volumeName, int bufferLength);
+        internal static extern bool FindNextVolume(IntPtr findHandle, StringBuilder volumeName, int bufferLength);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
