@@ -61,6 +61,14 @@ Inspect a 4Kn image:
 dotnet run --project src/DiskRescue.Cli -- inspect "C:\Images\sample-4kn.img" --sector-size 4096
 ```
 
+Copy a regular image file to a **new** destination and calculate SHA-256 during the copy:
+
+```powershell
+dotnet run --project src/DiskRescue.Cli -- image-copy "C:\Images\source.img" "D:\DiskRescue\source-copy.img"
+```
+
+The destination directory must already exist and the destination file must not exist. The command reports progress and the resulting SHA-256; Ctrl+C cancels acquisition and removes the incomplete temporary output when possible. This command accepts regular image files only. It does not open physical disks or verify that the destination is on separate physical storage. Do not use it as a substitute for the still-unimplemented physical-drive acquisition workflow.
+
 Preview NTFS metadata after obtaining a volume byte offset and length from a trusted partition report:
 
 ```powershell
