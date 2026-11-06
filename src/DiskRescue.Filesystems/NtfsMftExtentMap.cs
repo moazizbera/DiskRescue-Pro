@@ -57,8 +57,11 @@ public static class NtfsMftExtentMap
         {
             if (!IsSupportedMftDataAttribute(attribute))
                 return Invalid("Every supplied extent must be an unnamed, non-resident, uncompressed $MFT::$DATA attribute.");
-            if (attribute.AttributeId != first.AttributeId || attribute.Flags != first.Flags)
-                return Invalid("MFT extent attributes do not share the same attribute identity and flags.");
+            // Attribute IDs are local to a FILE record and may differ between
+            // continuation records. The attribute-list matcher validates each ID
+            // against its own referenced record before this assembler is called.
+            if (attribute.Flags != first.Flags)
+                return Invalid("MFT extent attributes do not share the same flags.");
             if (attribute.LowestVcn is null || attribute.HighestVcn is null || attribute.MappingPairs is null)
                 return Invalid("MFT extent is missing VCN or mapping-pairs metadata.");
             if (attribute.LowestVcn.Value != nextVcn)
