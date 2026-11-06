@@ -1,6 +1,6 @@
 # DiskRescue Pro — Implementation and Release Checklist
 
-Status snapshot: 2026-11-06. This document distinguishes current local evidence from CI results on earlier commits. A green check on an older SHA is not validation of the current worktree.
+Status snapshot: 2026-11-06. This document distinguishes local evidence from CI results. A green check on an older SHA is not validation of a later worktree.
 
 Status key:
 
@@ -16,15 +16,16 @@ DiskRescue Pro is a Windows-first, safety-focused toolkit for inspecting regular
 - Repository: `moazizbera/DiskRescue-Pro`
 - Development branch: `feat/ntfs-attribute-list-foundation`
 - Target branch: `main`
-- Current local branch tip before preservation commit: `6676f202e06c2fc97c35b1152a9b93e04dbf031d`
-- Local upstream ref at inspection: `origin/feat/ntfs-attribute-list-foundation` also pointed to `6676f202e06c2fc97c35b1152a9b93e04dbf031d`.
+- Pre-preservation branch tip: `6676f202e06c2fc97c35b1152a9b93e04dbf031d`.
+- Preservation implementation commit: `91542a93cd6b9838f90f55db0bfd88ab5484aa28` (`feat(ntfs): add bounded attribute continuation matching`); pushed to `origin/feat/ntfs-attribute-list-foundation`, and verified local and remote refs matched.
 - `origin/main` at inspection: `5f9b0e8144e5a27ea9d0eeaeeddb5c239315eaa1`.
 - Target framework: .NET 10; core, CLI, and tests target `net10.0`; WPF targets `net10.0-windows`.
 - Current milestone: bounded resident `$ATTRIBUTE_LIST` parsing and one-level matching against caller-supplied, already validated FILE records. This is not automatic MFT continuation discovery.
 - PR #2: https://github.com/moazizbera/DiskRescue-Pro/pull/2 — open, targets `main`, and its remote head is still the older `6676f20` commit at this snapshot.
-- Latest known Actions run for that PR head: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42100130497 — passed on `6676f202e06c2fc97c35b1152a9b93e04dbf031d`, not on the uncommitted local changes described below.
+- Latest known Actions run for the preservation commit: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42207867050 — in progress when checked, on `91542a93cd6b9838f90f55db0bfd88ab5484aa28`. Its PR check was also in progress.
+- Earlier passing PR run: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42100130497 — passed on the pre-preservation SHA `6676f202e06c2fc97c35b1152a9b93e04dbf031d` only.
 
-The local worktree at the time of this snapshot has eight modified tracked files and two untracked implementation/test files, with no staged changes. The preservation commit may add this checklist and change those counts; update the snapshot after committing.
+The local worktree was clean after the preservation commit and push. This checklist itself was included in commit `91542a93cd6b9838f90f55db0bfd88ab5484aa28`.
 
 ## B. Completed implementation checklist
 
@@ -107,12 +108,12 @@ The matcher does not fetch records. Its successful result means only that suppli
 | Check | Result | Actual command / details |
 |---|---|---|
 | Restore | PASS | `dotnet restore DiskRescue.sln` succeeded before local validation. |
-| Release solution build | PASS | `dotnet build DiskRescue.sln --configuration Release --no-restore` succeeded before the final test-only additions; the subsequent `dotnet test` rebuilt the changed test/library projects. Run once more on the exact committed candidate. |
+| Release solution build | PASS | Final `dotnet build DiskRescue.sln --configuration Release` succeeded after the final test additions; all six solution projects built. |
 | Full tests | PASS | `dotnet test DiskRescue.sln --configuration Release --no-build`: 99 passed, 0 failed, 0 skipped. |
 | Generated-image CLI smoke tests | PASS | MBR, valid GPT, damaged-primary/valid-backup GPT, NTFS partition geometry, and `scan-ntfs` were run on generated fixtures. The NTFS scan returned `Report.txt` and confirmed read-only mode. These were manual CLI invocations, not a single new CI run. |
 | Windows x64 CLI publish | FAIL / BLOCKED | `dotnet publish src/DiskRescue.Cli/DiskRescue.Cli.csproj --configuration Release --runtime win-x64 --self-contained true --output C:\Users\Abeer\AppData\Local\Temp\DiskRescue-PR2-Publish-CLI` failed restore with NU1900 because NuGet vulnerability metadata was unreachable. |
 | Windows x64 WPF publish | FAIL / BLOCKED | `dotnet publish src/DiskRescue.Desktop/DiskRescue.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true --output C:\Users\Abeer\AppData\Local\Temp\DiskRescue-PR2-Publish-Desktop` failed restore with the same NU1900 error. |
-| `git diff --check` | PASS at last check | Passed before the latest test additions and this checklist. Rerun after documentation and staging. |
+| `git diff --check` | PASS | Passed after the checklist was added and again on the staged changes before commit. |
 
 The failed publish commands produced no confirmed artifacts at their output paths. Do not equate older successful local publishes with the current candidate.
 
@@ -147,9 +148,10 @@ The failed publish commands produced no confirmed artifacts at their output path
 9. Continue referenced-record IO, non-resident lists, recursive discovery, VCN-continuous MFT extent assembly, and CLI/WPF integration as separately tested milestones.
 10. Merge PR #2 into `main` only after all release gates pass. Do not delete the development branch automatically.
 
-Current reference values at this snapshot:
+Current reference values at the preservation commit:
 
 - Local and previously fetched feature tip: `6676f202e06c2fc97c35b1152a9b93e04dbf031d`.
+- Pushed preservation commit / PR head at snapshot: `91542a93cd6b9838f90f55db0bfd88ab5484aa28`.
 - Previously fetched `main`: `5f9b0e8144e5a27ea9d0eeaeeddb5c239315eaa1`.
 - PR #2: https://github.com/moazizbera/DiskRescue-Pro/pull/2 (open; remote head is still the older SHA).
-- Latest known workflow: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42100130497 (PASS on old SHA only).
+- Latest workflow: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42207867050 (in progress on `91542a93cd6b9838f90f55db0bfd88ab5484aa28` when checked).
