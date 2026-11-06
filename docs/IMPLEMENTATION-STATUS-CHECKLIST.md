@@ -1,6 +1,8 @@
 # DiskRescue Pro — Implementation and Release Checklist
 
-Status snapshot: 2026-11-06. This document distinguishes local evidence from CI results. A green check on an older SHA is not validation of a later worktree.
+Status snapshot: 2026-11-06 (Phase 2 continuation-discovery branch). This document distinguishes merged baseline evidence from the current feature branch. A green check on an older SHA is not validation of a later worktree.
+
+The attribute-list foundation was merged into `main` by PR #2 at `6008e2edd6b034c3d7835e69388fbf6fed576fdf`. The new branch `feat/ntfs-mft-continuation-discovery` adds an initial in-memory MFT extent-map assembler and synthetic tests. This feature branch is not yet merged or independently CI-validated.
 
 Status key:
 
