@@ -16,7 +16,8 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<PartitionRow> _rows = new();
     private string? _lastReport;
     private string? _lastReportPath;
-    private string? _lastImagePath;\n    private CancellationTokenSource? _scanCancellation;
+    private string? _lastImagePath;
+    private CancellationTokenSource? _scanCancellation;
 
     public MainWindow()
     {
@@ -190,6 +191,9 @@ public partial class MainWindow : Window
         var sectorSize = int.Parse(((ComboBoxItem)SectorSizeBox.SelectedItem).Tag.ToString()!);
         var known = _rows.Where(row => row.Table != "SCAN").Select(row => new KnownPartitionRange(row.Table, row.Index, row.ByteOffset, row.ByteLength)).ToArray();
 
+        using var cancellation = new CancellationTokenSource();
+        _scanCancellation = cancellation;
+        CancelScanButton.IsEnabled = true;
         DiscoverButton.IsEnabled = false;
         InspectButton.IsEnabled = false;
         BrowseButton.IsEnabled = false;
@@ -270,6 +274,8 @@ public partial class MainWindow : Window
         }
         finally
         {
+            CancelScanButton.IsEnabled = false;
+            _scanCancellation = null;
             DiscoverButton.IsEnabled = true;
             InspectButton.IsEnabled = true;
             BrowseButton.IsEnabled = true;
@@ -279,7 +285,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private void CancelScan_Click(object sender, RoutedEventArgs e)\n    {\n        _scanCancellation?.Cancel();\n        ScanProgressText.Text = "Cancellation requested…";\n    }\n\n    private static NtfsScanUiResult ScanNtfsPartition(string path, long offset, long length)
+    private void CancelScan_Click(object sender, RoutedEventArgs e)
+    {
+        _scanCancellation?.Cancel();
+        ScanProgressText.Text = "Cancellation requested…";
+    }
+
+    private static NtfsScanUiResult ScanNtfsPartition(string path, long offset, long length)
     {
         using var image = FileImageReader.Open(path);
         var boot = NtfsBootSectorParser.Parse(image, offset, length);
