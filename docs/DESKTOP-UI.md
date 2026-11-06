@@ -18,7 +18,7 @@ The WPF application is a Windows front end over the read-only image and filesyst
 - It does not traverse `$INDEX_ROOT` or `$INDEX_ALLOCATION` directory indexes.
 - It does not guarantee a complete directory tree or identify all deleted files.
 - It does not read or recover file contents.
-- The separate `NtfsAttributeListParser` currently decodes an already-read list value; it is not yet connected to MFT continuation resolution.
+- The separate `NtfsAttributeListParser` and `NtfsAttributeListMatcher` parse resident list values and match entries only against records already supplied in memory. They are not wired into the desktop scan, do not read continuation records, and do not extend MFT coverage.
 
 ## Safety boundaries
 

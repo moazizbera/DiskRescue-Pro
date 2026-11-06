@@ -24,7 +24,8 @@ public sealed record NtfsAttribute(
 public sealed record NtfsAttributeParseResult(
     bool IsValid,
     IReadOnlyList<NtfsAttribute> Attributes,
-    IReadOnlyList<string> Issues);
+    IReadOnlyList<string> Issues,
+    bool LimitExceeded = false);
 
 /// <summary>
 /// Parses bounded NTFS attribute headers from an already validated and fixed-up FILE record.
@@ -35,11 +36,17 @@ public static class NtfsAttributeParser
     private const uint EndMarker = 0xFFFFFFFF;
     private const int ResidentHeaderSize = 24;
     private const int NonResidentHeaderSize = 64;
-    private const int MaximumAttributes = 4096;
+    public const int MaximumAttributes = 4096;
+    private static readonly UnicodeEncoding StrictUtf16 = new(false, false, true);
 
     public static NtfsAttributeParseResult Parse(NtfsFileRecord record)
+        => Parse(record, MaximumAttributes);
+
+    public static NtfsAttributeParseResult Parse(NtfsFileRecord record, int maximumAttributes)
     {
         ArgumentNullException.ThrowIfNull(record);
+        if (maximumAttributes is < 0 or > MaximumAttributes)
+            return Invalid($"Attribute parsing limit must be between 0 and {MaximumAttributes}.");
         var bytes = record.FixedUpBytes.AsSpan();
         if (bytes.Length < 48 || record.BytesInUse < 52 || record.BytesInUse > bytes.Length ||
             record.FirstAttributeOffset < 48 || record.FirstAttributeOffset > record.BytesInUse - 4)
@@ -49,12 +56,11 @@ public static class NtfsAttributeParser
         var offset = (int)record.FirstAttributeOffset;
         while (offset <= record.BytesInUse - 4)
         {
-            if (attributes.Count >= MaximumAttributes)
-                return Invalid("FILE record contains more than 4096 attributes.");
-
             var type = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(offset, 4));
             if (type == EndMarker)
                 return new(true, attributes, Array.Empty<string>());
+            if (attributes.Count >= maximumAttributes)
+                return Invalid($"FILE record exceeds the configured {maximumAttributes}-attribute parsing limit.", true);
 
             if (record.BytesInUse - offset < ResidentHeaderSize)
                 return Invalid("Attribute header is truncated.");
@@ -78,7 +84,14 @@ public static class NtfsAttributeParser
             {
                 if (nameOffset < ResidentHeaderSize || nameOffset > length || nameByteLength > length - nameOffset)
                     return Invalid("Attribute name range is outside its attribute record.");
-                name = Encoding.Unicode.GetString(attribute.Slice(nameOffset, nameByteLength));
+                try
+                {
+                    name = StrictUtf16.GetString(attribute.Slice(nameOffset, nameByteLength));
+                }
+                catch (DecoderFallbackException)
+                {
+                    return Invalid("Attribute name contains invalid UTF-16 data.");
+                }
             }
 
             if (nonResidentFlag == 0)
@@ -124,6 +137,6 @@ public static class NtfsAttributeParser
     private static bool RangesOverlap(int aOffset, int aLength, int bOffset, int bLength) =>
         aLength > 0 && bLength > 0 && aOffset < bOffset + bLength && bOffset < aOffset + aLength;
 
-    private static NtfsAttributeParseResult Invalid(string issue) =>
-        new(false, Array.Empty<NtfsAttribute>(), new[] { issue });
+    private static NtfsAttributeParseResult Invalid(string issue, bool limitExceeded = false) =>
+        new(false, Array.Empty<NtfsAttribute>(), new[] { issue }, limitExceeded);
 }

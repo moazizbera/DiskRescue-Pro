@@ -46,8 +46,10 @@ The project structure is intentionally incremental. Do not add empty abstraction
 - Parses resident `$FILE_NAME` values and parent references.
 - Scans a bounded number of initialized records covered by the initial MFT extent.
 - Builds a conservative partial tree with parent-sequence checks, cycle handling, and orphan reporting.
-- Parses the binary structure of an already-read `$ATTRIBUTE_LIST` value. The parser returns referenced file-record numbers, sequence numbers, attribute IDs, names, and lowest VCN values.
-- Decodes the FILE header's base-file reference and can validate a referenced record's sequence number and base-record identity, but only when that record is already covered by the initial validated `$MFT` extent.
+- Parses resident `$ATTRIBUTE_LIST` values from already-parsed attributes; non-resident list streams are rejected as unsupported.
+- Matches parsed list entries against caller-supplied, already validated FILE records. It validates record number and sequence, base-file reference, and exact attribute type/name/ID/lowest-VCN identity, and returns structured diagnostics for rejected or ambiguous entries.
+- Bounds list parsing to 16 MiB and 65,536 entries; matching is bounded to 4,096 records, 16 MiB of candidate record bytes, 4,096 parsed attributes, and 1,000,000 attribute comparisons per operation.
+- The matcher performs no disk reads and does not discover or fetch referenced records. Current MFT reader can read references only if they fall within the initial validated MFT extent.
 
 ### CLI and desktop
 - CLI emits structured JSON for image partition inspection and bounded NTFS metadata preview.
@@ -63,21 +65,18 @@ The project structure is intentionally incremental. Do not add empty abstraction
 - Untrusted counts, attribute lengths, run counts, recursion depth, and output sizes must have documented limits.
 - Short reads, arithmetic overflow, malformed metadata, and unsupported compression/encryption must fail closed with useful diagnostics.
 
-## NTFS continuation design (not yet implemented)
+## Remaining NTFS continuation work
 
-A safe continuation resolver must not treat an attribute-list file reference as sufficient proof of identity. Before using a continuation attribute it must:
+A safe continuation resolver must not treat an attribute-list file reference as sufficient proof of identity. The bounded matcher now enforces the identity checks below for records already supplied by its caller. The full resolver must additionally:
 
-1. Decode the 48-bit MFT record number and 16-bit sequence number.
-2. Read the referenced record only through a validated, bounded MFT mapping.
-3. Validate the FILE record fixups and require the sequence number to match.
-4. Confirm the referenced record's base-file reference points back to the expected base record and sequence.
-5. Match attribute type, name, attribute ID, and expected lowest VCN.
-6. Decode the continuation runlist and enforce exact VCN continuity, no overlap, no gaps, and volume bounds.
-7. Reject duplicate/cyclic references and cap records, list bytes, runs, and total mapped bytes.
-8. Ensure initialized-size and real-size semantics are respected before scanning records.
-9. Preserve a diagnostic trail for every accepted or rejected continuation extent.
+1. Read referenced records only through a validated, bounded MFT mapping, then validate their FILE fixups.
+2. Discover list entries recursively only if cycle and depth limits are defined and tested.
+3. Decode continuation runlists and enforce exact VCN continuity, no overlap, no gaps, and volume bounds.
+4. Ensure initialized-size and real-size semantics are respected before scanning records.
+5. Add non-resident `$ATTRIBUTE_LIST` stream support with separate bounds and tests.
+6. Preserve diagnostics for every accepted or rejected extent and ensure a partial scan is never reported as complete.
 
-The `NtfsAttributeListParser` and bounded referenced-record identity check are implemented as separate primitives. They are not yet wired into automatic MFT continuation discovery: non-resident attribute-list streams, continuation runlist assembly, recursive/cyclic reference handling, and exact VCN continuity still require implementation and adversarial tests.
+`NtfsAttributeListParser` and `NtfsAttributeListMatcher` are separate in-memory primitives and are not wired into automatic MFT continuation discovery. They do not provide complete MFT extension coverage, fragmented-file reconstruction, file extraction, or recovery. Non-resident attribute-list streams, reading references outside the initial MFT extent, recursive discovery, and continuation runlist assembly remain unimplemented.
 
 ## Recovery destination boundary (future)
 

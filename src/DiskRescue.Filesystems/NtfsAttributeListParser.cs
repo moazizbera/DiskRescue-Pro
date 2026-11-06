@@ -24,10 +24,24 @@ public sealed record NtfsAttributeListParseResult(
 /// </summary>
 public static class NtfsAttributeListParser
 {
+    public const uint AttributeListType = 0x20;
+    public const int MaximumEntries = 65536;
+    public const int MaximumValueBytes = 16 * 1024 * 1024;
     private const int MinimumEntryLength = 26;
-    private const int MaximumEntries = 65536;
-    private const int MaximumValueBytes = 16 * 1024 * 1024;
     private const ulong FileReferenceMask = 0x0000_FFFF_FFFF_FFFF;
+    private static readonly UnicodeEncoding StrictUtf16 = new(false, false, true);
+
+    public static NtfsAttributeListParseResult Parse(NtfsAttribute attribute)
+    {
+        ArgumentNullException.ThrowIfNull(attribute);
+        if (attribute.Type != AttributeListType)
+            return Invalid("$ATTRIBUTE_LIST parser received an attribute of a different type.");
+        if (attribute.IsNonResident)
+            return Invalid("Non-resident $ATTRIBUTE_LIST streams are not supported.");
+        if (attribute.ResidentValue is null || attribute.ResidentValueLength != attribute.ResidentValue.Length)
+            return Invalid("$ATTRIBUTE_LIST resident value is missing.");
+        return Parse(attribute.ResidentValue);
+    }
 
     public static NtfsAttributeListParseResult Parse(ReadOnlySpan<byte> value)
     {
@@ -56,28 +70,38 @@ public static class NtfsAttributeListParser
 
             if (length < MinimumEntryLength || (length & 7) != 0 || length > value.Length - offset)
                 return Invalid("$ATTRIBUTE_LIST entry length is invalid, unaligned, or truncated.");
+            if (type is 0 or uint.MaxValue)
+                return Invalid("$ATTRIBUTE_LIST entry has an invalid attribute type.");
 
             var nameBytes = checked(nameLength * 2);
             string name = string.Empty;
-            if (nameLength == 0)
-            {
-                if (nameOffset != 0)
-                    return Invalid("$ATTRIBUTE_LIST unnamed entry has a non-zero name offset.");
-            }
-            else
+            // Some writers leave a nonzero offset for the optional name when its length is zero.
+            if (nameLength > 0)
             {
                 if (nameOffset < MinimumEntryLength || (nameOffset & 1) != 0 || nameOffset > length || nameBytes > length - nameOffset)
                     return Invalid("$ATTRIBUTE_LIST name range is outside its entry.");
-                name = Encoding.Unicode.GetString(value.Slice(offset + nameOffset, nameBytes));
+                try
+                {
+                    name = StrictUtf16.GetString(value.Slice(offset + nameOffset, nameBytes));
+                }
+                catch (DecoderFallbackException)
+                {
+                    return Invalid("$ATTRIBUTE_LIST name contains invalid UTF-16 data.");
+                }
             }
+
+            var fileRecordNumber = fileReference & FileReferenceMask;
+            var fileSequenceNumber = (ushort)(fileReference >> 48);
+            if (fileRecordNumber == 0 && fileSequenceNumber == 0)
+                return Invalid("$ATTRIBUTE_LIST entry contains a null MFT file reference.");
 
             entries.Add(new NtfsAttributeListEntry(
                 type,
                 length,
                 name,
                 lowestVcn,
-                fileReference & FileReferenceMask,
-                (ushort)(fileReference >> 48),
+                fileRecordNumber,
+                fileSequenceNumber,
                 attributeId));
             offset = checked(offset + length);
         }

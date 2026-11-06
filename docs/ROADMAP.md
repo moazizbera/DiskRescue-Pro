@@ -35,10 +35,13 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [x] Conservative partial tree with parent sequence checks, cycle detection, and orphan reporting
 - [x] CLI NTFS scan and WPF selected-partition NTFS preview
 - [x] Bounded binary parser for `$ATTRIBUTE_LIST` entries
-- [ ] Read resident and non-resident `$ATTRIBUTE_LIST` values safely
-- [ ] Resolve continuation records with sequence/base-reference validation
+- [x] Parse resident `$ATTRIBUTE_LIST` values from validated attributes; reject non-resident list streams as unsupported
+- [x] Match parsed entries against supplied validated records by record sequence, base reference, type, ordinal UTF-16 name, attribute ID, and lowest VCN
+- [x] Return structured diagnostics for stale, mismatched, duplicate, ambiguous, malformed, and unsupported references
+- [ ] Read referenced records outside the initial validated MFT extent
 - [ ] Assemble additional MFT extents with exact VCN continuity and cycle/resource limits
-- [ ] Add fragmented, multi-record, cyclic, stale-reference, and malicious attribute-list fixtures
+- [x] Add synthetic-record tests for mismatched, duplicate, ambiguous, malformed, stale, and limit-exceeding references
+- [ ] Add generated-image integration fixtures for multi-record continuation and extent assembly
 - [ ] Parse `$INDEX_ROOT` and `$INDEX_ALLOCATION`
 - [ ] Validate complete parent relationships and build a reliable tree
 - [ ] Add NTFS compression/encryption/reparse-point semantics and explicit unsupported diagnostics
@@ -96,4 +99,4 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 
 The post-merge Windows CI run [42095792708](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42095792708) completed successfully on `main`: 53 tests passed, generated MBR/GPT/NTFS fixture generation and CLI smoke tests passed, WPF built, and self-contained Windows x64 CLI and desktop artifacts were published.
 
-The current feature branch adds the first `$ATTRIBUTE_LIST` entry parser and dedicated bounds tests. Windows CI run [42097467414](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42097467414) passed all 60 tests, generated-image CLI smoke tests, WPF build, and Windows x64 desktop/CLI publishing. Manual Windows desktop interaction is still outstanding.
+Windows CI run [42097467414](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42097467414) validated the earlier parser-only feature (60 tests, generated-image CLI smoke tests, WPF build, and Windows x64 desktop/CLI publishing). The current bounded matcher is covered by additional synthetic-record unit tests; its full-solution CI and packaging validation remain release gates. Manual Windows desktop interaction is still outstanding.

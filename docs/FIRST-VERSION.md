@@ -14,9 +14,9 @@ The preview builds a conservative partial tree from the records actually scanned
 
 ### Attribute-list entry parsing
 
-The filesystem library now includes a bounded parser for an already-read `$ATTRIBUTE_LIST` value. It extracts each entry's attribute type, name, lowest VCN, 48-bit file-record number, 16-bit sequence number, and attribute ID. The parser enforces value-size, entry-count, entry-length, alignment, and name-range limits.
+The filesystem library includes a bounded parser for resident `$ATTRIBUTE_LIST` values on already-parsed attributes and a one-level in-memory matcher for supplied, already validated FILE records. Matching checks the referenced record number and sequence, base-file reference, and full attribute identity: type, ordinal UTF-16 name, ID, and lowest VCN. Duplicate, stale, missing, malformed, mismatched, unsupported, or ambiguous references produce structured diagnostics. Parsing is limited to 16 MiB/65,536 entries; matching is limited to 4,096 candidate records, 16 MiB of record bytes, 4,096 parsed attributes, and 1,000,000 attribute comparisons.
 
-This is a parser prerequisite only. The application does not yet resolve referenced continuation records, read non-resident attribute-list streams, or extend MFT coverage through those entries.
+This remains an in-memory matching layer only. It does not read referenced records from the image, discover further continuations, assemble MFT extents, support non-resident `$ATTRIBUTE_LIST` streams, or extend MFT coverage. A partial set of matches is never marked complete if any entry is rejected.
 
 ## Not supported
 
@@ -73,7 +73,7 @@ Artifacts are available from [GitHub Actions](https://github.com/moazizbera/Disk
 
 The post-merge Windows CI run [42095792708](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42095792708) passed all 53 tests, generated-image CLI smoke tests, WPF build, and Windows x64 desktop/CLI publishing.
 
-The current development branch adds bounded `$ATTRIBUTE_LIST` parsing and dedicated tests. Windows CI run [42097467414](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42097467414) passed all 60 tests, generated-image CLI smoke tests, WPF build, and Windows x64 desktop/CLI publishing. Manual desktop interaction with generated images is still required.
+Windows CI run [42097467414](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42097467414) validated the earlier parser-only milestone. The current matcher adds synthetic-record tests; full-solution CI, generated-image CLI smoke tests, and Windows x64 desktop/CLI publishing remain required for this change. Manual desktop interaction with generated images is still required.
 
 ## Data preservation
 

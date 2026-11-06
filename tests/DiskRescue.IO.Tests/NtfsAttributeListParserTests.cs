@@ -30,6 +30,34 @@ public sealed class NtfsAttributeListParserTests
     }
 
     [Fact]
+    public void ParsesResidentAttributeListValue()
+    {
+        var value = new byte[32];
+        WriteEntry(value, 0x80, 32, null, 0, 42, 3, 2);
+        var attribute = new NtfsAttribute(
+            NtfsAttributeListParser.AttributeListType, 56, false, 1, 0, string.Empty,
+            checked((uint)value.Length), 24, null, null, null, null, null, null, null, value);
+
+        var result = NtfsAttributeListParser.Parse(attribute);
+
+        Assert.True(result.IsValid, string.Join("; ", result.Issues));
+        Assert.Single(result.Entries);
+    }
+
+    [Fact]
+    public void AcceptsNonzeroNameOffsetWhenEntryHasNoName()
+    {
+        var value = new byte[32];
+        WriteEntry(value, 0x80, 32, null, 0, 42, 3, 2);
+        value[7] = 26;
+
+        var result = NtfsAttributeListParser.Parse(value);
+
+        Assert.True(result.IsValid, string.Join("; ", result.Issues));
+        Assert.Equal(string.Empty, Assert.Single(result.Entries).Name);
+    }
+
+    [Fact]
     public void RejectsTruncatedEntry()
     {
         var value = new byte[27];
@@ -83,6 +111,49 @@ public sealed class NtfsAttributeListParserTests
         var result = NtfsAttributeListParser.Parse(value);
         Assert.False(result.IsValid);
         Assert.Contains(result.Issues, x => x.Contains("truncated entry header", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void RejectsNullFileReference()
+    {
+        var value = new byte[32];
+        WriteEntry(value, 0x80, 32, null, 0, 1, 1, 1);
+        value.AsSpan(16, 8).Clear();
+
+        var result = NtfsAttributeListParser.Parse(value);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, x =>
+            x.Contains("null MFT file reference", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void AcceptsMaximumEntryCount()
+    {
+        var value = new byte[checked(NtfsAttributeListParser.MaximumEntries * 32)];
+        for (var index = 0; index < NtfsAttributeListParser.MaximumEntries; index++)
+            WriteEntry(value.AsSpan(index * 32, 32), 0x80, 32, null, 0,
+                checked((ulong)index + 1), 1, checked((ushort)index));
+
+        var result = NtfsAttributeListParser.Parse(value);
+
+        Assert.True(result.IsValid, string.Join("; ", result.Issues));
+        Assert.Equal(NtfsAttributeListParser.MaximumEntries, result.Entries.Count);
+    }
+
+    [Fact]
+    public void AcceptsMaximumValueSize()
+    {
+        const int entryLength = 8192;
+        var value = new byte[NtfsAttributeListParser.MaximumValueBytes];
+        for (var offset = 0; offset < value.Length; offset += entryLength)
+            WriteEntry(value.AsSpan(offset, entryLength), 0x80, entryLength, null, 0,
+                checked((ulong)(offset / entryLength) + 1), 1, 1);
+
+        var result = NtfsAttributeListParser.Parse(value);
+
+        Assert.True(result.IsValid, string.Join("; ", result.Issues));
+        Assert.Equal(NtfsAttributeListParser.MaximumValueBytes, value.Length);
     }
 
     [Fact]
