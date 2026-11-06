@@ -301,6 +301,44 @@ public sealed class WindowsPhysicalDiskReaderTests
     }
 
     [Fact]
+    public void DestinationDiskMappingAllowsOnlyMatchingSeparatePhysicalDisks()
+    {
+        var issues = PhysicalImageDestinationSafety.ValidateDiskMappings(
+            2, new[] { 5, 7 }, new[] { 7, 5 });
+
+        Assert.Empty(issues);
+    }
+
+    [Fact]
+    public void DestinationDiskMappingRejectsAnySourceDiskOverlap()
+    {
+        var issues = PhysicalImageDestinationSafety.ValidateDiskMappings(
+            2, new[] { 2, 5 }, new[] { 5, 2 });
+
+        Assert.Contains(issues, issue => issue.Contains("shares the source physical disk", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void DestinationDiskMappingRejectsDisagreementWithWindowsVolumeMap()
+    {
+        var issues = PhysicalImageDestinationSafety.ValidateDiskMappings(
+            2, new[] { 5 }, new[] { 6 });
+
+        Assert.Contains(issues, issue => issue.Contains("do not agree", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void DestinationDiskMappingRejectsEmptyDuplicateAndInvalidMappings()
+    {
+        Assert.NotEmpty(PhysicalImageDestinationSafety.ValidateDiskMappings(
+            2, Array.Empty<int>(), Array.Empty<int>()));
+        Assert.NotEmpty(PhysicalImageDestinationSafety.ValidateDiskMappings(
+            2, new[] { 5, 5 }, new[] { 5 }));
+        Assert.NotEmpty(PhysicalImageDestinationSafety.ValidateDiskMappings(
+            2, new[] { -1 }, new[] { -1 }));
+    }
+
+    [Fact]
     public void VolumeExtentParserRejectsEmptyExtentSet()
     {
         var data = new byte[8];
