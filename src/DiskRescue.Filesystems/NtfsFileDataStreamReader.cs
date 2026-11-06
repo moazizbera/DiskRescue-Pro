@@ -16,8 +16,8 @@ public sealed record NtfsFileDataStreamCopyResult(
 
 /// <summary>
 /// Copies one validated, unnamed or named NTFS data stream to a caller-owned
-/// writable stream. Resident streams and single-extent, non-sparse, uncompressed,
-/// unencrypted non-resident streams are supported. Source access is read-only.
+/// writable stream. Resident streams and attribute-list-validated, multi-extent
+/// non-sparse, uncompressed, unencrypted streams are supported. Source access is read-only.
 /// </summary>
 public sealed class NtfsFileDataStreamReader
 {
@@ -185,69 +185,140 @@ public sealed partial class NtfsMftReader
         if (!parsed.IsValid)
             return InvalidDataStream("File record attributes are invalid: " + string.Join("; ", parsed.Issues));
 
-        var data = parsed.Attributes
-            .Where(attribute => attribute.Type == FileDataAttributeType &&
-                                string.Equals(attribute.Name, streamName, StringComparison.Ordinal))
-            .ToArray();
-        if (data.Length != 1)
-            return InvalidDataStream(data.Length == 0
-                ? "The requested $DATA stream was not found in this FILE record."
-                : "The requested $DATA stream has multiple extents or ambiguous attributes; multi-extent file streams are not yet supported.");
+        var listAttributes = parsed.Attributes.Where(attribute => attribute.Type == 0x20).ToArray();
+        if (listAttributes.Length > 1 || (listAttributes.Length == 1 && listAttributes[0].IsNonResident))
+            return InvalidDataStream("File has an ambiguous or non-resident $ATTRIBUTE_LIST; this form is not supported.");
 
-        var attribute = data[0];
-        if (attribute.Flags != 0)
-            return InvalidDataStream("Compressed, encrypted, sparse, or otherwise flagged file streams are not yet supported.");
-
-        if (!attribute.IsNonResident)
+        NtfsAttribute[] data;
+        if (listAttributes.Length == 0)
         {
-            if (attribute.ResidentValue is null || attribute.ResidentValueLength != attribute.ResidentValue.Length)
+            data = parsed.Attributes
+                .Where(attribute => attribute.Type == FileDataAttributeType &&
+                                    string.Equals(attribute.Name, streamName, StringComparison.Ordinal))
+                .ToArray();
+        }
+        else
+        {
+            var parsedList = NtfsAttributeListParser.Parse(listAttributes[0]);
+            if (!parsedList.IsValid)
+                return InvalidDataStream("File $ATTRIBUTE_LIST is invalid: " + string.Join("; ", parsedList.Issues));
+            if (parsedList.Entries.Count > NtfsAttributeListMatcher.MaximumRecords)
+                return InvalidDataStream("File $ATTRIBUTE_LIST exceeds the continuation-record safety limit.");
+
+            var baseReference = new NtfsFileReference(record.RecordNumber, record.SequenceNumber);
+            var recordsByNumber = new Dictionary<ulong, NtfsFileRecord>
+            {
+                [record.RecordNumber] = record
+            };
+            foreach (var entry in parsedList.Entries)
+            {
+                if (recordsByNumber.ContainsKey(entry.FileRecordNumber))
+                    continue;
+                if (entry.FileRecordNumber > uint.MaxValue)
+                    return InvalidDataStream("File $ATTRIBUTE_LIST references an unsupported MFT record number.");
+
+                var referenced = ReadReferencedRecord(
+                    new NtfsFileReference(entry.FileRecordNumber, entry.FileSequenceNumber), baseReference);
+                if (!referenced.IsValid || referenced.Record is null)
+                    return InvalidDataStream($"File continuation record {entry.FileRecordNumber} could not be validated: " +
+                        string.Join("; ", referenced.Issues));
+                recordsByNumber.Add(entry.FileRecordNumber, referenced.Record);
+            }
+
+            var matched = NtfsAttributeListMatcher.Match(parsedList, recordsByNumber.Values.ToArray(), baseReference);
+            if (!matched.IsComplete)
+                return InvalidDataStream("File $ATTRIBUTE_LIST identity validation was incomplete: " +
+                    string.Join("; ", matched.Diagnostics.Select(diagnostic => diagnostic.Message)));
+
+            data = matched.Matches
+                .Where(item => item.Entry.Type == FileDataAttributeType &&
+                               string.Equals(item.Entry.Name, streamName, StringComparison.Ordinal))
+                .Select(item => item.Attribute)
+                .ToArray();
+        }
+
+        if (data.Length == 0)
+            return InvalidDataStream("The requested $DATA stream was not found in the validated FILE record set.");
+
+        if (data.Any(attribute => attribute.Flags != 0))
+            return InvalidDataStream("Compressed, encrypted, sparse, or otherwise flagged file data streams are not yet supported.");
+
+        if (data.Length == 1 && !data[0].IsNonResident)
+        {
+            var resident = data[0];
+            if (resident.ResidentValue is null || resident.ResidentValueLength != resident.ResidentValue.Length)
                 return InvalidDataStream("Resident $DATA value metadata is inconsistent.");
             var reader = new NtfsFileDataStreamReader(_source, _volumeOffset, _volumeLength,
-                _boot.ClusterSizeBytes, attribute.ResidentValue);
+                _boot.ClusterSizeBytes, resident.ResidentValue);
             return new(true, reader, true, reader.Length, Array.Empty<string>());
         }
 
-        if (attribute.LowestVcn != 0 || attribute.HighestVcn is null ||
-            attribute.MappingPairs is null || attribute.AllocatedSize is null ||
-            attribute.RealSize is null || attribute.InitializedSize is null)
-            return InvalidDataStream("Non-resident $DATA stream is missing its base extent or size metadata.");
-        if (attribute.InitializedSize.Value > attribute.RealSize.Value ||
-            attribute.RealSize.Value > attribute.AllocatedSize.Value)
-            return InvalidDataStream("Non-resident $DATA stream size metadata is inconsistent.");
+        if (data.Any(attribute => !attribute.IsNonResident))
+            return InvalidDataStream("A $DATA stream cannot mix resident and non-resident extents.");
 
         try
         {
+            var ordered = data.OrderBy(attribute => attribute.LowestVcn).ToArray();
+            var first = ordered[0];
+            if (first.LowestVcn != 0 || first.AllocatedSize is null ||
+                first.RealSize is null || first.InitializedSize is null)
+                return InvalidDataStream("Non-resident $DATA stream is missing its base extent or size metadata.");
+            if (first.InitializedSize.Value > first.RealSize.Value ||
+                first.RealSize.Value > first.AllocatedSize.Value)
+                return InvalidDataStream("Non-resident $DATA stream size metadata is inconsistent.");
+
             var volumeClusters = (ulong)(_volumeLength / _boot.ClusterSizeBytes);
-            var runlist = NtfsRunlistParser.Parse(attribute.MappingPairs, volumeClusters);
-            if (!runlist.IsValid)
-                return InvalidDataStream("File $DATA mapping pairs are invalid: " + string.Join("; ", runlist.Issues));
-            if (runlist.Runs.Count == 0 || runlist.Runs.Any(run => run.IsSparse) ||
-                runlist.TotalClusters == 0 || runlist.TotalClusters - 1 != attribute.HighestVcn.Value)
-                return InvalidDataStream("File $DATA runlist does not match its declared VCN range.");
+            var allRuns = new List<NtfsDataRun>();
+            ulong nextVcn = 0;
+            foreach (var extent in ordered)
+            {
+                if (extent.LowestVcn is not ulong lowest || extent.HighestVcn is not ulong highest ||
+                    extent.MappingPairs is null || lowest != nextVcn || highest < lowest)
+                    return InvalidDataStream("Non-resident $DATA extents contain missing metadata, a VCN gap, or an overlap.");
 
-            var mappedBytes = checked(runlist.TotalClusters * _boot.ClusterSizeBytes);
-            if (attribute.AllocatedSize.Value > mappedBytes || attribute.RealSize.Value > mappedBytes)
-                return InvalidDataStream("File $DATA stream sizes exceed the mapped extent.");
+                var runlist = NtfsRunlistParser.Parse(extent.MappingPairs, volumeClusters);
+                if (!runlist.IsValid)
+                    return InvalidDataStream("File $DATA mapping pairs are invalid: " + string.Join("; ", runlist.Issues));
+                ulong expectedClusters;
+                try { expectedClusters = checked(highest - lowest + 1); }
+                catch (OverflowException) { return InvalidDataStream("File $DATA extent VCN range overflows."); }
+                if (runlist.Runs.Count == 0 || runlist.TotalClusters != expectedClusters ||
+                    runlist.Runs.Count > 1_000_000 - allRuns.Count)
+                    return InvalidDataStream("File $DATA mapping pairs do not match the declared VCN extent or exceed the run limit.");
 
-            var physicalRuns = runlist.Runs.Where(run => !run.IsSparse)
+                foreach (var run in runlist.Runs)
+                {
+                    var translatedVcn = checked(lowest + run.StartingVcn);
+                    allRuns.Add(new NtfsDataRun(translatedVcn, run.ClusterCount, run.StartingLcn));
+                }
+                nextVcn = checked(highest + 1);
+                if (nextVcn > volumeClusters)
+                    return InvalidDataStream("File $DATA extent map exceeds the volume cluster count.");
+            }
+
+            var physicalRuns = allRuns.Where(run => !run.IsSparse)
                 .OrderBy(run => run.StartingLcn).ToArray();
             ulong previousEnd = 0;
             var hasPrevious = false;
             foreach (var run in physicalRuns)
             {
-                var start = run.StartingLcn!.Value;
-                var end = checked(start + run.ClusterCount);
-                if (hasPrevious && start < previousEnd)
+                var startLcn = run.StartingLcn!.Value;
+                var endLcn = checked(startLcn + run.ClusterCount);
+                if (hasPrevious && startLcn < previousEnd)
                     return InvalidDataStream("File $DATA mapping pairs contain overlapping physical runs.");
-                previousEnd = end;
+                previousEnd = endLcn;
                 hasPrevious = true;
             }
 
+            var mappedBytes = checked(nextVcn * _boot.ClusterSizeBytes);
+            if (first.AllocatedSize.Value > mappedBytes || first.RealSize.Value > mappedBytes)
+                return InvalidDataStream("File $DATA stream sizes exceed the assembled extent map.");
+
             var reader = new NtfsFileDataStreamReader(_source, _volumeOffset, _volumeLength,
-                _boot.ClusterSizeBytes, runlist.Runs, attribute.InitializedSize.Value, attribute.RealSize.Value);
+                _boot.ClusterSizeBytes, allRuns, first.InitializedSize.Value, first.RealSize.Value);
             return new(true, reader, false, reader.Length, Array.Empty<string>());
         }
-        catch (OverflowException)
+        catch (Exception exception) when (exception is OverflowException or ArgumentOutOfRangeException)
         {
             return InvalidDataStream("File $DATA stream geometry overflows supported integer bounds.");
         }
