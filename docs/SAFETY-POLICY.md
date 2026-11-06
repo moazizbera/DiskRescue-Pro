@@ -43,3 +43,9 @@ If a disk has simply lost its partition entries and is otherwise healthy, minimi
 The current desktop inventory evaluates each detected device with a conservative physical-scan preflight. It blocks when device identity cannot be revalidated by serial number, serials are duplicated, the bus is unknown or layered (RAID, virtual, file-backed virtual, or Storage Spaces), removable media is reported, inventory or volume enumeration has errors, the disk contains an enumerated volume, or system/boot exclusion and a verified separate image have not been established.
 
 At this stage, system/boot exclusion and verified imaging are deliberately not asserted by the application. Therefore the preflight remains blocked and the physical sector scanner is not exposed. A complete volume-to-disk map is useful evidence, but is not by itself proof that a device is safe to scan.
+
+## Read-only image acquisition engine
+
+The IO layer now includes a bounded image-copy primitive for an already-open `IReadOnlyRandomAccessSource`. It reads sequentially in bounded chunks, writes only to a newly created destination-side temporary file, computes SHA-256 while copying, flushes the completed file, and publishes it without overwriting an existing destination. Cancellation and source/destination errors remove the temporary partial file when possible. The engine exposes no source-write operation.
+
+This primitive is not yet an end-user physical-disk imaging workflow. It does not independently establish that the destination is on a different physical device, does not establish that the source is safe to acquire, and does not handle device-specific bad-sector retry policy or resume maps. Do not point it at a user's only copy of a failing drive. The caller must establish destination separation and complete source preflight before connecting a physical source. Physical scanning remains disabled.
