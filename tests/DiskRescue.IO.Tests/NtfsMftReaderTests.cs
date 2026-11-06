@@ -93,6 +93,10 @@ public sealed class NtfsMftReaderTests
         var record = extended.Reader!.ReadRecord(4);
         Assert.True(record.IsValid, string.Join("; ", record.Issues));
         Assert.Equal((uint)4, record.Record!.RecordNumber);
+
+        var scan = extended.Reader.ScanRecords(16);
+        Assert.True(scan.IsValid, string.Join("; ", scan.Issues));
+        Assert.Equal((ulong)8, scan.RecordsExamined);
     }
 
     [Fact]
