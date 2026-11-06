@@ -117,6 +117,23 @@ public sealed class NtfsMftExtentMapTests
         Assert.Contains(result.Issues, issue => issue.Contains("extent count", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void RejectsAggregateMappingPairsInputBeyondSafetyLimit()
+    {
+        var mappingPairs = new byte[NtfsMftExtentMap.MaximumMappingPairsBytes / 2 + 1];
+        mappingPairs[^1] = 0;
+        var extents = new[]
+        {
+            DataExtent(0, 0, mappingPairs, sizes: true),
+            DataExtent(1, 1, mappingPairs)
+        };
+
+        var result = NtfsMftExtentMap.Assemble(extents, 128, 512);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, issue => issue.Contains("aggregate safety limit", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static NtfsAttribute DataExtent(
         ulong lowestVcn,
         ulong highestVcn,
