@@ -177,6 +177,108 @@ public partial class MainWindow : Window
         }
     }
 
+
+    private async void Discover_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(ImagePathBox.Text) || !File.Exists(ImagePathBox.Text))
+        {
+            MessageBox.Show(this, "Choose a regular disk-image file first. Physical disks are not supported.", "Image required", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var imagePath = ImagePathBox.Text;
+        var sectorSize = int.Parse(((ComboBoxItem)SectorSizeBox.SelectedItem).Tag.ToString()!);
+        var known = _rows.Select(row => new KnownPartitionRange(row.Table, row.Index, row.ByteOffset, row.ByteLength)).ToArray();
+
+        DiscoverButton.IsEnabled = false;
+        InspectButton.IsEnabled = false;
+        BrowseButton.IsEnabled = false;
+        SectorSizeBox.IsEnabled = false;
+        ScanNtfsButton.IsEnabled = false;
+        ExportButton.IsEnabled = false;
+        ScanProgressBar.Value = 0;
+        ScanProgressText.Text = "Starting scan…";
+        Mouse.OverrideCursor = Cursors.Wait;
+        StatusText.Text = "Searching image for validated NTFS volumes · Read-only…";
+
+        try
+        {
+            var progress = new Progress<PartitionScanProgress>(value =>
+            {
+                ScanProgressBar.Value = value.Percent;
+                ScanProgressText.Text = $"{value.Percent}% · {value.CandidatesValidated} candidates";
+            });
+            var result = await Task.Run(() =>
+            {
+                using var image = FileImageReader.Open(imagePath);
+                return NtfsPartitionScanner.Scan(image, sectorSize, known,
+                    maximumScanBytes: image.Length, progress: progress);
+            });
+
+            for (var i = _rows.Count - 1; i >= 0; i--)
+                if (_rows[i].Table == "SCAN") _rows.RemoveAt(i);
+
+            var nextIndex = 1;
+            foreach (var candidate in result.Candidates.Where(candidate => candidate.Status == "Lost partition candidate"))
+            {
+                _rows.Add(new PartitionRow(nextIndex++, "SCAN",
+                    $"Lost NTFS · {candidate.Confidence}% confidence",
+                    (candidate.ByteOffset / sectorSize).ToString(),
+                    FormatBytes(candidate.ByteLength),
+                    candidate.ByteOffset, candidate.ByteLength));
+            }
+
+            using var reportDocument = JsonDocument.Parse(_lastReport ?? "{}");
+            _lastReport = JsonSerializer.Serialize(new
+            {
+                inspection = reportDocument.RootElement.Clone(),
+                partitionDiscovery = result
+            }, new JsonSerializerOptions { WriteIndented = true });
+            _lastReportPath = imagePath;
+            ExportButton.IsEnabled = true;
+
+            var notes = new List<string>
+            {
+                "Read-only NTFS lost-partition discovery",
+                $"Bytes scanned: {result.BytesScanned:N0} / {result.TotalBytes:N0}",
+                $"Validated NTFS candidates: {result.Candidates.Count:N0}",
+                $"Lost candidates added to the partition list: {result.Candidates.Count(candidate => candidate.Status == "Lost partition candidate"):N0}",
+                $"Existing partition matches: {result.Candidates.Count(candidate => candidate.Status == "Existing partition"):N0}",
+                $"Candidates overlapping known partitions: {result.Candidates.Count(candidate => candidate.Status == "Overlaps known partition"):N0}",
+                $"Scan cancelled: {result.WasCancelled}",
+                "",
+                "A candidate is not a recovered partition. It is a validated NTFS boot-sector/geometry finding. No partition table changes or source writes are performed."
+            };
+            foreach (var candidate in result.Candidates)
+            {
+                notes.Add("");
+                notes.Add($"{candidate.Status} · offset {candidate.ByteOffset:N0} · size {FormatBytes(candidate.ByteLength)} · confidence {candidate.Confidence}%");
+                notes.AddRange(candidate.Evidence.Select(evidence => "• " + evidence));
+            }
+            notes.AddRange(result.Issues.Select(issue => "• " + issue));
+            FindingsBox.Text = string.Join(Environment.NewLine, notes);
+            PartitionCountText.Text = _rows.Count.ToString();
+            StatusText.Text = result.WasCancelled
+                ? $"Partition search cancelled · {result.BytesScanned:N0} bytes scanned"
+                : $"Partition search complete · {result.Candidates.Count:N0} validated NTFS candidates";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+        {
+            FindingsBox.Text = "Partition discovery stopped safely.\n\n" + ex.Message + "\n\nNo source writes, repairs, or recovery operations were attempted.";
+            StatusText.Text = "Partition discovery failed safely";
+            MessageBox.Show(this, ex.Message, "Partition scan failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            DiscoverButton.IsEnabled = true;
+            InspectButton.IsEnabled = true;
+            BrowseButton.IsEnabled = true;
+            SectorSizeBox.IsEnabled = true;
+            Mouse.OverrideCursor = null;
+            UpdateNtfsButtonState();
+        }
+    }
+
     private static NtfsScanUiResult ScanNtfsPartition(string path, long offset, long length)
     {
         using var image = FileImageReader.Open(path);
