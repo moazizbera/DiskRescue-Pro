@@ -66,6 +66,7 @@ jobs:
           $existingRecovery = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- extract-ntfs-file "$env:RUNNER_TEMP/DiskRescue-TestImages/ntfs-mft-preview.img" --offset 512 --length 65024 --record 1 --output $recoveredFile --max-bytes 1024 2>&1
           $recoveryExitCode = $LASTEXITCODE
           if ($recoveryExitCode -eq 0) { throw "NTFS extraction unexpectedly overwrote an existing output file." }
+          $global:LASTEXITCODE = 0
       - name: Build WPF desktop application
         run: dotnet build src/DiskRescue.Desktop/DiskRescue.Desktop.csproj --configuration Release --no-restore
       - name: Publish Windows x64 desktop preview
