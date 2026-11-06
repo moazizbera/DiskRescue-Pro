@@ -36,3 +36,10 @@ Do not test this feature against the user's damaged or only copy of a disk. Befo
 If the drive makes unusual mechanical noises, repeatedly disappears, becomes unusually hot, or produces persistent I/O errors: stop scanning and disconnect it safely. Do not run CHKDSK repair options, initialize the disk, format it, or create new partitions. If the data is valuable, consult a reputable recovery specialist.
 
 If a disk has simply lost its partition entries and is otherwise healthy, minimize use and create an image to another disk before experimenting. Never save the image or recovered files onto the affected disk.
+
+
+## Physical scan preflight (not an authorization to scan)
+
+The current desktop inventory evaluates each detected device with a conservative physical-scan preflight. It blocks when device identity cannot be revalidated by serial number, serials are duplicated, the bus is unknown or layered (RAID, virtual, file-backed virtual, or Storage Spaces), removable media is reported, inventory or volume enumeration has errors, the disk contains an enumerated volume, or system/boot exclusion and a verified separate image have not been established.
+
+At this stage, system/boot exclusion and verified imaging are deliberately not asserted by the application. Therefore the preflight remains blocked and the physical sector scanner is not exposed. A complete volume-to-disk map is useful evidence, but is not by itself proof that a device is safe to scan.
