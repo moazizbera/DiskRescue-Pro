@@ -57,11 +57,15 @@ jobs:
           if ($ntfs.scan.entries.Count -ne 1 -or $ntfs.scan.entries[0].name -ne "Report.txt") { throw "Synthetic NTFS MFT fixture did not return the expected Report.txt entry." }
           if ($ntfs.scan.recordsExamined -ne 4 -or -not $ntfs.safety.sourceOpenedReadOnly -or $ntfs.safety.fileRecoveryAvailable) { throw "NTFS scan safety or record-count assertions failed." }
           $recoveredFile = "$env:RUNNER_TEMP/DiskRescue-TestImages/Report-recovered.txt"
-          dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- extract-ntfs-file "$env:RUNNER_TEMP/DiskRescue-TestImages/ntfs-mft-preview.img" --offset 512 --length 65024 --record 1 --output $recoveredFile --max-bytes 1024
+          $extractOutput = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- extract-ntfs-file "$env:RUNNER_TEMP/DiskRescue-TestImages/ntfs-mft-preview.img" --offset 512 --length 65024 --record 1 --output $recoveredFile --max-bytes 1024 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "NTFS extraction command failed: $($extractOutput -join ' ')" }
           if (-not (Test-Path $recoveredFile)) { throw "NTFS extraction did not publish its recovered file." }
-          if ([IO.File]::ReadAllText($recoveredFile) -ne "DiskRescue synthetic recovered content") { throw "NTFS extraction content does not match the synthetic resident $DATA payload." }
+          $expectedPayload = [Text.Encoding]::UTF8.GetBytes("DiskRescue synthetic recovered content")
+          $actualPayload = [IO.File]::ReadAllBytes($recoveredFile)
+          if ([Convert]::ToHexString($actualPayload) -ne [Convert]::ToHexString($expectedPayload)) { throw "NTFS extraction content mismatch. Actual SHA-256: $((Get-FileHash -Algorithm SHA256 $recoveredFile).Hash)" }
           $existingRecovery = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- extract-ntfs-file "$env:RUNNER_TEMP/DiskRescue-TestImages/ntfs-mft-preview.img" --offset 512 --length 65024 --record 1 --output $recoveredFile --max-bytes 1024 2>&1
-          if ($LASTEXITCODE -eq 0) { throw "NTFS extraction unexpectedly overwrote an existing output file." }
+          $recoveryExitCode = $LASTEXITCODE
+          if ($recoveryExitCode -eq 0) { throw "NTFS extraction unexpectedly overwrote an existing output file." }
       - name: Build WPF desktop application
         run: dotnet build src/DiskRescue.Desktop/DiskRescue.Desktop.csproj --configuration Release --no-restore
       - name: Publish Windows x64 desktop preview
