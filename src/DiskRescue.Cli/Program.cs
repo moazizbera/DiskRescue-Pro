@@ -243,7 +243,11 @@ static int RunNtfsScan(string[] args)
             return 1;
         }
 
-        var scan = mftResult.Reader.ScanRecords(maximumRecords);
+        var continuation = mftResult.Reader.ExtendUsingResidentAttributeList();
+        var scanReader = continuation.IsValid && continuation.Reader is not null
+            ? continuation.Reader
+            : mftResult.Reader;
+        var scan = scanReader.ScanRecords(maximumRecords);
         var tree = NtfsDirectoryTreeBuilder.Build(scan.Entries);
         var report = new
         {
@@ -269,7 +273,14 @@ static int RunNtfsScan(string[] args)
                 sourceWriteOperationsAvailable = false,
                 directoryTreePreviewGenerated = true,
                 completeDirectoryTreeAvailable = false,
-                fileRecoveryAvailable = false
+                fileRecoveryAvailable = false,
+                mftContinuationDiscovery = new
+                {
+                    continuation.IsValid,
+                    continuation.Extended,
+                    usedExtendedReader = !ReferenceEquals(scanReader, mftResult.Reader),
+                    issues = continuation.Issues
+                }
             },
             scan = new
             {
@@ -280,7 +291,9 @@ static int RunNtfsScan(string[] args)
                 scan.Entries,
                 directoryTree = new { tree.Roots, tree.Orphans, diagnostics = tree.Issues },
                 diagnostics = scan.Issues,
-                scope = "Initial validated $MFT::$DATA extent only; additional extents and directory indexes are not followed."
+                scope = continuation.IsValid && continuation.Extended
+                    ? "Validated resident $ATTRIBUTE_LIST continuation extents are included when referenced FILE records are reachable through the initial MFT map; non-resident attribute lists, recursive bootstrap discovery, and directory indexes are not followed."
+                    : "Initial validated $MFT::$DATA extent only; continuation discovery was unavailable or unnecessary, and directory indexes are not followed."
             }
         };
 
