@@ -21,7 +21,6 @@ public sealed record PhysicalVolumeMappingResult(
 
 public static class WindowsPhysicalDiskVolumeMap
 {
-    private const uint GenericRead = 0x80000000;
     private const uint ShareRead = 0x00000001;
     private const uint ShareWrite = 0x00000002;
     private const uint OpenExisting = 3;
@@ -67,7 +66,7 @@ public static class WindowsPhysicalDiskVolumeMap
                 try
                 {
                     using var volume = NativeMethods.CreateFile(
-                        path.TrimEnd('\\'), GenericRead, ShareRead | ShareWrite, IntPtr.Zero,
+                        path.TrimEnd('\\'), 0, ShareRead | ShareWrite, IntPtr.Zero,
                         OpenExisting, FileAttributeNormal, IntPtr.Zero);
                     if (volume.IsInvalid)
                         throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to open volume for extent inspection.");
@@ -83,6 +82,9 @@ public static class WindowsPhysicalDiskVolumeMap
                             throw new InvalidDataException("Volume disk extents exceed the bounded inspection buffer.");
                         throw new Win32Exception(error, "Unable to query volume disk extents.");
                     }
+
+                    if (returned < 0 || returned > buffer.Length)
+                        throw new InvalidDataException("Volume disk-extents response has an invalid byte count.");
 
                     foreach (var diskNumber in ParseDiskNumbers(buffer.AsSpan(0, returned)))
                     {
@@ -149,7 +151,7 @@ public static class WindowsPhysicalDiskVolumeMap
 
     private sealed class SafeVolumeFindHandle : SafeHandleZeroOrMinusOneIsInvalid
     {
-        private SafeVolumeFindHandle() : base(true) { }
+        public SafeVolumeFindHandle() : base(true) { }
         protected override bool ReleaseHandle() => NativeMethods.FindVolumeClose(handle);
     }
 
