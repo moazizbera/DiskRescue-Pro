@@ -15,7 +15,6 @@ public sealed record NtfsMftContinuationDiscoveryResult(
 public sealed partial class NtfsMftReader
 {
     private const uint AttributeListType = 0x20;
-    private const uint DataAttributeType = 0x80;
     private const int MaximumContinuationRecords = 4096;
 
     public NtfsMftContinuationDiscoveryResult ExtendUsingResidentAttributeList()
