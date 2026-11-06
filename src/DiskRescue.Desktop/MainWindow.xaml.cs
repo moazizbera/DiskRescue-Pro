@@ -34,34 +34,47 @@ public partial class MainWindow : Window
 
         try
         {
-            var result = await Task.Run(() => WindowsPhysicalDiskDiscovery.Enumerate());
+            var inventory = await Task.Run(() => WindowsPhysicalDiskDiscovery.Enumerate());
+            var volumeMap = await Task.Run(() => WindowsPhysicalDiskVolumeMap.Enumerate());
             var notes = new List<string>
             {
                 "WINDOWS PHYSICAL DISK INVENTORY",
-                "Metadata-only discovery · Handles request GENERIC_READ and are closed after each probe.",
-                $"Disks detected: {result.Disks.Count}",
+                "Read-only metadata probes plus volume-to-disk extent mapping.",
+                $"Disks detected: {inventory.Disks.Count}",
+                $"Volume mapping: {(volumeMap.IsComplete ? "Complete" : "INCOMPLETE · fail-closed")}",
                 ""
             };
 
-            foreach (var disk in result.Disks)
+            foreach (var disk in inventory.Disks)
             {
                 notes.Add($"PhysicalDrive{disk.DiskNumber} · {disk.DisplayIdentity} · {FormatBytes(disk.LengthBytes)}");
                 notes.Add($"Vendor: {disk.Vendor ?? "Not reported"} · Model: {disk.Model ?? "Not reported"}");
                 notes.Add($"Serial: {disk.SerialNumber ?? "Not reported"}");
                 notes.Add($"Logical sector size: {disk.BytesPerSector:N0} bytes · Bus type: {(disk.BusType?.ToString() ?? "Not reported")} · Removable: {(disk.RemovableMedia?.ToString() ?? "Not reported")}");
                 notes.Add($"Device path: {disk.DevicePath}");
-                notes.Add("Access mode: read-only metadata probe; no sector scan was started.");
+                if (volumeMap.VolumePathsByDisk.TryGetValue(disk.DiskNumber, out var volumes))
+                {
+                    notes.Add($"Mounted/known volumes mapped: {volumes.Count}");
+                    notes.AddRange(volumes.Select(volume => "  • " + volume));
+                }
+                else
+                {
+                    notes.Add(volumeMap.CanTreatDiskAsUnmapped(disk.DiskNumber)
+                        ? "Mapped volumes: none reported by a complete enumeration."
+                        : "Mapped volumes: UNKNOWN · enumeration incomplete; disk must be excluded.");
+                }
                 notes.Add("");
             }
 
-            if (result.Issues.Count > 0)
+            if (inventory.Issues.Count > 0 || volumeMap.Issues.Count > 0)
             {
                 notes.Add("Discovery diagnostics:");
-                notes.AddRange(result.Issues.Select(issue => "• " + issue));
+                notes.AddRange(inventory.Issues.Select(issue => "• Disk: " + issue));
+                notes.AddRange(volumeMap.Issues.Select(issue => "• Volume: " + issue));
                 notes.Add("");
             }
 
-            notes.Add("SAFETY: Hardware identity fields are best-effort and may be absent, duplicated, or altered by storage bridges/controllers. Disk numbers remain temporary locators. System/boot-disk and mounted-volume exclusion are not implemented, so physical sector scanning is intentionally unavailable. This inventory does not authorize scanning or recovery.");
+            notes.Add("SAFETY: Volume mapping is conservative and fail-closed; incomplete mapping never means a disk is unused. A complete mapping still does not prove that a disk is not the separate boot/system device, nor does it prevent Windows or other processes writing through mounted volumes. Hardware identity is best-effort and disk numbers are temporary locators. Physical sector scanning remains disabled until boot/system exclusion, device revalidation, and imaging-first handling are independently verified.");
             FindingsBox.Text = string.Join(Environment.NewLine, notes);
             StatusText.Text = $"Physical disk inventory complete · {result.Disks.Count} device(s) reported · No sector scan performed";
         }
