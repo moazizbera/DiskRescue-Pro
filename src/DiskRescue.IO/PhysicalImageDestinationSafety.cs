@@ -90,11 +90,9 @@ public static class PhysicalImageDestinationSafety
                 throw new InvalidDataException("Destination volume returned an invalid extent-buffer length.");
 
             var actualDisks = WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(buffer.AsSpan(0, returned));
-            if (!mappedDisks.SequenceEqual(actualDisks.Order()))
-                throw new InvalidDataException("Destination volume extents do not agree with the complete Windows volume map.");
-
-            if (actualDisks.Contains(sourceDiskNumber))
-                blockers.Add("Destination volume shares the source physical disk; it cannot be used for the disk image.");
+            var mappingIssues = ValidateDiskMappings(sourceDiskNumber, mappedDisks, actualDisks);
+            if (mappingIssues.Count != 0)
+                blockers.AddRange(mappingIssues);
 
             return new(blockers.Count == 0, guidPath, actualDisks, blockers.AsReadOnly());
         }
@@ -104,6 +102,35 @@ public static class PhysicalImageDestinationSafety
             blockers.Add("Destination separation could not be verified: " + ex.Message);
             return new(false, null, Array.Empty<int>(), blockers.AsReadOnly());
         }
+    }
+
+
+    internal static IReadOnlyList<string> ValidateDiskMappings(
+        int sourceDiskNumber,
+        IReadOnlyList<int> mappedDiskNumbers,
+        IReadOnlyList<int> actualDiskNumbers)
+    {
+        ArgumentNullException.ThrowIfNull(mappedDiskNumbers);
+        ArgumentNullException.ThrowIfNull(actualDiskNumbers);
+        var issues = new List<string>();
+        if (sourceDiskNumber < 0)
+            issues.Add("Source disk number is invalid.");
+        if (mappedDiskNumbers.Count == 0 || actualDiskNumbers.Count == 0)
+            issues.Add("Destination volume has no verifiable physical-disk mapping.");
+        if (mappedDiskNumbers.Any(number => number < 0) ||
+            actualDiskNumbers.Any(number => number < 0))
+            issues.Add("Destination volume mapping contains an invalid physical disk number.");
+        if (mappedDiskNumbers.Distinct().Count() != mappedDiskNumbers.Count ||
+            actualDiskNumbers.Distinct().Count() != actualDiskNumbers.Count)
+            issues.Add("Destination volume mapping contains duplicate physical disk entries.");
+        if (issues.Count != 0)
+            return issues.AsReadOnly();
+
+        if (!mappedDiskNumbers.Order().SequenceEqual(actualDiskNumbers.Order()))
+            issues.Add("Destination volume extents do not agree with the complete Windows volume map.");
+        if (actualDiskNumbers.Contains(sourceDiskNumber))
+            issues.Add("Destination volume shares the source physical disk; it cannot be used for the disk image.");
+        return issues.AsReadOnly();
     }
 
     private static class NativeMethods
