@@ -155,6 +155,10 @@ public static class WindowsPhysicalDiskVolumeMap
 
     private static class NativeMethods
     {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool FindVolumeClose(IntPtr findHandle);
+
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         internal static extern SafeVolumeFindHandle FindFirstVolume(StringBuilder volumeName, int bufferLength);
 
