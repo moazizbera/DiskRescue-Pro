@@ -84,7 +84,7 @@ Extract one validated NTFS file data stream by MFT record number:
 dotnet run --project src/DiskRescue.Cli -- extract-ntfs-file "C:\Images\sample.img" --offset 1048576 --length 1073741824 --record 42 --output "D:\Recovered\record-42.bin" --max-bytes 268435456
 ```
 
-The output directory must already exist and the output file must not exist. The command requires an explicit maximum export size, validates the boot sector, MFT and stream mapping, follows only supported resident/single-extent streams, writes to a temporary file, flushes it, then publishes without overwrite. Ctrl+C cancels and removes the temporary output when possible. This is a low-level image-only stream export, not automatic filename-based recovery. Do not use it to write recovered files onto the suspect source disk.
+The output directory must already exist and the output file must not exist. The command requires an explicit maximum export size, validates the boot sector, MFT and stream mapping, follows resident streams and non-resident streams whose extents are fully matched through a resident `$ATTRIBUTE_LIST` (with every continuation FILE record already reachable in the validated MFT map), writes to a temporary file, flushes it, then publishes without overwrite. Sparse, compressed, encrypted, non-resident attribute lists, and continuation records outside the current MFT map remain unsupported. Ctrl+C cancels and removes the temporary output when possible. This is a low-level image-only stream export, not automatic filename-based recovery. Do not use it to write recovered files onto the suspect source disk.
 
 ## Safe test images
 
