@@ -30,6 +30,16 @@ The project structure is intentionally incremental. Do not add empty abstraction
 - Rejects unsupported paths and invalid ranges.
 - Does not expose a write method or physical-device implementation.
 
+### Physical storage access (initial implementation)
+
+- `WindowsPhysicalDiskDiscovery` probes a bounded range of Windows `\\\\.\\PhysicalDriveN` paths.
+- Probe handles request `GENERIC_READ` only and share read/write so existing Windows users are not excluded by an exclusive share lock. Share permissions do not grant this process write access.
+- Discovery obtains capacity with `IOCTL_DISK_GET_LENGTH_INFO` and logical sector size with `IOCTL_DISK_GET_DRIVE_GEOMETRY`, validates both, and closes each probe handle immediately.
+- `WindowsPhysicalDiskReader` reopens one selected disk with read access only, checks that capacity and sector size still match the discovery snapshot, and implements bounded random-access reads through `IReadOnlyRandomAccessSource`.
+- Disk numbers are session-scoped locators, not durable hardware identities. The current first increment does not yet retrieve model, serial, bus type, or stable device identifiers; do not silently assume a disk number still identifies the same physical unit after reconnection.
+- This is a low-level access foundation only. It is not yet wired into the desktop UI or partition scanner. It does not enumerate volumes, mount filesystems, or write to devices.
+- Opening physical disks commonly requires an elevated process. Access denial is reported as a discovery diagnostic; do not recommend disabling Windows protections.
+
 ### Partitions
 - Parses MBR entries and validates signature, boot flags, offsets, bounds, overlaps, and sector geometry.
 - Parses GPT primary and backup copies independently.
