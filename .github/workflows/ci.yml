@@ -56,6 +56,12 @@ jobs:
           $ntfs = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- scan-ntfs "$env:RUNNER_TEMP/DiskRescue-TestImages/ntfs-mft-preview.img" --offset 512 --length 65024 --max-records 4 | ConvertFrom-Json
           if ($ntfs.scan.entries.Count -ne 1 -or $ntfs.scan.entries[0].name -ne "Report.txt") { throw "Synthetic NTFS MFT fixture did not return the expected Report.txt entry." }
           if ($ntfs.scan.recordsExamined -ne 4 -or -not $ntfs.safety.sourceOpenedReadOnly -or $ntfs.safety.fileRecoveryAvailable) { throw "NTFS scan safety or record-count assertions failed." }
+          $recoveredFile = "$env:RUNNER_TEMP/DiskRescue-TestImages/Report-recovered.txt"
+          dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- extract-ntfs-file "$env:RUNNER_TEMP/DiskRescue-TestImages/ntfs-mft-preview.img" --offset 512 --length 65024 --record 1 --output $recoveredFile --max-bytes 1024
+          if (-not (Test-Path $recoveredFile)) { throw "NTFS extraction did not publish its recovered file." }
+          if ([IO.File]::ReadAllText($recoveredFile) -ne "DiskRescue synthetic recovered content") { throw "NTFS extraction content does not match the synthetic resident $DATA payload." }
+          $existingRecovery = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- extract-ntfs-file "$env:RUNNER_TEMP/DiskRescue-TestImages/ntfs-mft-preview.img" --offset 512 --length 65024 --record 1 --output $recoveredFile --max-bytes 1024 2>&1
+          if ($LASTEXITCODE -eq 0) { throw "NTFS extraction unexpectedly overwrote an existing output file." }
       - name: Build WPF desktop application
         run: dotnet build src/DiskRescue.Desktop/DiskRescue.Desktop.csproj --configuration Release --no-restore
       - name: Publish Windows x64 desktop preview
