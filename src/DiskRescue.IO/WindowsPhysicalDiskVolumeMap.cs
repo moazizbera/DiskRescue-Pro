@@ -94,7 +94,7 @@ public static class WindowsPhysicalDiskVolumeMap
                             paths.Add(path);
                     }
                 }
-                catch (Exception ex) when (ex is IOException or Win32Exception or InvalidDataException)
+                catch (Exception ex) when (ex is IOException or Win32Exception or InvalidDataException or OverflowException)
                 {
                     complete = false;
                     issues.Add($"{path}: {ex.Message}");
