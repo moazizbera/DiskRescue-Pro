@@ -21,9 +21,7 @@ public static class PhysicalDiskSafety
     public static PhysicalDiskSafetyAssessment Assess(
         PhysicalDiskDescriptor selected,
         PhysicalDiskDiscoveryResult inventory,
-        PhysicalVolumeMappingResult volumeMap,
-        bool systemAndBootExclusionVerified = false,
-        bool verifiedImageAvailable = false)
+        PhysicalVolumeMappingResult volumeMap)
     {
         ArgumentNullException.ThrowIfNull(selected);
         ArgumentNullException.ThrowIfNull(inventory);
@@ -64,11 +62,10 @@ public static class PhysicalDiskSafety
             selected.BusType.Value is BusTypeUnknown or BusTypeRaid or BusTypeVirtual or BusTypeFileBackedVirtual or BusTypeStorageSpaces)
             blockers.Add("The storage bus type is unknown or layered/virtual; underlying-device identity is not verified.");
 
-        if (!systemAndBootExclusionVerified)
-            blockers.Add("System and firmware boot-device exclusion has not been independently verified.");
-
-        if (!verifiedImageAvailable)
-            blockers.Add("A verified sector image on separate storage is required before any physical scan.");
+        // These safeguards do not yet have authoritative evidence types. Do not let a caller
+        // turn them on with booleans; this preflight must remain blocked until real checks exist.
+        blockers.Add("System and firmware boot-device exclusion has not been independently verified.");
+        blockers.Add("A verified sector image on separate storage is required before any physical scan.");
 
         return new(selected.DiskNumber, blockers.Count == 0, blockers.AsReadOnly());
     }
