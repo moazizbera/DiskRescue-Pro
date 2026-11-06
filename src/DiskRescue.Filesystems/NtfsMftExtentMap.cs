@@ -102,6 +102,24 @@ public static class NtfsMftExtentMap
                 return Invalid("MFT extent map exceeds the volume cluster count.");
         }
 
+        var physicalRuns = allRuns
+            .OrderBy(run => run.StartingLcn)
+            .ToArray();
+        ulong previousPhysicalEnd = 0;
+        var hasPreviousPhysicalRun = false;
+        foreach (var run in physicalRuns)
+        {
+            if (run.StartingLcn is not ulong startingLcn)
+                return Invalid("MFT extent map contains a sparse run.");
+            ulong physicalEnd;
+            try { physicalEnd = checked(startingLcn + run.ClusterCount); }
+            catch (OverflowException) { return Invalid("MFT physical run range overflows."); }
+            if (hasPreviousPhysicalRun && startingLcn < previousPhysicalEnd)
+                return Invalid("MFT physical runs overlap or map the same volume clusters more than once.");
+            previousPhysicalEnd = physicalEnd;
+            hasPreviousPhysicalRun = true;
+        }
+
         ulong mappedBytes;
         try { mappedBytes = checked(nextVcn * clusterSizeBytes); }
         catch (OverflowException) { return Invalid("MFT mapped byte length overflows."); }
