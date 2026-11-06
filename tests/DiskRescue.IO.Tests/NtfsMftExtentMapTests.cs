@@ -118,6 +118,18 @@ public sealed class NtfsMftExtentMapTests
     }
 
     [Fact]
+    public void RejectsPhysicalClusterOverlapAcrossMftExtents()
+    {
+        var result = NtfsMftExtentMap.Assemble(
+            [DataExtent(0, 1, [0x11, 0x02, 0x04, 0x00], sizes: true),
+             DataExtent(2, 3, [0x11, 0x02, 0x05, 0x00])],
+            128, 512);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, issue => issue.Contains("physical runs overlap", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void RejectsAggregateMappingPairsInputBeyondSafetyLimit()
     {
         var firstMappingPairs = new byte[NtfsMftExtentMap.MaximumMappingPairsBytes / 2 + 1];
