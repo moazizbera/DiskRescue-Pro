@@ -183,7 +183,7 @@ public sealed class NtfsMftReaderTests
         var recordOne = CreateFileRecord(1, includeMftDataAttribute: false, includeFileName: true,
             residentData: residentFileData, nonResidentDataLength: nonResidentFileData?.Length ?? 0);
         if (nonResidentFileData is not null)
-            nonResidentFileData.CopyTo(bytes.AsSpan(30 * 512));
+            nonResidentFileData.AsSpan().CopyTo(bytes.AsSpan(30 * 512));
         recordOne.AsSpan(0, 512).CopyTo(bytes.AsSpan(6 * 512, 512));
         recordOne.AsSpan(512, 512).CopyTo(bytes.AsSpan(12 * 512, 512));
         CreateFileRecord(2, includeMftDataAttribute: false, baseFileReferenceRaw: recordTwoBaseReferenceRaw,
