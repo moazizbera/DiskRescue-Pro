@@ -12,10 +12,18 @@ public sealed class WindowsPhysicalDiskReaderTests
     [InlineData(129)]
     public void DiscoveryRejectsOutOfRangeProbeLimit(int maximum)
     {
-        if (OperatingSystem.IsWindows())
-            Assert.Throws<ArgumentOutOfRangeException>(() => WindowsPhysicalDiskDiscovery.Enumerate(maximum));
-        else
-            Assert.Throws<ArgumentOutOfRangeException>(() => WindowsPhysicalDiskDiscovery.Enumerate(maximum));
+        Assert.Throws<ArgumentOutOfRangeException>(() => WindowsPhysicalDiskDiscovery.Enumerate(maximum));
+    }
+
+    [Theory]
+    [InlineData(0, 512)]
+    [InlineData(1024 * 1024, 0)]
+    [InlineData(1024 * 1024, 513)]
+    [InlineData(1024 * 1024 + 1, 512)]
+    public void ReaderRejectsInvalidExpectedGeometryBeforeOpeningDevice(long length, uint sectorSize)
+    {
+        var descriptor = new PhysicalDiskDescriptor(0, @"\\.\PhysicalDrive0", length, sectorSize);
+        Assert.ThrowsAny<ArgumentException>(() => WindowsPhysicalDiskReader.Open(descriptor));
     }
 
     [Fact]
