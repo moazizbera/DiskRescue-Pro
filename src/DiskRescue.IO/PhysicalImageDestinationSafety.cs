@@ -1,0 +1,127 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
+
+namespace DiskRescue.IO;
+
+public sealed record PhysicalImageDestinationAssessment(
+    bool CanUseAsSeparateDestination,
+    string? VolumeGuidPath,
+    IReadOnlyList<int> DestinationDiskNumbers,
+    IReadOnlyList<string> Blockers);
+
+/// <summary>
+/// Verifies that an existing image destination resolves to storage that does not
+/// overlap the selected physical source disk. This is a preflight only; it does
+/// not create files or open the source device.
+/// </summary>
+public static class PhysicalImageDestinationSafety
+{
+    private const uint ShareRead = 1;
+    private const uint ShareWrite = 2;
+    private const uint OpenExisting = 3;
+    private const uint FileAttributeNormal = 0x80;
+    private const uint FsctlVolumeGetVolumeDiskExtents = 0x00560000;
+    private const int ErrorMoreData = 234;
+    private const int ExtentBufferSize = 64 * 1024;
+
+    public static PhysicalImageDestinationAssessment Assess(
+        int sourceDiskNumber,
+        string destinationPath,
+        PhysicalVolumeMappingResult volumeMap)
+    {
+        ArgumentNullException.ThrowIfNull(volumeMap);
+        var blockers = new List<string>();
+        if (sourceDiskNumber < 0)
+            blockers.Add("Source disk number is invalid.");
+        if (string.IsNullOrWhiteSpace(destinationPath))
+            blockers.Add("Destination path is empty.");
+        if (!volumeMap.IsComplete || volumeMap.Issues.Count != 0)
+            blockers.Add("A complete, diagnostic-free Windows volume map is required.");
+
+        if (blockers.Count != 0)
+            return new(false, null, Array.Empty<int>(), blockers.AsReadOnly());
+        if (!OperatingSystem.IsWindows())
+            return new(false, null, Array.Empty<int>(),
+                new[] { "Destination-volume resolution is available only on Windows." });
+
+        try
+        {
+            var fullPath = Path.GetFullPath(destinationPath);
+            if (!File.Exists(fullPath) && !Directory.Exists(fullPath))
+                throw new IOException("Destination file or directory does not exist.");
+
+            var mountPath = new StringBuilder(1024);
+            if (!NativeMethods.GetVolumePathName(fullPath, mountPath, mountPath.Capacity))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to resolve the destination mount point.");
+
+            var volumeName = new StringBuilder(1024);
+            if (!NativeMethods.GetVolumeNameForVolumeMountPoint(mountPath.ToString(), volumeName, volumeName.Capacity))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to resolve the destination volume GUID.");
+
+            var guidPath = volumeName.ToString();
+            var mappedDisks = volumeMap.VolumePathsByDisk
+                .Where(pair => pair.Value.Contains(guidPath, StringComparer.OrdinalIgnoreCase))
+                .Select(pair => pair.Key)
+                .Order()
+                .ToArray();
+
+            using var volume = NativeMethods.CreateFile(
+                guidPath.TrimEnd('\\'), 0, ShareRead | ShareWrite, IntPtr.Zero,
+                OpenExisting, FileAttributeNormal, IntPtr.Zero);
+            if (volume.IsInvalid)
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to open the destination volume for read-only extent inspection.");
+
+            var buffer = new byte[ExtentBufferSize];
+            if (!NativeMethods.DeviceIoControl(volume, FsctlVolumeGetVolumeDiskExtents,
+                    IntPtr.Zero, 0, buffer, buffer.Length, out var returned, IntPtr.Zero))
+            {
+                var error = Marshal.GetLastWin32Error();
+                if (error == ErrorMoreData)
+                    throw new InvalidDataException("Destination volume extents exceed the bounded inspection buffer.");
+                throw new Win32Exception(error, "Unable to inspect destination volume extents.");
+            }
+
+            if (returned < 0 || returned > buffer.Length)
+                throw new InvalidDataException("Destination volume returned an invalid extent-buffer length.");
+
+            var actualDisks = WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(buffer.AsSpan(0, returned));
+            if (!mappedDisks.SequenceEqual(actualDisks.Order()))
+                throw new InvalidDataException("Destination volume extents do not agree with the complete Windows volume map.");
+
+            if (actualDisks.Contains(sourceDiskNumber))
+                blockers.Add("Destination volume shares the source physical disk; it cannot be used for the disk image.");
+
+            return new(blockers.Count == 0, guidPath, actualDisks, blockers.AsReadOnly());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or
+                                   Win32Exception or InvalidDataException or OverflowException)
+        {
+            blockers.Add("Destination separation could not be verified: " + ex.Message);
+            return new(false, null, Array.Empty<int>(), blockers.AsReadOnly());
+        }
+    }
+
+    private static class NativeMethods
+    {
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetVolumePathName(string fileName, StringBuilder volumePathName, int bufferLength);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetVolumeNameForVolumeMountPoint(string volumeMountPoint, StringBuilder volumeName, int bufferLength);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        internal static extern SafeFileHandle CreateFile(
+            string fileName, uint desiredAccess, uint shareMode, IntPtr securityAttributes,
+            uint creationDisposition, uint flagsAndAttributes, IntPtr templateFile);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool DeviceIoControl(
+            SafeFileHandle device, uint controlCode, IntPtr inputBuffer, int inputBufferSize,
+            [Out] byte[] outputBuffer, int outputBufferSize, out int bytesReturned, IntPtr overlapped);
+    }
+}
