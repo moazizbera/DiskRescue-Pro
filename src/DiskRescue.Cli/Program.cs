@@ -17,6 +17,9 @@ static int Run(string[] args)
     if (string.Equals(args[0], "scan-ntfs", StringComparison.OrdinalIgnoreCase))
         return RunNtfsScan(args);
 
+    if (string.Equals(args[0], "image-copy", StringComparison.OrdinalIgnoreCase))
+        return RunImageCopy(args);
+
     if (!string.Equals(args[0], "inspect", StringComparison.OrdinalIgnoreCase) || args.Length < 2)
     {
         PrintUsage();
@@ -102,6 +105,57 @@ static int Run(string[] args)
     catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
     {
         Console.Error.WriteLine($"Inspection failed safely: {exception.Message}");
+        return 1;
+    }
+}
+
+
+static int RunImageCopy(string[] args)
+{
+    if (args.Length != 3)
+    {
+        Console.Error.WriteLine("Usage: diskrescue image-copy <source-image> <new-destination-image>");
+        return 2;
+    }
+
+    try
+    {
+        using var source = FileImageReader.Open(args[1]);
+        using var cancellation = new CancellationTokenSource();
+        ConsoleCancelEventHandler handler = (_, eventArgs) =>
+        {
+            eventArgs.Cancel = true;
+            cancellation.Cancel();
+        };
+        Console.CancelKeyPress += handler;
+        try
+        {
+            var progress = new Progress<DiskImageProgress>(value =>
+            {
+                var percent = value.Percent.ToString("F1", CultureInfo.InvariantCulture);
+                Console.Write($"\\rImaging: {percent}% · {value.BytesCopied:N0}/{value.TotalBytes:N0} bytes");
+            });
+            var result = DiskImager.CreateImageAsync(
+                source, args[2], progress, cancellation.Token).GetAwaiter().GetResult();
+            Console.WriteLine();
+            Console.WriteLine($"Image created: {result.ImagePath}");
+            Console.WriteLine($"Bytes copied: {result.BytesCopied:N0}");
+            Console.WriteLine($"SHA-256: {result.Sha256}");
+            return 0;
+        }
+        finally
+        {
+            Console.CancelKeyPress -= handler;
+        }
+    }
+    catch (OperationCanceledException)
+    {
+        Console.Error.WriteLine("\\nImaging cancelled. The incomplete temporary image was removed when possible.");
+        return 130;
+    }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+    {
+        Console.Error.WriteLine($"Imaging stopped safely: {exception.Message}");
         return 1;
     }
 }
@@ -246,6 +300,7 @@ static void PrintUsage()
     Console.WriteLine();
     Console.WriteLine("Usage:");
     Console.WriteLine("  diskrescue inspect <image-file> [--sector-size <bytes>]");
+    Console.WriteLine("  diskrescue image-copy <source-image> <new-destination-image>");
     Console.WriteLine("  diskrescue scan-ntfs <image-file> --offset <bytes> --length <bytes> [--sector-size <bytes>] [--max-records <count>]");
     Console.WriteLine();
     Console.WriteLine("Examples:");
@@ -253,6 +308,7 @@ static void PrintUsage()
     Console.WriteLine("  diskrescue inspect sample-4kn.img --sector-size 4096");
     Console.WriteLine("  diskrescue scan-ntfs sample.img --offset 1048576 --length 1073741824 --max-records 5000");
     Console.WriteLine();
-    Console.WriteLine("Only regular image files are supported. Physical disks are not opened.");
+    Console.WriteLine("image-copy copies a regular image file to a new destination and prints SHA-256.");
+    Console.WriteLine("Only regular image files are supported by inspect, image-copy, and scan-ntfs. Physical disks are not opened.");
     Console.WriteLine("NTFS scan returns a bounded partial MFT and directory-tree preview, not file recovery.");
 }
