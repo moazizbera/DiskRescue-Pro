@@ -121,7 +121,8 @@ public sealed class NtfsMftExtentMapTests
         ulong lowestVcn,
         ulong highestVcn,
         byte[] mappingPairs,
-        bool sizes = false,\n        ushort attributeId = 7) =>
+        bool sizes = false,
+        ushort attributeId = 7) =>
         new(
             0x80, 72, true, attributeId, 0, string.Empty,
             null, null, lowestVcn, highestVcn, 64,
