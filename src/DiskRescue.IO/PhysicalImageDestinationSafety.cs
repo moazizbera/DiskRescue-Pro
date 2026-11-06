@@ -49,11 +49,14 @@ public static class PhysicalImageDestinationSafety
         try
         {
             var fullPath = Path.GetFullPath(destinationPath);
-            if (!File.Exists(fullPath) && !Directory.Exists(fullPath))
-                throw new IOException("Destination file or directory does not exist.");
+            var destinationDirectory = Directory.Exists(fullPath)
+                ? fullPath
+                : Path.GetDirectoryName(fullPath);
+            if (string.IsNullOrWhiteSpace(destinationDirectory) || !Directory.Exists(destinationDirectory))
+                throw new DirectoryNotFoundException("Destination directory does not exist.");
 
             var mountPath = new StringBuilder(1024);
-            if (!NativeMethods.GetVolumePathName(fullPath, mountPath, mountPath.Capacity))
+            if (!NativeMethods.GetVolumePathName(destinationDirectory, mountPath, mountPath.Capacity))
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to resolve the destination mount point.");
 
             var volumeName = new StringBuilder(1024);
@@ -96,7 +99,7 @@ public static class PhysicalImageDestinationSafety
             return new(blockers.Count == 0, guidPath, actualDisks, blockers.AsReadOnly());
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or
-                                   Win32Exception or InvalidDataException or OverflowException)
+                                   Win32Exception or OverflowException)
         {
             blockers.Add("Destination separation could not be verified: " + ex.Message);
             return new(false, null, Array.Empty<int>(), blockers.AsReadOnly());
