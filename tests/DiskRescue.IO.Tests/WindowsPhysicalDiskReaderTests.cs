@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using Xunit;
 
 using DiskRescue.IO;
@@ -54,4 +55,62 @@ public sealed class WindowsPhysicalDiskReaderTests
         else
             Assert.Throws<PlatformNotSupportedException>(() => WindowsPhysicalDiskReader.Open(descriptor));
     }
+
+    [Fact]
+    public void StorageDescriptorParserReadsBoundedHardwareIdentityFields()
+    {
+        var data = new byte[64];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 36);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4, 4), 64);
+        data[10] = 1; // RemovableMedia
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(12, 4), 36);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(16, 4), 42);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(24, 4), 49);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(28, 4), 7);
+        "ACME"u8.CopyTo(data.AsSpan(36));
+        "DiskModel"u8.CopyTo(data.AsSpan(42));
+        "SERIAL123"u8.CopyTo(data.AsSpan(49));
+
+        var result = WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor(data);
+
+        Assert.Equal("ACME", result.Vendor);
+        Assert.Equal("DiskModel", result.Model);
+        Assert.Equal("SERIAL123", result.SerialNumber);
+        Assert.Equal((uint)7, result.BusType);
+        Assert.True(result.RemovableMedia);
+    }
+
+    [Fact]
+    public void StorageDescriptorParserRejectsTruncatedHeader()
+    {
+        Assert.Throws<InvalidDataException>(() =>
+            WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor(new byte[35]));
+    }
+
+    [Fact]
+    public void StorageDescriptorParserRejectsOutOfBoundsDeclaredSize()
+    {
+        var data = new byte[36];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 36);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4, 4), 128);
+
+        Assert.Throws<InvalidDataException>(() =>
+            WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor(data));
+    }
+
+    [Fact]
+    public void StorageDescriptorParserIgnoresOutOfRangeStringOffsets()
+    {
+        var data = new byte[36];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 36);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4, 4), 36);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(12, 4), 35);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(16, 4), uint.MaxValue);
+
+        var result = WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor(data);
+
+        Assert.Null(result.Vendor);
+        Assert.Null(result.Model);
+    }
+
 }
