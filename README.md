@@ -18,6 +18,7 @@ The current `.NET 10` solution includes:
 - MFT record reads through the initial validated unnamed `$MFT::$DATA` extent, including records crossing fragmented physical runs.
 - Resident `$FILE_NAME` parsing, bounded MFT scanning, and a conservative partial directory-tree preview with parent-sequence validation, cycle detection, and orphan reporting.
 - A bounded resident `$ATTRIBUTE_LIST` parser and one-level matcher against caller-supplied, already validated FILE records. It verifies record number/sequence, base-file reference, and the complete attribute identity (type, ordinal UTF-16 name, ID, and lowest VCN), with structured rejection diagnostics and explicit limits. It does **not** read referenced records, extend MFT coverage, or support non-resident lists or recursive discovery.
+- An in-memory MFT extent-map assembler that validates supplied unnamed `$DATA` extents for identity, decoded run lengths, volume bounds, and exact VCN continuity. It does not discover, read, or authenticate continuation FILE records and is not yet used by the MFT reader, CLI, or WPF.
 
 The attribute-list parser caps values at 16 MiB and 65,536 entries. The matcher caps candidates at 4,096 records and 16 MiB aggregate record bytes, and caps attribute parsing/comparison work at 4,096 parsed attributes and 1,000,000 comparisons. Invalid, stale, missing, duplicate, mismatched, unsupported, or ambiguous references produce diagnostics; any rejected entry makes the result incomplete.
 
