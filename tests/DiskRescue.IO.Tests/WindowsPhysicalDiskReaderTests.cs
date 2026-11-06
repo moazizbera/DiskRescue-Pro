@@ -65,7 +65,7 @@ public sealed class WindowsPhysicalDiskReaderTests
         data[10] = 1; // RemovableMedia
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(12, 4), 36);
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(16, 4), 42);
-        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(24, 4), 49);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(24, 4), 53);
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(28, 4), 7);
         "ACME"u8.CopyTo(data.AsSpan(36));
         "DiskModel"u8.CopyTo(data.AsSpan(42));
