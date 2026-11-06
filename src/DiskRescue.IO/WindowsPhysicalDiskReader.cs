@@ -43,9 +43,9 @@ public static class WindowsPhysicalDiskDiscovery
     /// </summary>
     public static PhysicalDiskDiscoveryResult Enumerate(int maxDiskNumberExclusive = DefaultMaximumDiskNumberExclusive)
     {
-        EnsureWindows();
         if (maxDiskNumberExclusive is < 1 or > 128)
             throw new ArgumentOutOfRangeException(nameof(maxDiskNumberExclusive), "Probe limit must be between 1 and 128.");
+        EnsureWindows();
 
         var disks = new List<PhysicalDiskDescriptor>();
         var issues = new List<string>();
