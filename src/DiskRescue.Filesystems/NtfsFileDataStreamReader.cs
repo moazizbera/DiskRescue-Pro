@@ -189,6 +189,7 @@ public sealed partial class NtfsMftReader
         if (listAttributes.Length > 1 || (listAttributes.Length == 1 && listAttributes[0].IsNonResident))
             return InvalidDataStream("File has an ambiguous or non-resident $ATTRIBUTE_LIST; this form is not supported.");
 
+        var hasValidatedAttributeList = listAttributes.Length == 1;
         NtfsAttribute[] data;
         if (listAttributes.Length == 0)
         {
@@ -239,6 +240,8 @@ public sealed partial class NtfsMftReader
 
         if (data.Length == 0)
             return InvalidDataStream("The requested $DATA stream was not found in the validated FILE record set.");
+        if (data.Length > 1 && !hasValidatedAttributeList)
+            return InvalidDataStream("Multiple $DATA extents require a fully validated resident $ATTRIBUTE_LIST.");
 
         if (data.Any(attribute => attribute.Flags != 0))
             return InvalidDataStream("Compressed, encrypted, sparse, or otherwise flagged file data streams are not yet supported.");
@@ -282,7 +285,8 @@ public sealed partial class NtfsMftReader
                 ulong expectedClusters;
                 try { expectedClusters = checked(highest - lowest + 1); }
                 catch (OverflowException) { return InvalidDataStream("File $DATA extent VCN range overflows."); }
-                if (runlist.Runs.Count == 0 || runlist.TotalClusters != expectedClusters ||
+                if (runlist.Runs.Count == 0 || runlist.Runs.Any(run => run.IsSparse) ||
+                    runlist.TotalClusters != expectedClusters ||
                     runlist.Runs.Count > 1_000_000 - allRuns.Count)
                     return InvalidDataStream("File $DATA mapping pairs do not match the declared VCN extent or exceed the run limit.");
 
