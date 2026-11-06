@@ -212,7 +212,7 @@ public partial class MainWindow : Window
             {
                 using var image = FileImageReader.Open(imagePath);
                 return NtfsPartitionScanner.Scan(image, sectorSize, known,
-                    maximumScanBytes: image.Length, cancellationToken: _scanCancellation.Token, progress: progress);
+                    maximumScanBytes: image.Length, cancellationToken: cancellation.Token, progress: progress);
             });
 
             for (var i = _rows.Count - 1; i >= 0; i--)
