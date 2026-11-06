@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.Json;
 using DiskRescue.Filesystems;
 using DiskRescue.IO;
@@ -434,11 +435,16 @@ static int RunNtfsExtract(string[] args)
                 destination.Flush(true);
             }
             cancellation.Token.ThrowIfCancellationRequested();
+            string sha256;
+            using (var verification = File.OpenRead(temporaryPath))
+                sha256 = Convert.ToHexString(SHA256.HashData(verification));
+            cancellation.Token.ThrowIfCancellationRequested();
             File.Move(temporaryPath, fullOutputPath, overwrite: false);
             temporaryPath = null;
             Console.WriteLine();
             Console.WriteLine($"Recovered file: {fullOutputPath}");
             Console.WriteLine($"Bytes written: {stream.Length:N0}");
+            Console.WriteLine($"SHA-256: {sha256}");
             Console.WriteLine($"MFT record: {recordNumber.Value}");
             return 0;
         }
