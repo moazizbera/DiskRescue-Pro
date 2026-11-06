@@ -4,7 +4,7 @@
 
 DiskRescue Pro is designed to help users understand damaged or missing partition and filesystem metadata before considering recovery. Development is deliberately staged: validate image parsing first, then add discovery and file extraction with enforceable source/destination controls.
 
-> **Development status:** this is an engineering preview, not a complete recovery utility. It supports regular disk-image files only. Do not use it on the only copy of important data. If a drive clicks, repeatedly disconnects, overheats, or returns persistent I/O errors, stop using it and consider professional recovery.
+> **Development status:** this is an engineering preview, not a complete recovery utility. Partition inspection and lost-partition scanning currently operate on regular disk-image files only; physical-device support is experimental inventory/preflight code, not a recovery workflow. Do not use it on the only copy of important data. If a drive clicks, repeatedly disconnects, overheats, or returns persistent I/O errors, stop using it and consider professional recovery.
 
 ## Current release scope
 
@@ -28,7 +28,7 @@ The in-memory MFT extent-map assembler caps input at 4,096 extents, 1,000,000 de
 
 ## Safety model
 
-- Only regular image files are opened by the current IO implementation.
+- Partition inspection and lost-partition scanning currently open regular image files only. The separate experimental physical reader is not connected to those workflows.
 - Source reads are bounded; the image reader exposes no write API.
 - Physical-disk enumeration is metadata-only. The experimental raw reader requests `GENERIC_READ` and exposes bounded reads, but is not connected to the partition scanner or recovery UI. Windows or another process may still write through mounted filesystems; a read-only handle does not make the underlying disk immutable.
 - Physical sector scanning remains disabled: the app cannot yet independently verify firmware boot-device exclusion or complete imaging-first safeguards. The preflight therefore remains blocked. No mounting, repair, formatting, initialization, or repartitioning is implemented.
