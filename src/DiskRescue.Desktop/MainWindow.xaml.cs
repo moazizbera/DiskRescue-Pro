@@ -76,7 +76,7 @@ public partial class MainWindow : Window
 
             notes.Add("SAFETY: Volume mapping is conservative and fail-closed; incomplete mapping never means a disk is unused. A complete mapping still does not prove that a disk is not the separate boot/system device, nor does it prevent Windows or other processes writing through mounted volumes. Hardware identity is best-effort and disk numbers are temporary locators. Physical sector scanning remains disabled until boot/system exclusion, device revalidation, and imaging-first handling are independently verified.");
             FindingsBox.Text = string.Join(Environment.NewLine, notes);
-            StatusText.Text = $"Physical disk inventory complete · {result.Disks.Count} device(s) reported · No sector scan performed";
+            StatusText.Text = $"Physical disk inventory complete · {inventory.Disks.Count} device(s) reported · No sector scan performed";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or PlatformNotSupportedException or System.ComponentModel.Win32Exception)
         {
