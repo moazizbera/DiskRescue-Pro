@@ -120,12 +120,18 @@ public sealed class NtfsMftExtentMapTests
     [Fact]
     public void RejectsAggregateMappingPairsInputBeyondSafetyLimit()
     {
-        var mappingPairs = new byte[NtfsMftExtentMap.MaximumMappingPairsBytes / 2 + 1];
-        mappingPairs[^1] = 0;
+        var firstMappingPairs = new byte[NtfsMftExtentMap.MaximumMappingPairsBytes / 2 + 1];
+        firstMappingPairs[0] = 0x11;
+        firstMappingPairs[1] = 0x01;
+        firstMappingPairs[2] = 0x04;
+        var secondMappingPairs = new byte[NtfsMftExtentMap.MaximumMappingPairsBytes / 2 + 1];
+        secondMappingPairs[0] = 0x11;
+        secondMappingPairs[1] = 0x01;
+        secondMappingPairs[2] = 0x02;
         var extents = new[]
         {
-            DataExtent(0, 0, mappingPairs, sizes: true),
-            DataExtent(1, 1, mappingPairs)
+            DataExtent(0, 0, firstMappingPairs, sizes: true),
+            DataExtent(1, 1, secondMappingPairs)
         };
 
         var result = NtfsMftExtentMap.Assemble(extents, 128, 512);
