@@ -22,6 +22,8 @@ The current `.NET 10` solution includes:
 
 The attribute-list parser caps values at 16 MiB and 65,536 entries. The matcher caps candidates at 4,096 records and 16 MiB aggregate record bytes, and caps attribute parsing/comparison work at 4,096 parsed attributes and 1,000,000 comparisons. Invalid, stale, missing, duplicate, mismatched, unsupported, or ambiguous references produce diagnostics; any rejected entry makes the result incomplete.
 
+The in-memory MFT extent-map assembler caps input at 4,096 extents, 1,000,000 decoded runs, and 16 MiB aggregate mapping-pairs bytes. These are parser resource limits, not a claim that continuation discovery is complete.
+
 ## Safety model
 
 - Only regular image files are opened by the current IO implementation.
