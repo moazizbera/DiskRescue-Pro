@@ -52,6 +52,9 @@ public partial class MainWindow : Window
                 notes.Add($"Serial: {disk.SerialNumber ?? "Not reported"}");
                 notes.Add($"Logical sector size: {disk.BytesPerSector:N0} bytes · Bus type: {(disk.BusType?.ToString() ?? "Not reported")} · Removable: {(disk.RemovableMedia?.ToString() ?? "Not reported")}");
                 notes.Add($"Device path: {disk.DevicePath}");
+                var safety = PhysicalDiskSafety.Assess(disk, inventory, volumeMap);
+                notes.Add($"Physical scan preflight: {(safety.CanStartSectorScan ? "Passed" : "BLOCKED")}");
+                notes.AddRange(safety.Blockers.Select(blocker => "  • " + blocker));
                 if (volumeMap.VolumePathsByDisk.TryGetValue(disk.DiskNumber, out var volumes))
                 {
                     notes.Add($"Mounted/known volumes mapped: {volumes.Count}");
