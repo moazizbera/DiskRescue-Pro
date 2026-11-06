@@ -204,13 +204,20 @@ public sealed class WindowsPhysicalDiskReader : IReadOnlyRandomAccessSource
     public static WindowsPhysicalDiskReader Open(PhysicalDiskDescriptor expected)
     {
         ArgumentNullException.ThrowIfNull(expected);
-        WindowsPhysicalDiskDiscovery.EnsureWindows();
         if (expected.DiskNumber < 0 || expected.DiskNumber > 127)
             throw new ArgumentOutOfRangeException(nameof(expected), "Invalid physical disk number.");
 
         var expectedPath = $@"\\.\PhysicalDrive{expected.DiskNumber}";
         if (!string.Equals(expected.DevicePath, expectedPath, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("The device path does not match the validated physical disk number.", nameof(expected));
+        if (expected.LengthBytes <= 0)
+            throw new ArgumentOutOfRangeException(nameof(expected), "Expected disk capacity must be positive.");
+        if (expected.BytesPerSector is < 512 or > 65536 ||
+            (expected.BytesPerSector & (expected.BytesPerSector - 1)) != 0 ||
+            expected.LengthBytes % expected.BytesPerSector != 0)
+            throw new ArgumentException("Expected disk geometry is invalid or not sector-aligned.", nameof(expected));
+
+        WindowsPhysicalDiskDiscovery.EnsureWindows();
 
         var handle = WindowsNativeMethods.CreateFile(
             expectedPath,
