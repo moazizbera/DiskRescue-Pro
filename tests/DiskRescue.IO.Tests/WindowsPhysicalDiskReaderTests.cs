@@ -113,4 +113,63 @@ public sealed class WindowsPhysicalDiskReaderTests
         Assert.Null(result.Model);
     }
 
+    [Fact]
+    public void VolumeExtentParserReadsDistinctDiskNumbersFromMultiExtentVolume()
+    {
+        var data = new byte[8 + 2 * 24];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 2);
+        BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(8, 4), 3);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(16, 8), 1024);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(24, 8), 4096);
+        BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(32, 4), 7);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(40, 8), 8192);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(48, 8), 4096);
+
+        var disks = WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(data);
+
+        Assert.Equal(new[] { 3, 7 }, disks);
+    }
+
+    [Fact]
+    public void VolumeExtentParserRejectsTruncatedExtentArray()
+    {
+        var data = new byte[8 + 23];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 1);
+
+        Assert.Throws<InvalidDataException>(() => WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(data));
+    }
+
+    [Fact]
+    public void VolumeExtentParserRejectsInvalidExtentMetadata()
+    {
+        var data = new byte[8 + 24];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(8, 4), -1);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(24, 8), 4096);
+
+        Assert.Throws<InvalidDataException>(() => WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(data));
+    }
+
+    [Fact]
+    public void VolumeMapNeverTreatsDiskAsUnmappedWhenEnumerationIsIncomplete()
+    {
+        var result = new PhysicalVolumeMappingResult(
+            false,
+            new Dictionary<int, IReadOnlyList<string>>(),
+            new[] { "A volume could not be inspected." });
+
+        Assert.False(result.CanTreatDiskAsUnmapped(12));
+    }
+
+    [Fact]
+    public void VolumeMapTreatsDiskAsUnmappedOnlyAfterCompleteEnumeration()
+    {
+        var result = new PhysicalVolumeMappingResult(
+            true,
+            new Dictionary<int, IReadOnlyList<string>>(),
+            Array.Empty<string>());
+
+        Assert.True(result.CanTreatDiskAsUnmapped(12));
+    }
+
 }
