@@ -19,8 +19,8 @@ public static class NtfsMftExtentMap
 {
     public const int MaximumExtents = 4096;
     public const int MaximumRuns = 1_000_000;
+    public const int MaximumMappingPairsBytes = 16 * 1024 * 1024;
     private const uint DataAttributeType = 0x80;
-    private const ushort UnsupportedFlags = 0x0001 | 0x4000 | 0x8000;
 
     public static NtfsMftExtentMapResult Assemble(
         IReadOnlyList<NtfsAttribute> extentAttributes,
@@ -51,6 +51,7 @@ public static class NtfsMftExtentMap
             return Invalid("Base MFT initialized, real, and allocated sizes are inconsistent.");
 
         var allRuns = new List<NtfsDataRun>();
+        var totalMappingPairsBytes = 0;
         ulong nextVcn = 0;
 
         foreach (var attribute in ordered)
@@ -64,6 +65,9 @@ public static class NtfsMftExtentMap
                 return Invalid("MFT extent attributes do not share the same flags.");
             if (attribute.LowestVcn is null || attribute.HighestVcn is null || attribute.MappingPairs is null)
                 return Invalid("MFT extent is missing VCN or mapping-pairs metadata.");
+            if (attribute.MappingPairs.Length > MaximumMappingPairsBytes - totalMappingPairsBytes)
+                return Invalid($"MFT mapping-pairs data exceeds the {MaximumMappingPairsBytes}-byte aggregate safety limit.");
+            totalMappingPairsBytes += attribute.MappingPairs.Length;
             if (attribute.LowestVcn.Value != nextVcn)
                 return Invalid(attribute.LowestVcn.Value < nextVcn
                     ? "MFT extents overlap or duplicate a VCN range."
@@ -114,9 +118,9 @@ public static class NtfsMftExtentMap
         attribute is not null &&
         attribute.Type == DataAttributeType &&
         attribute.IsNonResident &&
+        attribute.Name is not null &&
         attribute.Name.Length == 0 &&
-        attribute.Flags == 0 &&
-        (attribute.Flags & UnsupportedFlags) == 0;
+        attribute.Flags == 0;
 
     private static NtfsMftExtentMapResult Invalid(string issue) =>
         new(false, Array.Empty<NtfsDataRun>(), 0, 0, 0, 0, new[] { issue });
