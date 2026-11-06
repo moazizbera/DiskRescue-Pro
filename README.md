@@ -18,9 +18,10 @@ The current `.NET 10` solution includes:
 - NTFS boot-sector geometry validation, FILE record update-sequence-array fixups, bounded attribute parsing, and mapping-pairs decoding.
 - MFT record reads through the initial validated unnamed `$MFT::$DATA` extent, including records crossing fragmented physical runs.
 - Resident `$FILE_NAME` parsing, bounded MFT scanning, and a conservative partial directory-tree preview with parent-sequence validation, cycle detection, and orphan reporting.
-- A bounded resident `$ATTRIBUTE_LIST` parser and one-level matcher against caller-supplied, already validated FILE records. It verifies record number/sequence, base-file reference, and the complete attribute identity (type, ordinal UTF-16 name, ID, and lowest VCN), with structured rejection diagnostics and explicit limits. It does **not** read referenced records, extend MFT coverage, or support non-resident lists or recursive discovery.
+- A bounded resident `$ATTRIBUTE_LIST` parser and matcher that verifies record number/sequence, base-file reference, and complete attribute identity (type, ordinal UTF-16 name, ID, and lowest VCN), with structured rejection diagnostics and explicit limits.
 - A bounded first-stage MFT continuation workflow: it parses record 0's resident `$ATTRIBUTE_LIST`, reads only referenced FILE records already covered by the current validated MFT map, authenticates record/sequence/base-reference and attribute identity, then assembles non-sparse unnamed `$MFT::$DATA` extents with exact VCN continuity and physical-run overlap checks. It can extend reads beyond the initial extent when the continuation FILE records are themselves in that initial map. It fails closed for non-resident attribute lists or references outside the currently validated map; recursive/bootstrap discovery is not implemented.
-- An experimental Windows-only physical-disk inventory foundation: bounded `PhysicalDriveN` metadata probes, best-effort vendor/model/serial/bus identity, volume-GUID-to-disk extent mapping, serial/geometry revalidation on reader open, and a conservative per-device scan preflight with explicit blockers. This foundation is not integrated into partition scanning.
+- A bounded file-data stream reader for resident and single-extent non-sparse, uncompressed, unencrypted NTFS `$DATA` attributes. It enforces a caller-supplied export byte ceiling, bounded 1 MiB copying, cancellation, volume/image bounds, and zero-fills bytes beyond initialized size. A CLI extraction command writes through a temporary file and publishes only to a new destination. Multi-extent file streams, sparse/compressed/encrypted streams, directory-index traversal, and full recovery-tree traversal remain unsupported.
+- An experimental Windows-only physical-disk inventory foundation: bounded `PhysicalDriveN` metadata probes, best-effort vendor/model/serial/bus identity, volume-GUID-to-disk extent mapping, serial/geometry revalidation on reader open, and a conservative per-device scan preflight with explicit blockers. This foundation is not integrated into partition scanning or acquisition.
 
 The attribute-list parser caps values at 16 MiB and 65,536 entries. The matcher caps candidates at 4,096 records and 16 MiB aggregate record bytes, and caps attribute parsing/comparison work at 4,096 parsed attributes and 1,000,000 comparisons. Invalid, stale, missing, duplicate, mismatched, unsupported, or ambiguous references produce diagnostics; any rejected entry makes the result incomplete.
 
@@ -33,7 +34,7 @@ The in-memory MFT extent-map assembler caps input at 4,096 extents, 1,000,000 de
 - Physical-disk enumeration is metadata-only. The experimental raw reader requests `GENERIC_READ` and exposes bounded reads, but is not connected to the partition scanner or recovery UI. Windows or another process may still write through mounted filesystems; a read-only handle does not make the underlying disk immutable.
 - Physical sector scanning remains disabled: the app cannot yet independently verify firmware boot-device exclusion or complete imaging-first safeguards. The preflight therefore remains blocked. No mounting, repair, formatting, initialization, or repartitioning is implemented.
 - JSON reports are written only to a user-selected report path.
-- No file-content recovery is available yet.
+- File-data extraction is image-file-only and deliberately limited to validated resident or single-extent, non-sparse, uncompressed, unencrypted streams. It is not yet a complete recovery workflow: filenames are not automatically exported, multi-extent streams and directory indexes are unsupported, and destination separation from the original physical device cannot be established by this image-only command.
 - All automated integration checks use generated disposable images.
 - If file extraction is introduced, output must be written to a verified destination separate from the source.
 
@@ -75,8 +76,15 @@ Preview NTFS metadata after obtaining a volume byte offset and length from a tru
 dotnet run --project src/DiskRescue.Cli -- scan-ntfs "C:\Images\sample.img" --offset 1048576 --length 1073741824 --max-records 5000
 ```
 
-The NTFS command scans at most the configured number of initialized MFT records covered by the initial validated MFT extent. It does not yet follow additional MFT extents or directory indexes.
-The attribute-list matcher is a separate in-memory library primitive; neither the CLI nor WPF preview uses it to extend MFT coverage.
+The NTFS command attempts bounded resident `$ATTRIBUTE_LIST` continuation discovery before scanning. It can include additional MFT extents only when their continuation FILE records are already reachable through the initial validated MFT map. Non-resident lists, recursive bootstrap discovery, and directory indexes are not followed.
+
+Extract one validated NTFS file data stream by MFT record number:
+
+```powershell
+dotnet run --project src/DiskRescue.Cli -- extract-ntfs-file "C:\Images\sample.img" --offset 1048576 --length 1073741824 --record 42 --output "D:\Recovered\record-42.bin" --max-bytes 268435456
+```
+
+The output directory must already exist and the output file must not exist. The command requires an explicit maximum export size, validates the boot sector, MFT and stream mapping, follows only supported resident/single-extent streams, writes to a temporary file, flushes it, then publishes without overwrite. Ctrl+C cancels and removes the temporary output when possible. This is a low-level image-only stream export, not automatic filename-based recovery. Do not use it to write recovered files onto the suspect source disk.
 
 ## Safe test images
 
@@ -113,11 +121,11 @@ Download them from the [GitHub Actions workflow](https://github.com/moazizbera/D
 ## Roadmap
 
 The next critical milestones are:
-1. Read referenced records through a validated MFT mapping and assemble additional extents with exact VCN continuity, cycle detection, and strict resource limits.
-2. Parse NTFS directory indexes and validate complete parent relationships.
-3. Extend image-based lost-partition discovery to FAT32 and exFAT, improve candidate deduplication/conflict analysis, and expand generated regression fixtures. The current scanner is NTFS-only and does not access physical disks.
-4. Add read-only file-content mapping and integrity verification.
-5. Add safe extraction to a demonstrably separate destination, with collision handling, hashes, manifest, cancellation, and resume semantics.
+1. Complete recursive and non-resident MFT continuation discovery with exact VCN continuity, cycle detection, and strict resource limits.
+2. Parse NTFS directory indexes and validate complete parent relationships; export files using verified names and safe path handling.
+3. Add multi-extent file streams, sparse-file handling, compressed/encrypted stream diagnostics, and stronger recovered-content integrity verification.
+4. Extend image-based lost-partition discovery to FAT32 and exFAT, improve candidate deduplication/conflict analysis, and expand generated regression fixtures. The current scanner is NTFS-only and does not access physical disks.
+5. Add recovery manifests, destination-volume verification, resume semantics, and end-to-end extraction validation.
 6. Complete firmware/system boot-device exclusion, device identity verification, mounted-volume safety, cancellation and I/O failure handling; then implement imaging to separate storage before enabling any physical partition scan. The current physical reader is only a low-level foundation and must not be used against the original source drive.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for status and release gates.
