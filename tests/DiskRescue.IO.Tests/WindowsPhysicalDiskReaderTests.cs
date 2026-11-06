@@ -172,4 +172,39 @@ public sealed class WindowsPhysicalDiskReaderTests
         Assert.True(result.CanTreatDiskAsUnmapped(12));
     }
 
+    [Fact]
+    public void IdentitySnapshotRequiresMatchingSerialAndKnownHardwareFields()
+    {
+        var expected = new PhysicalDiskDescriptor(
+            4, @"\\.\PhysicalDrive4", 2L * 1024 * 1024 * 1024, 512,
+            "ACME", "Model X", "SERIAL-001", 17, false);
+        var same = expected with { DiskNumber = 4, DevicePath = @"\\.\PhysicalDrive4" };
+        var changedSerial = expected with { SerialNumber = "SERIAL-002" };
+        var changedModel = expected with { Model = "Model Y" };
+
+        Assert.True(WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(expected, same));
+        Assert.False(WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(expected, changedSerial));
+        Assert.False(WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(expected, changedModel));
+    }
+
+    [Fact]
+    public void IdentitySnapshotRejectsMissingSerialEvenWhenModelMatches()
+    {
+        var expected = new PhysicalDiskDescriptor(
+            1, @"\\.\PhysicalDrive1", 1024 * 1024, 512, "ACME", "Generic Disk", null);
+        var current = expected with { SerialNumber = null };
+
+        Assert.False(WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(expected, current));
+    }
+
+    [Fact]
+    public void IdentitySnapshotRejectsChangedBusOrRemovableFlag()
+    {
+        var expected = new PhysicalDiskDescriptor(
+            2, @"\\.\PhysicalDrive2", 1024 * 1024, 512, "ACME", "Model", "SERIAL", 17, false);
+
+        Assert.False(WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(expected, expected with { BusType = 7 }));
+        Assert.False(WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(expected, expected with { RemovableMedia = true }));
+    }
+
 }
