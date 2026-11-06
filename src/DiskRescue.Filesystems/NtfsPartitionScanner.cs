@@ -92,7 +92,8 @@ public static class NtfsPartitionScanner
 
                 var remaining = source.Length - absoluteOffset;
                 var bootResult = NtfsBootSectorParser.Parse(source, absoluteOffset, remaining);
-                if (!bootResult.IsValid || bootResult.BootSector is null)
+                if (!bootResult.IsValid || bootResult.BootSector is null ||
+                    bootResult.BootSector.BytesPerSector != logicalSectorSize)
                     continue;
 
                 var boot = bootResult.BootSector;
