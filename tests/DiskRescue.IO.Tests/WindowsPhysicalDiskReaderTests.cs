@@ -263,4 +263,13 @@ public sealed class WindowsPhysicalDiskReaderTests
         Assert.Contains(result.Blockers, x => x.Contains("layered/virtual", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void VolumeExtentParserRejectsEmptyExtentSet()
+    {
+        var data = new byte[8];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 0);
+
+        Assert.Throws<InvalidDataException>(() => WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(data));
+    }
+
 }
