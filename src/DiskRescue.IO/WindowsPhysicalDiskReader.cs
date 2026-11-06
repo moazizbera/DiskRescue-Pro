@@ -182,6 +182,31 @@ public static class WindowsPhysicalDiskDiscovery
         }
     }
 
+    internal static bool MatchesIdentitySnapshot(PhysicalDiskDescriptor expected, PhysicalDiskDescriptor current)
+    {
+        ArgumentNullException.ThrowIfNull(expected);
+        ArgumentNullException.ThrowIfNull(current);
+
+        // Geometry is checked separately. Require at least one reported identity string;
+        // matching only a disk number and capacity is not sufficient for a recovery session.
+        var hasIdentity = !string.IsNullOrWhiteSpace(expected.SerialNumber) ||
+            !string.IsNullOrWhiteSpace(expected.Model) ||
+            !string.IsNullOrWhiteSpace(expected.Vendor);
+        if (!hasIdentity)
+            return false;
+
+        static bool MatchesKnown(string? before, string? after) =>
+            string.IsNullOrWhiteSpace(before) ||
+            (!string.IsNullOrWhiteSpace(after) &&
+             string.Equals(before.Trim(), after.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        return MatchesKnown(expected.SerialNumber, current.SerialNumber) &&
+            MatchesKnown(expected.Model, current.Model) &&
+            MatchesKnown(expected.Vendor, current.Vendor) &&
+            (!expected.BusType.HasValue || current.BusType == expected.BusType) &&
+            (!expected.RemovableMedia.HasValue || current.RemovableMedia == expected.RemovableMedia);
+    }
+
     internal static void EnsureWindows()
     {
         if (!OperatingSystem.IsWindows())
@@ -324,6 +349,8 @@ public sealed class WindowsPhysicalDiskReader : IReadOnlyRandomAccessSource
             var current = WindowsPhysicalDiskDiscovery.ReadDescriptor(handle, expected.DiskNumber, expectedPath);
             if (current.LengthBytes != expected.LengthBytes || current.BytesPerSector != expected.BytesPerSector)
                 throw new IOException("The physical disk geometry changed after discovery. Close the session and rediscover devices.");
+            if (!WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(expected, current))
+                throw new IOException("The physical disk identity is missing or differs from the discovery snapshot. Close the session and rediscover devices.");
 
             return new WindowsPhysicalDiskReader(handle, current);
         }
