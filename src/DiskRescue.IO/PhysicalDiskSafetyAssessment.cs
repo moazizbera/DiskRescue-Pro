@@ -42,10 +42,10 @@ public static class PhysicalDiskSafety
         if (inventory.Issues.Count > 0)
             blockers.Add("Physical-device enumeration reported issues; device inventory is not fully trustworthy.");
 
-        if (!volumeMap.IsComplete)
-            blockers.Add("Windows volume enumeration is incomplete; mounted-volume status is unknown.");
-        else if (volumeMap.VolumePathsByDisk.TryGetValue(selected.DiskNumber, out var volumes) && volumes.Count > 0)
-            blockers.Add("The disk contains one or more enumerated Windows volumes; raw scanning could interfere with mounted filesystems.");
+        if (!volumeMap.IsComplete || volumeMap.Issues.Count > 0)
+            blockers.Add("Windows volume enumeration is incomplete or reported diagnostics; mounted-volume status is unknown.");
+        else if (volumeMap.VolumePathsByDisk.ContainsKey(selected.DiskNumber))
+            blockers.Add("The disk is associated with an enumerated Windows volume; raw scanning could interfere with mounted filesystems.");
 
         if (string.IsNullOrWhiteSpace(selected.SerialNumber))
             blockers.Add("A hardware serial number is unavailable; the physical device cannot be revalidated safely.");
