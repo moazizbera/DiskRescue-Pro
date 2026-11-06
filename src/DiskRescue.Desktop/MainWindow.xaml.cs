@@ -26,6 +26,56 @@ public partial class MainWindow : Window
         ScanNtfsButton.IsEnabled = false;
     }
 
+    private async void PhysicalDiskInventory_Click(object sender, RoutedEventArgs e)
+    {
+        PhysicalDiskButton.IsEnabled = false;
+        StatusText.Text = "Enumerating physical disks · Read-only metadata probes…";
+        Mouse.OverrideCursor = Cursors.Wait;
+
+        try
+        {
+            var result = await Task.Run(() => WindowsPhysicalDiskDiscovery.Enumerate());
+            var notes = new List<string>
+            {
+                "WINDOWS PHYSICAL DISK INVENTORY",
+                "Metadata-only discovery · Handles request GENERIC_READ and are closed after each probe.",
+                $"Disks detected: {result.Disks.Count}",
+                ""
+            };
+
+            foreach (var disk in result.Disks)
+            {
+                notes.Add($"PhysicalDrive{disk.DiskNumber} · {FormatBytes(disk.LengthBytes)} · {disk.BytesPerSector:N0} bytes/sector");
+                notes.Add($"Device path: {disk.DevicePath}");
+                notes.Add("Access mode: read-only metadata probe; no sector scan was started.");
+                notes.Add("");
+            }
+
+            if (result.Issues.Count > 0)
+            {
+                notes.Add("Discovery diagnostics:");
+                notes.AddRange(result.Issues.Select(issue => "• " + issue));
+                notes.Add("");
+            }
+
+            notes.Add("IMPORTANT: Disk numbers are temporary Windows locators, not verified hardware identities. Model/serial identification and system/boot-disk exclusion are not implemented. This inventory does not authorize scanning or recovery.");
+            FindingsBox.Text = string.Join(Environment.NewLine, notes);
+            StatusText.Text = $"Physical disk inventory complete · {result.Disks.Count} device(s) reported · No sector scan performed";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or PlatformNotSupportedException or System.ComponentModel.Win32Exception)
+        {
+            FindingsBox.Text = "Physical disk inventory could not be completed.\n\n" + ex.Message +
+                "\n\nNo physical disk sector scan, write, repair, or recovery operation was attempted.";
+            StatusText.Text = "Physical disk inventory unavailable";
+            MessageBox.Show(this, ex.Message, "Physical disk inventory", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            PhysicalDiskButton.IsEnabled = true;
+            Mouse.OverrideCursor = null;
+        }
+    }
+
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog
