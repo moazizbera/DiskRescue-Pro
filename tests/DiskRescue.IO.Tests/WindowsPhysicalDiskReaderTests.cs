@@ -249,6 +249,39 @@ public sealed class WindowsPhysicalDiskReaderTests
     }
 
     [Fact]
+    public void PhysicalDiskPreflightBlocksVolumeMapDiagnosticsEvenIfMarkedComplete()
+    {
+        var disk = new PhysicalDiskDescriptor(
+            3, @"\\.\PhysicalDrive3", 4L * 1024 * 1024 * 1024, 512,
+            "ACME", "Model Z", "SERIAL-Z", 17, false);
+        var inventory = new PhysicalDiskDiscoveryResult(new[] { disk }, Array.Empty<string>());
+        var inconsistentMap = new PhysicalVolumeMappingResult(
+            true, new Dictionary<int, IReadOnlyList<string>>(),
+            new[] { "A volume extent query reported an error." });
+
+        var result = PhysicalDiskSafety.Assess(disk, inventory, inconsistentMap);
+
+        Assert.Contains(result.Blockers, x => x.Contains("diagnostics", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void PhysicalDiskPreflightBlocksDiskKeyWithEmptyVolumeList()
+    {
+        var disk = new PhysicalDiskDescriptor(
+            3, @"\\.\PhysicalDrive3", 4L * 1024 * 1024 * 1024, 512,
+            "ACME", "Model Z", "SERIAL-Z", 17, false);
+        var inventory = new PhysicalDiskDiscoveryResult(new[] { disk }, Array.Empty<string>());
+        var ambiguousMap = new PhysicalVolumeMappingResult(
+            true,
+            new Dictionary<int, IReadOnlyList<string>> { [3] = Array.Empty<string>() },
+            Array.Empty<string>());
+
+        var result = PhysicalDiskSafety.Assess(disk, inventory, ambiguousMap);
+
+        Assert.Contains(result.Blockers, x => x.Contains("associated with an enumerated Windows volume", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void PhysicalDiskPreflightRejectsDuplicateSerialAndLayeredBus()
     {
         var disk = new PhysicalDiskDescriptor(
