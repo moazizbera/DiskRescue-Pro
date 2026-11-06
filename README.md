@@ -13,12 +13,14 @@ The current `.NET 10` solution includes:
 - A bounded, read-only random-access image reader for regular files.
 - MBR parsing with signature, entry, bounds, sector-size, protective-MBR, and overlap checks.
 - Independent GPT primary/backup validation, header and partition-array CRC checks, geometry checks, and validated-backup fallback.
-- A WPF Windows desktop preview for image selection, partition overview, findings, JSON report export, selected-partition NTFS preview, and cancellable progress-reporting lost-NTFS discovery over image files.\n- A bounded, chunked NTFS boot-sector scanner that validates primary BPB geometry, corroborates the backup boot sector, and classifies candidates as existing, overlapping, or lost relative to validated MBR/GPT partition ranges. Lost candidates can be selected for the current bounded NTFS metadata preview.
+- A WPF Windows desktop preview for image selection, partition overview, findings, JSON report export, selected-partition NTFS preview, and cancellable progress-reporting lost-NTFS discovery over image files.
+- A bounded, chunked NTFS boot-sector scanner that validates primary BPB geometry, corroborates the backup boot sector, and classifies candidates as existing, overlapping, or lost relative to validated MBR/GPT partition ranges. Lost candidates can be selected for the current bounded NTFS metadata preview.
 - NTFS boot-sector geometry validation, FILE record update-sequence-array fixups, bounded attribute parsing, and mapping-pairs decoding.
 - MFT record reads through the initial validated unnamed `$MFT::$DATA` extent, including records crossing fragmented physical runs.
 - Resident `$FILE_NAME` parsing, bounded MFT scanning, and a conservative partial directory-tree preview with parent-sequence validation, cycle detection, and orphan reporting.
 - A bounded resident `$ATTRIBUTE_LIST` parser and one-level matcher against caller-supplied, already validated FILE records. It verifies record number/sequence, base-file reference, and the complete attribute identity (type, ordinal UTF-16 name, ID, and lowest VCN), with structured rejection diagnostics and explicit limits. It does **not** read referenced records, extend MFT coverage, or support non-resident lists or recursive discovery.
-- An in-memory MFT extent-map assembler that validates supplied unnamed `$DATA` extents for identity, decoded run lengths, volume bounds, and exact VCN continuity. It does not discover, read, or authenticate continuation FILE records and is not yet used by the MFT reader, CLI, or WPF.\n- An experimental Windows-only physical-disk inventory foundation: bounded `PhysicalDriveN` metadata probes, best-effort vendor/model/serial/bus identity, volume-GUID-to-disk extent mapping, serial/geometry revalidation on reader open, and a conservative per-device scan preflight with explicit blockers. This foundation is not integrated into partition scanning.
+- An in-memory MFT extent-map assembler that validates supplied unnamed `$DATA` extents for identity, decoded run lengths, volume bounds, and exact VCN continuity. It does not discover, read, or authenticate continuation FILE records and is not yet used by the MFT reader, CLI, or WPF.
+- An experimental Windows-only physical-disk inventory foundation: bounded `PhysicalDriveN` metadata probes, best-effort vendor/model/serial/bus identity, volume-GUID-to-disk extent mapping, serial/geometry revalidation on reader open, and a conservative per-device scan preflight with explicit blockers. This foundation is not integrated into partition scanning.
 
 The attribute-list parser caps values at 16 MiB and 65,536 entries. The matcher caps candidates at 4,096 records and 16 MiB aggregate record bytes, and caps attribute parsing/comparison work at 4,096 parsed attributes and 1,000,000 comparisons. Invalid, stale, missing, duplicate, mismatched, unsupported, or ambiguous references produce diagnostics; any rejected entry makes the result incomplete.
 
@@ -28,7 +30,8 @@ The in-memory MFT extent-map assembler caps input at 4,096 extents, 1,000,000 de
 
 - Only regular image files are opened by the current IO implementation.
 - Source reads are bounded; the image reader exposes no write API.
-- Physical-disk enumeration is metadata-only. The experimental raw reader requests `GENERIC_READ` and exposes bounded reads, but is not connected to the partition scanner or recovery UI. Windows or another process may still write through mounted filesystems; a read-only handle does not make the underlying disk immutable.\n- Physical sector scanning remains disabled: the app cannot yet independently verify firmware boot-device exclusion or complete imaging-first safeguards. The preflight therefore remains blocked. No mounting, repair, formatting, initialization, or repartitioning is implemented.
+- Physical-disk enumeration is metadata-only. The experimental raw reader requests `GENERIC_READ` and exposes bounded reads, but is not connected to the partition scanner or recovery UI. Windows or another process may still write through mounted filesystems; a read-only handle does not make the underlying disk immutable.
+- Physical sector scanning remains disabled: the app cannot yet independently verify firmware boot-device exclusion or complete imaging-first safeguards. The preflight therefore remains blocked. No mounting, repair, formatting, initialization, or repartitioning is implemented.
 - JSON reports are written only to a user-selected report path.
 - No file-content recovery is available yet.
 - All automated integration checks use generated disposable images.
@@ -73,7 +76,8 @@ Generate disposable fixtures without touching physical disks:
 
 ```powershell
 .\tools\New-DiskRescueTestImages.ps1 -OutputDirectory "$env:USERPROFILE\Documents\DiskRescue-TestImages"
-.\tools\New-NtfsMftPreviewImage.ps1 -OutputPath "$env:USERPROFILE\Documents\ntfs-mft-preview.img"
+.\tools\New-NtfsMftPreviewImage.ps1 -OutputPath "$env:USERPROFILE\Documents
+tfs-mft-preview.img"
 ```
 
 See [docs/TEST-IMAGES.md](docs/TEST-IMAGES.md) for expected results and desktop testing instructions.
