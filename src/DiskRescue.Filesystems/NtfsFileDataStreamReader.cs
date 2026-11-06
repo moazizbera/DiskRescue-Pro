@@ -16,7 +16,7 @@ public sealed record NtfsFileDataStreamCopyResult(
 
 /// <summary>
 /// Copies one validated, unnamed or named NTFS data stream to a caller-owned
-/// writable stream. Resident streams and single-extent, uncompressed,
+/// writable stream. Resident streams and single-extent, non-sparse, uncompressed,
 /// unencrypted non-resident streams are supported. Source access is read-only.
 /// </summary>
 public sealed class NtfsFileDataStreamReader
