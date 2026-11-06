@@ -17,7 +17,6 @@ if ([IO.File]::Exists($fullPath)) {
 $tempImage = Join-Path ([IO.Path]::GetTempPath()) ("diskrescue-source-" + [Guid]::NewGuid().ToString("N") + ".img")
 try {
     & (Join-Path $PSScriptRoot "New-NtfsMftPreviewImage.ps1") -OutputPath $tempImage
-    if ($LASTEXITCODE -ne 0) { throw "Could not create the source NTFS parser fixture." }
 
     $source = [IO.File]::ReadAllBytes($tempImage)
     $sectorSize = 512
