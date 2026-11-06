@@ -146,6 +146,29 @@ public sealed class NtfsMftReaderTests
     }
 
     [Fact]
+    public void CopiesValidatedMultiExtentFileDataAcrossAttributeListContinuation()
+    {
+        var first = Enumerable.Range(0, 512).Select(value => (byte)(value % 239)).ToArray();
+        var second = Enumerable.Range(0, 512).Select(value => (byte)((value + 71) % 241)).ToArray();
+        using var image = CreateImage(includeMultiExtentFileData: true,
+            firstFileDataExtent: first, secondFileDataExtent: second);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        var stream = opened.Reader!.OpenDataStream(1);
+        Assert.True(stream.IsValid, string.Join("; ", stream.Issues));
+        Assert.False(stream.IsResident);
+        Assert.Equal((ulong)1024, stream.Length);
+
+        using var destination = new MemoryStream();
+        var copied = stream.Reader!.CopyTo(destination, 2048);
+
+        Assert.True(copied.IsValid, string.Join("; ", copied.Issues));
+        Assert.Equal((ulong)1024, copied.BytesWritten);
+        Assert.Equal(first.Concat(second).ToArray(), destination.ToArray());
+    }
+
+    [Fact]
     public void RefusesFileDataExportAboveCallerSpecifiedLimitBeforeWriting()
     {
         using var image = CreateImage(residentFileData: Encoding.UTF8.GetBytes("bounded export"));
@@ -175,20 +198,29 @@ public sealed class NtfsMftReaderTests
         new(512, 1, 512, 128, 4, 8, 1024, 1024, 123, 2048, 4096);
 
     private static MemoryImage CreateImage(uint recordZeroNumber = 0, ulong recordTwoBaseReferenceRaw = 0,
-        bool includeAttributeList = false, bool includeContinuation = false, byte[]? residentFileData = null, byte[]? nonResidentFileData = null)
+        bool includeAttributeList = false, bool includeContinuation = false, byte[]? residentFileData = null,
+        byte[]? nonResidentFileData = null, bool includeMultiExtentFileData = false,
+        byte[]? firstFileDataExtent = null, byte[]? secondFileDataExtent = null)
     {
         var bytes = new byte[128 * 512];
         CreateFileRecord(recordZeroNumber, includeMftDataAttribute: true,
             includeAttributeList: includeAttributeList, mftSize: includeContinuation ? 8192UL : 4096UL).CopyTo(bytes, 4 * 512);
         var recordOne = CreateFileRecord(1, includeMftDataAttribute: false, includeFileName: true,
-            residentData: residentFileData, nonResidentDataLength: nonResidentFileData?.Length ?? 0);
+            residentData: residentFileData, nonResidentDataLength: nonResidentFileData?.Length ?? 0,
+            includeMultiExtentFileData: includeMultiExtentFileData);
         if (nonResidentFileData is not null)
             nonResidentFileData.AsSpan().CopyTo(bytes.AsSpan(30 * 512));
+        if (firstFileDataExtent is not null)
+            firstFileDataExtent.AsSpan().CopyTo(bytes.AsSpan(30 * 512));
+        if (secondFileDataExtent is not null)
+            secondFileDataExtent.AsSpan().CopyTo(bytes.AsSpan(32 * 512));
         recordOne.AsSpan(0, 512).CopyTo(bytes.AsSpan(6 * 512, 512));
         recordOne.AsSpan(512, 512).CopyTo(bytes.AsSpan(12 * 512, 512));
         CreateFileRecord(2, includeMftDataAttribute: false, baseFileReferenceRaw: recordTwoBaseReferenceRaw,
             includeContinuationData: includeContinuation).CopyTo(bytes, 13 * 512);
-        CreateFileRecord(3, includeMftDataAttribute: false).CopyTo(bytes, 15 * 512);
+        CreateFileRecord(3, includeMftDataAttribute: false,
+            baseFileReferenceRaw: includeMultiExtentFileData ? ((9UL << 48) | 1UL) : 0,
+            includeFileDataContinuation: includeMultiExtentFileData).CopyTo(bytes, 15 * 512);
         if (includeContinuation)
             CreateFileRecord(4, includeMftDataAttribute: false).CopyTo(bytes, 20 * 512);
         return new MemoryImage(bytes);
@@ -197,7 +229,8 @@ public sealed class NtfsMftReaderTests
     private static byte[] CreateFileRecord(uint recordNumber, bool includeMftDataAttribute, bool includeFileName = false,
         bool isDirectory = false, ulong baseFileReferenceRaw = 0, bool includeAttributeList = false,
         bool includeContinuationData = false, ulong mftSize = 4096, byte[]? residentData = null,
-        int nonResidentDataLength = 0)
+        int nonResidentDataLength = 0, bool includeMultiExtentFileData = false,
+        bool includeFileDataContinuation = false)
     {
         var raw = new byte[1024];
         "FILE"u8.CopyTo(raw);
@@ -263,6 +296,45 @@ public sealed class NtfsMftReaderTests
             BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(128, 4), 0xFFFFFFFF);
             BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(24, 4), 132);
         }
+        else if (includeMultiExtentFileData)
+        {
+            // Base $DATA extent VCN 0 at LCN 30, followed by a continuation in FILE record 3.
+            BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(56, 4), 0x80);
+            BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(60, 4), 72);
+            raw[64] = 1;
+            BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(70, 2), 1);
+            BinaryPrimitives.WriteUInt64LittleEndian(raw.AsSpan(72, 8), 0);
+            BinaryPrimitives.WriteUInt64LittleEndian(raw.AsSpan(80, 8), 0);
+            BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(88, 2), 64);
+            BinaryPrimitives.WriteUInt64LittleEndian(raw.AsSpan(96, 8), 1024);
+            BinaryPrimitives.WriteUInt64LittleEndian(raw.AsSpan(104, 8), 1024);
+            BinaryPrimitives.WriteUInt64LittleEndian(raw.AsSpan(112, 8), 1024);
+            raw[120] = 0x11; raw[121] = 1; raw[122] = 30; raw[123] = 0;
+
+            BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(128, 4), 0x20);
+            BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(132, 4), 88);
+            BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(144, 4), 64);
+            BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(148, 2), 24);
+            var list = raw.AsSpan(152, 64);
+            WriteAttributeListEntry(list[..32], 0, (9UL << 48) | 1UL, 1);
+            WriteAttributeListEntry(list[32..], 1, (9UL << 48) | 3UL, 1);
+            BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(216, 4), 0xFFFFFFFF);
+            BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(24, 4), 220);
+        }
+        else if (includeFileDataContinuation)
+        {
+            // Second $DATA extent VCN 1 at LCN 32, authenticated by FILE record 1's $ATTRIBUTE_LIST.
+            BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(56, 4), 0x80);
+            BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(60, 4), 72);
+            raw[64] = 1;
+            BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(70, 2), 1);
+            BinaryPrimitives.WriteUInt64LittleEndian(raw.AsSpan(72, 8), 1);
+            BinaryPrimitives.WriteUInt64LittleEndian(raw.AsSpan(80, 8), 1);
+            BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(88, 2), 64);
+            raw[120] = 0x11; raw[121] = 1; raw[122] = 32; raw[123] = 0;
+            BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(128, 4), 0xFFFFFFFF);
+            BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(24, 4), 132);
+        }
         else if (residentData is not null)
         {
             var attributeLength = checked((24 + residentData.Length + 7) & ~7);
@@ -301,13 +373,13 @@ public sealed class NtfsMftReaderTests
         return raw;
     }
 
-    private static void WriteAttributeListEntry(Span<byte> entry, ulong lowestVcn, ulong fileReference)
+    private static void WriteAttributeListEntry(Span<byte> entry, ulong lowestVcn, ulong fileReference, ushort attributeId = 0)
     {
         BinaryPrimitives.WriteUInt32LittleEndian(entry[..4], 0x80);
         BinaryPrimitives.WriteUInt16LittleEndian(entry.Slice(4, 2), 32);
         BinaryPrimitives.WriteUInt64LittleEndian(entry.Slice(8, 8), lowestVcn);
         BinaryPrimitives.WriteUInt64LittleEndian(entry.Slice(16, 8), fileReference);
-        BinaryPrimitives.WriteUInt16LittleEndian(entry.Slice(24, 2), 0);
+        BinaryPrimitives.WriteUInt16LittleEndian(entry.Slice(24, 2), attributeId);
     }
 
     private sealed class MemoryImage(byte[] bytes) : IReadOnlyRandomAccessSource
