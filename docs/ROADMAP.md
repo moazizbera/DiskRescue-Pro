@@ -19,7 +19,7 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [x] WPF image selection, partition overview, findings, and JSON export
 - [x] Generated MBR/GPT images and CLI smoke tests
 - [ ] Manual Windows desktop smoke test recorded against generated MBR/GPT images
-- [ ] Lost-partition candidate discovery and confidence scoring
+- [x] Bounded, chunked NTFS boot-sector discovery in image files with primary BPB validation, backup-sector corroboration, progress, cancellation, and candidate evidence\n- [x] Classify NTFS candidates against parsed MBR/GPT ranges as existing, overlapping, or lost; add lost candidates to the desktop partition list for bounded NTFS preview\n- [ ] FAT32 and exFAT lost-partition candidate discovery and confidence scoring\n- [ ] Generated integration fixtures for lost NTFS candidates and desktop discovery flow
 - [ ] Physical disk inventory and acquisition (separate future safety gate)
 
 ## Phase 2 — NTFS metadata preview
@@ -81,7 +81,7 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [x] Initial WPF dashboard and partition inspection
 - [x] NTFS partial tree preview
 - [ ] Device/image acquisition wizard with explicit read-only identity checks
-- [ ] Guided lost-partition discovery with evidence/confidence panels
+- [x] Guided NTFS lost-partition discovery with evidence/confidence panel, progress, cancellation, and selectable candidates (image files only)\n- [ ] Expand discovery UI to FAT32/exFAT and add deeper candidate comparison tools
 - [ ] Search, filter, sort, and metadata inspection for file entries
 - [ ] Accessible progress, cancellation, and clear failure states
 - [ ] Recovery destination verification and extraction queue
@@ -99,6 +99,6 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 
 ## Current validation baseline
 
-The post-merge Windows CI run [42095792708](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42095792708) completed successfully on `main`: 53 tests passed, generated MBR/GPT/NTFS fixture generation and CLI smoke tests passed, WPF built, and self-contained Windows x64 CLI and desktop artifacts were published.
+The live/lost NTFS image scanner is currently under validation on `feat/live-lost-partition-scan`; its unit tests and Windows desktop integration must pass on the exact branch head before this phase is considered complete.\n\nThe post-merge Windows CI run [42095792708](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42095792708) completed successfully on `main`: 53 tests passed, generated MBR/GPT/NTFS fixture generation and CLI smoke tests passed, WPF built, and self-contained Windows x64 CLI and desktop artifacts were published.
 
 Windows CI run [42097467414](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42097467414) validated the earlier parser-only feature (60 tests, generated-image CLI smoke tests, WPF build, and Windows x64 desktop/CLI publishing). The current bounded matcher is covered by additional synthetic-record unit tests; its full-solution CI and packaging validation remain release gates. Manual Windows desktop interaction is still outstanding.

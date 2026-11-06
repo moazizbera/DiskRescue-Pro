@@ -13,7 +13,7 @@ The current `.NET 10` solution includes:
 - A bounded, read-only random-access image reader for regular files.
 - MBR parsing with signature, entry, bounds, sector-size, protective-MBR, and overlap checks.
 - Independent GPT primary/backup validation, header and partition-array CRC checks, geometry checks, and validated-backup fallback.
-- A WPF Windows desktop preview for image selection, partition overview, findings, JSON report export, and a selected-partition NTFS preview.
+- A WPF Windows desktop preview for image selection, partition overview, findings, JSON report export, selected-partition NTFS preview, and cancellable progress-reporting lost-NTFS discovery over image files.\n- A bounded, chunked NTFS boot-sector scanner that validates primary BPB geometry, corroborates the backup boot sector, and classifies candidates as existing, overlapping, or lost relative to validated MBR/GPT partition ranges. Lost candidates can be selected for the current bounded NTFS metadata preview.
 - NTFS boot-sector geometry validation, FILE record update-sequence-array fixups, bounded attribute parsing, and mapping-pairs decoding.
 - MFT record reads through the initial validated unnamed `$MFT::$DATA` extent, including records crossing fragmented physical runs.
 - Resident `$FILE_NAME` parsing, bounded MFT scanning, and a conservative partial directory-tree preview with parent-sequence validation, cycle detection, and orphan reporting.
@@ -103,7 +103,7 @@ Download them from the [GitHub Actions workflow](https://github.com/moazizbera/D
 The next critical milestones are:
 1. Read referenced records through a validated MFT mapping and assemble additional extents with exact VCN continuity, cycle detection, and strict resource limits.
 2. Parse NTFS directory indexes and validate complete parent relationships.
-3. Discover lost partition candidates from bounded filesystem-signature searches with evidence and confidence explanations.
+3. Extend image-based lost-partition discovery to FAT32 and exFAT, improve candidate deduplication/conflict analysis, and expand generated regression fixtures. The current scanner is NTFS-only and does not access physical disks.
 4. Add read-only file-content mapping and integrity verification.
 5. Add safe extraction to a demonstrably separate destination, with collision handling, hashes, manifest, cancellation, and resume semantics.
 6. Consider physical-device imaging only after a separate read-only handle design and safety review.
