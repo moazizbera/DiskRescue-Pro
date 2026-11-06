@@ -69,7 +69,7 @@ public sealed class WindowsPhysicalDiskReaderTests
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(28, 4), 7);
         "ACME"u8.CopyTo(data.AsSpan(36));
         "DiskModel"u8.CopyTo(data.AsSpan(42));
-        "SERIAL123"u8.CopyTo(data.AsSpan(49));
+        "SERIAL123"u8.CopyTo(data.AsSpan(53));
 
         var result = WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor(data);
 
