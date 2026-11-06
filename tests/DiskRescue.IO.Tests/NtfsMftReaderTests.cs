@@ -82,7 +82,7 @@ public sealed class NtfsMftReaderTests
     [Fact]
     public void DiscoversResidentAttributeListContinuationAndReadsBeyondInitialMftExtent()
     {
-        using var image = CreateImage(includeAttributeList: true, includeContinuation: true);
+        using var image = CreateImage(recordTwoBaseReferenceRaw: (9UL << 48), includeAttributeList: true, includeContinuation: true);
         var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
         Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
 
