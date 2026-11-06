@@ -171,6 +171,8 @@ public static class WindowsPhysicalDiskDiscovery
 
         try
         {
+            if (bytesReturned < 36 || bytesReturned > output.Length)
+                return (null, null, null, null, null);
             var parsed = ParseStorageDeviceDescriptor(output.AsSpan(0, bytesReturned));
             return parsed;
         }
