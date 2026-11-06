@@ -17,6 +17,9 @@ static int Run(string[] args)
     if (string.Equals(args[0], "scan-ntfs", StringComparison.OrdinalIgnoreCase))
         return RunNtfsScan(args);
 
+    if (string.Equals(args[0], "extract-ntfs-file", StringComparison.OrdinalIgnoreCase))
+        return RunNtfsExtract(args);
+
     if (string.Equals(args[0], "image-copy", StringComparison.OrdinalIgnoreCase))
         return RunImageCopy(args);
 
@@ -307,6 +310,164 @@ static int RunNtfsScan(string[] args)
     }
 }
 
+static int RunNtfsExtract(string[] args)
+{
+    if (args.Length < 2)
+    {
+        Console.Error.WriteLine("Usage: diskrescue extract-ntfs-file <image> --offset <bytes> --length <bytes> --record <number> --output <new-file> --max-bytes <bytes>");
+        return 2;
+    }
+
+    var imagePath = args[1];
+    long? volumeOffset = null;
+    long? volumeLength = null;
+    ulong? recordNumber = null;
+    ulong? maximumBytes = null;
+    string? outputPath = null;
+    var streamName = string.Empty;
+    var sectorSize = 512;
+
+    for (var i = 2; i < args.Length; i++)
+    {
+        if (i + 1 >= args.Length)
+        {
+            Console.Error.WriteLine($"Missing value for {args[i]}.");
+            return 2;
+        }
+
+        var option = args[i];
+        var value = args[++i];
+        switch (option)
+        {
+            case "--offset" when long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var offset):
+                volumeOffset = offset;
+                break;
+            case "--length" when long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var length):
+                volumeLength = length;
+                break;
+            case "--record" when ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedRecord):
+                recordNumber = parsedRecord;
+                break;
+            case "--max-bytes" when ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedMaximum):
+                maximumBytes = parsedMaximum;
+                break;
+            case "--output" when !string.IsNullOrWhiteSpace(value):
+                outputPath = value;
+                break;
+            case "--stream-name":
+                streamName = value;
+                break;
+            case "--sector-size" when int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedSectorSize):
+                sectorSize = parsedSectorSize;
+                break;
+            default:
+                Console.Error.WriteLine($"Unknown or invalid option: {option} {value}");
+                return 2;
+        }
+    }
+
+    if (volumeOffset is null || volumeLength is null || volumeOffset < 0 || volumeLength <= 0 ||
+        recordNumber is null || maximumBytes is null || outputPath is null)
+    {
+        Console.Error.WriteLine("Provide --offset, --length, --record, --output, and an explicit --max-bytes limit.");
+        return 2;
+    }
+    if (sectorSize is not (512 or 1024 or 2048 or 4096))
+    {
+        Console.Error.WriteLine("NTFS sector size must be 512, 1024, 2048, or 4096 bytes.");
+        return 2;
+    }
+
+    string fullImagePath;
+    string fullOutputPath;
+    string? temporaryPath = null;
+    try
+    {
+        fullImagePath = Path.GetFullPath(imagePath);
+        fullOutputPath = Path.GetFullPath(outputPath);
+        if (string.Equals(fullImagePath, fullOutputPath, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Recovery output must not overwrite the source image.");
+        var destinationDirectory = Path.GetDirectoryName(fullOutputPath);
+        if (string.IsNullOrEmpty(destinationDirectory) || !Directory.Exists(destinationDirectory))
+            throw new DirectoryNotFoundException("Recovery output directory must already exist.");
+        if (File.Exists(fullOutputPath) || Directory.Exists(fullOutputPath))
+            throw new IOException("Recovery output already exists; existing files are never overwritten.");
+
+        using var image = FileImageReader.Open(fullImagePath);
+        var boot = NtfsBootSectorParser.Parse(image, volumeOffset.Value, volumeLength.Value);
+        if (!boot.IsValid || boot.BootSector is null)
+            throw new IOException("NTFS boot-sector validation failed: " + string.Join("; ", boot.Issues));
+        if (boot.BootSector.BytesPerSector != sectorSize)
+            throw new IOException($"Requested sector size {sectorSize} does not match NTFS BPB value {boot.BootSector.BytesPerSector}.");
+
+        var opened = NtfsMftReader.Open(image, volumeOffset.Value, volumeLength.Value, boot.BootSector);
+        if (!opened.IsValid || opened.Reader is null)
+            throw new IOException("NTFS MFT validation failed: " + string.Join("; ", opened.Issues));
+        var continuation = opened.Reader.ExtendUsingResidentAttributeList();
+        if (!continuation.IsValid || continuation.Reader is null)
+            throw new IOException("MFT continuation validation failed: " + string.Join("; ", continuation.Issues));
+
+        var stream = continuation.Reader.OpenDataStream(recordNumber.Value, streamName);
+        if (!stream.IsValid || stream.Reader is null)
+            throw new IOException("NTFS file-data stream validation failed: " + string.Join("; ", stream.Issues));
+        if (stream.Length > maximumBytes.Value)
+            throw new IOException($"File stream length {stream.Length} exceeds --max-bytes {maximumBytes.Value}.");
+
+        var fileName = Path.GetFileName(fullOutputPath);
+        temporaryPath = Path.Combine(destinationDirectory, $".{fileName}.{Guid.NewGuid():N}.partial");
+        using var cancellation = new CancellationTokenSource();
+        ConsoleCancelEventHandler handler = (_, eventArgs) =>
+        {
+            eventArgs.Cancel = true;
+            cancellation.Cancel();
+        };
+        Console.CancelKeyPress += handler;
+        try
+        {
+            using (var destination = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write,
+                FileShare.None, 1024 * 1024, FileOptions.SequentialScan))
+            {
+                var progress = new Progress<ulong>(bytes => Console.Write($"\rRecovered: {bytes:N0}/{stream.Length:N0} bytes"));
+                var copied = stream.Reader.CopyTo(destination, maximumBytes.Value, cancellation.Token, progress);
+                if (!copied.IsValid || copied.BytesWritten != stream.Length)
+                    throw new IOException("File-data export failed: " + string.Join("; ", copied.Issues));
+                destination.Flush(true);
+            }
+            cancellation.Token.ThrowIfCancellationRequested();
+            File.Move(temporaryPath, fullOutputPath, overwrite: false);
+            temporaryPath = null;
+            Console.WriteLine();
+            Console.WriteLine($"Recovered file: {fullOutputPath}");
+            Console.WriteLine($"Bytes written: {stream.Length:N0}");
+            Console.WriteLine($"MFT record: {recordNumber.Value}");
+            return 0;
+        }
+        finally
+        {
+            Console.CancelKeyPress -= handler;
+        }
+    }
+    catch (OperationCanceledException)
+    {
+        Console.Error.WriteLine("\nFile recovery cancelled; incomplete output was discarded when possible.");
+        return 130;
+    }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+    {
+        Console.Error.WriteLine($"File recovery stopped safely: {exception.Message}");
+        return 1;
+    }
+    finally
+    {
+        if (temporaryPath is not null)
+        {
+            try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+}
+
 static void PrintUsage()
 {
     Console.WriteLine("DiskRescue Pro — read-only disk-image inspector");
@@ -315,6 +476,7 @@ static void PrintUsage()
     Console.WriteLine("  diskrescue inspect <image-file> [--sector-size <bytes>]");
     Console.WriteLine("  diskrescue image-copy <source-image> <new-destination-image>");
     Console.WriteLine("  diskrescue scan-ntfs <image-file> --offset <bytes> --length <bytes> [--sector-size <bytes>] [--max-records <count>]");
+    Console.WriteLine("  diskrescue extract-ntfs-file <image-file> --offset <bytes> --length <bytes> --record <number> --output <new-file> --max-bytes <bytes> [--stream-name <name>]");
     Console.WriteLine();
     Console.WriteLine("Examples:");
     Console.WriteLine("  diskrescue inspect sample.img");
@@ -324,4 +486,5 @@ static void PrintUsage()
     Console.WriteLine("image-copy copies a regular image file to a new destination and prints SHA-256.");
     Console.WriteLine("Only regular image files are supported by inspect, image-copy, and scan-ntfs. Physical disks are not opened.");
     Console.WriteLine("NTFS scan returns a bounded partial MFT and directory-tree preview, not file recovery.");
+    Console.WriteLine("extract-ntfs-file exports one validated resident or single-extent data stream to a new file; multi-extent, compressed, and encrypted streams are unsupported.");
 }
