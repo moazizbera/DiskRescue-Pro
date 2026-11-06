@@ -189,7 +189,11 @@ public static class WindowsPhysicalDiskDiscovery
 
         // Geometry is checked separately. Require a reported serial number;
         // matching only a disk number, capacity, vendor, or generic model is insufficient.
-        if (string.IsNullOrWhiteSpace(expected.SerialNumber) ||
+        if (expected.DiskNumber != current.DiskNumber ||
+            !string.Equals(expected.DevicePath, current.DevicePath, StringComparison.OrdinalIgnoreCase) ||
+            expected.LengthBytes != current.LengthBytes ||
+            expected.BytesPerSector != current.BytesPerSector ||
+            string.IsNullOrWhiteSpace(expected.SerialNumber) ||
             string.IsNullOrWhiteSpace(current.SerialNumber))
             return false;
 
