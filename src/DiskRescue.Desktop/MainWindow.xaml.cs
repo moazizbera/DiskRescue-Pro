@@ -188,7 +188,7 @@ public partial class MainWindow : Window
 
         var imagePath = ImagePathBox.Text;
         var sectorSize = int.Parse(((ComboBoxItem)SectorSizeBox.SelectedItem).Tag.ToString()!);
-        var known = _rows.Select(row => new KnownPartitionRange(row.Table, row.Index, row.ByteOffset, row.ByteLength)).ToArray();
+        var known = _rows.Where(row => row.Table != "SCAN").Select(row => new KnownPartitionRange(row.Table, row.Index, row.ByteOffset, row.ByteLength)).ToArray();
 
         DiscoverButton.IsEnabled = false;
         InspectButton.IsEnabled = false;
