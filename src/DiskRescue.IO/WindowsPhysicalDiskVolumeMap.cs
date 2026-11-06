@@ -126,6 +126,8 @@ public static class WindowsPhysicalDiskVolumeMap
             throw new InvalidDataException("Volume disk-extents response is shorter than its count field.");
 
         var count = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(data);
+        if (count == 0)
+            throw new InvalidDataException("Volume disk-extents response contains no physical disk extents.");
         if (count > 1024)
             throw new InvalidDataException("Volume disk-extents count exceeds the safety limit.");
         const int headerSize = 8;
