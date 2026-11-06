@@ -159,8 +159,6 @@ public sealed class NtfsFileDataStreamReader
 public sealed partial class NtfsMftReader
 {
     private const uint FileDataAttributeType = 0x80;
-    private const ushort CompressedAttributeFlag = 0x0001;
-    private const ushort EncryptedAttributeFlag = 0x4000;
 
     /// <summary>
     /// Opens a file's single resident or single-extent $DATA stream. Extension
@@ -197,9 +195,8 @@ public sealed partial class NtfsMftReader
                 : "The requested $DATA stream has multiple extents or ambiguous attributes; multi-extent file streams are not yet supported.");
 
         var attribute = data[0];
-        if ((attribute.Flags & (CompressedAttributeFlag | EncryptedAttributeFlag)) != 0 ||
-            (attribute.Flags & ~0x8000) != 0)
-            return InvalidDataStream("Compressed, encrypted, or otherwise unsupported flagged file streams are not yet supported.");
+        if (attribute.Flags != 0)
+            return InvalidDataStream("Compressed, encrypted, sparse, or otherwise flagged file streams are not yet supported.");
 
         if (!attribute.IsNonResident)
         {
@@ -224,8 +221,8 @@ public sealed partial class NtfsMftReader
             var runlist = NtfsRunlistParser.Parse(attribute.MappingPairs, volumeClusters);
             if (!runlist.IsValid)
                 return InvalidDataStream("File $DATA mapping pairs are invalid: " + string.Join("; ", runlist.Issues));
-            if (runlist.Runs.Count == 0 || runlist.TotalClusters == 0 ||
-                runlist.TotalClusters - 1 != attribute.HighestVcn.Value)
+            if (runlist.Runs.Count == 0 || runlist.Runs.Any(run => run.IsSparse) ||
+                runlist.TotalClusters == 0 || runlist.TotalClusters - 1 != attribute.HighestVcn.Value)
                 return InvalidDataStream("File $DATA runlist does not match its declared VCN range.");
 
             var mappedBytes = checked(runlist.TotalClusters * _boot.ClusterSizeBytes);
