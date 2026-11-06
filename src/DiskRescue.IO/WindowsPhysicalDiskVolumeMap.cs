@@ -67,7 +67,7 @@ public static class WindowsPhysicalDiskVolumeMap
                 try
                 {
                     using var volume = NativeMethods.CreateFile(
-                        path, GenericRead, ShareRead | ShareWrite, IntPtr.Zero,
+                        path.TrimEnd('\\'), GenericRead, ShareRead | ShareWrite, IntPtr.Zero,
                         OpenExisting, FileAttributeNormal, IntPtr.Zero);
                     if (volume.IsInvalid)
                         throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to open volume for extent inspection.");
@@ -147,14 +147,20 @@ public static class WindowsPhysicalDiskVolumeMap
         return disks.Order().ToArray();
     }
 
+    private sealed class SafeVolumeFindHandle : SafeHandleZeroOrMinusOneIsInvalid
+    {
+        private SafeVolumeFindHandle() : base(true) { }
+        protected override bool ReleaseHandle() => NativeMethods.FindVolumeClose(handle);
+    }
+
     private static class NativeMethods
     {
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        internal static extern SafeFileHandle FindFirstVolume(StringBuilder volumeName, int bufferLength);
+        internal static extern SafeVolumeFindHandle FindFirstVolume(StringBuilder volumeName, int bufferLength);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        internal static extern bool FindNextVolume(SafeFileHandle findHandle, StringBuilder volumeName, int bufferLength);
+        internal static extern bool FindNextVolume(SafeVolumeFindHandle findHandle, StringBuilder volumeName, int bufferLength);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
