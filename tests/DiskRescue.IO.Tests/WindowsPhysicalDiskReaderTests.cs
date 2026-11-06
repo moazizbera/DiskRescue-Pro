@@ -181,10 +181,14 @@ public sealed class WindowsPhysicalDiskReaderTests
         var same = expected with { DiskNumber = 4, DevicePath = @"\\.\PhysicalDrive4" };
         var changedSerial = expected with { SerialNumber = "SERIAL-002" };
         var changedModel = expected with { Model = "Model Y" };
+        var changedLocator = expected with { DiskNumber = 5, DevicePath = @"\\.\PhysicalDrive5" };
+        var changedCapacity = expected with { LengthBytes = expected.LengthBytes + 512 };
 
         Assert.True(WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(expected, same));
         Assert.False(WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(expected, changedSerial));
         Assert.False(WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(expected, changedModel));
+        Assert.False(WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(expected, changedLocator));
+        Assert.False(WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(expected, changedCapacity));
     }
 
     [Fact]
