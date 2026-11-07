@@ -64,6 +64,22 @@ Generate a disposable image containing a valid NTFS volume that is deliberately 
 .\tools\New-LostNtfsPartitionImage.ps1 -OutputPath "$env:USERPROFILE\Documents\lost-ntfs-partition.img"
 ```
 
+### One-command recovery-path test
+
+From the repository root in PowerShell, run:
+
+```powershell
+.\tools\Test-LostNtfsRecovery.ps1
+```
+
+The script creates a uniquely named test folder under Documents, generates the disposable lost-partition image, runs discovery and bounded preview, extracts the synthetic resident file, and verifies its exact contents and SHA-256. It refuses to overwrite an existing image or recovered file. It uses only the generated image file and does not enumerate or access physical disks.
+
+To choose another output folder:
+
+```powershell
+.\tools\Test-LostNtfsRecovery.ps1 -OutputDirectory "$env:USERPROFILE\Documents\DiskRescue-Recovery-Test"
+```
+
 ### First end-to-end CLI test
 
 This is the recommended first recovery-path test. It uses only the generated image file and writes the recovered test file to a separate output folder.
