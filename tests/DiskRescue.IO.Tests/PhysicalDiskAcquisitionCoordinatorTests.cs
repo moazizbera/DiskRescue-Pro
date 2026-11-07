@@ -226,7 +226,6 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         public void ReadExactlyAt(long offset, Span<byte> destination)
         {
             ReadAttempts++;
-            _reads++;
             if (failOnRead)
                 throw new IOException("Synthetic source read failure.");
             if (offset < 0 || offset > data.Length || destination.Length > data.Length - offset)
