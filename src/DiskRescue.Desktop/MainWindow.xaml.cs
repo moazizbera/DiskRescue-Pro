@@ -371,7 +371,7 @@ public partial class MainWindow : Window
 
         var notes = new List<string>
         {
-            $"Image: {Path.GetFileName(path)}",
+            $"Image: {System.IO.Path.GetFileName(path)}",
             $"Length: {image.Length:N0} bytes",
             $"Logical sector size: {sectorSize:N0} bytes",
             "",
@@ -401,7 +401,7 @@ public partial class MainWindow : Window
             product = "DiskRescue Pro",
             reportVersion = 1,
             mode = "read-only-image-inspection",
-            source = new { fileName = Path.GetFileName(path), lengthBytes = image.Length, logicalSectorSizeBytes = sectorSize },
+            source = new { fileName = System.IO.Path.GetFileName(path), lengthBytes = image.Length, logicalSectorSizeBytes = sectorSize },
             safety = new { sourceOpenedReadOnly = true, physicalDevicesSupported = false, sourceWriteOperationsAvailable = false, recoveryAvailable = false },
             mbr = new { signatureValid = mbr.HasValidSignature, protectiveGptEntryDetected = mbr.IsProtectiveMbr, partitions = mbr.Partitions, diagnostics = mbr.Issues },
             gpt = new { primaryHeaderValid = gpt.Primary.HeaderValid, primaryHeader = gpt.Primary.Header, primaryPartitions = gpt.Primary.Partitions, primaryDiagnostics = gpt.Primary.Issues, backupHeaderValid = gpt.Backup.HeaderValid, backupHeader = gpt.Backup.Header, backupPartitions = gpt.Backup.Partitions, selectedPartitionSource = gpt.Primary.HeaderValid ? "primary" : gpt.Backup.HeaderValid ? "backup" : "none", selectedPartitions = selectedGpt.Partitions, backupDiagnostics = gpt.Backup.Issues, consistencyDiagnostics = gpt.ConsistencyIssues }
@@ -415,7 +415,7 @@ public partial class MainWindow : Window
         var dialog = new SaveFileDialog
         {
             Title = "Export inspection report",
-            FileName = Path.GetFileNameWithoutExtension(_lastReportPath) + "-diskrescue-report.json",
+            FileName = System.IO.Path.GetFileNameWithoutExtension(_lastReportPath) + "-diskrescue-report.json",
             Filter = "JSON report (*.json)|*.json",
             AddExtension = true,
             DefaultExt = ".json"
