@@ -105,8 +105,9 @@ public static class WindowsBootDeviceMap
         return style switch
         {
             0 => data[32] == 0xEF || data[33] != 0, // MBR EFI type or active/system partition.
-            1 => data.Length >= 48 &&
-                 new Guid(data.Slice(32, 16)) == EfiSystemPartitionType,
+            1 => data.Length >= 48
+                ? new Guid(data.Slice(32, 16)) == EfiSystemPartitionType
+                : throw new InvalidDataException("GPT partition-information response is truncated before the partition-type GUID."),
             2 => false, // RAW disk has no recognized partition.
             _ => throw new InvalidDataException("Partition-information response has an unknown partition style.")
         };
