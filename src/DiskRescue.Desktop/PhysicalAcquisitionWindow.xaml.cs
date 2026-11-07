@@ -19,6 +19,8 @@ public partial class PhysicalAcquisitionWindow : Window
     private CancellationTokenSource? _acquisitionCancellation;
     private bool _busy;
 
+    public string? AcquiredImagePath { get; private set; }
+
     public PhysicalAcquisitionWindow()
     {
         InitializeComponent();
@@ -262,6 +264,8 @@ public partial class PhysicalAcquisitionWindow : Window
             ProgressText.Text = "Acquisition completed · image read-back SHA-256 verified";
             ResultText.Text = $"IMAGE: {result.Image.ImagePath}\nBYTES: {result.Image.BytesCopied:N0}\nSHA-256: {result.Image.Sha256}\nMANIFEST: {result.ManifestPath}";
             MessageBox.Show(this, "The image was copied and its exact length and SHA-256 were verified before publication. Review the manifest and preserve both files.", "Acquisition complete", MessageBoxButton.OK, MessageBoxImage.Information);
+            AcquiredImagePath = result.Image.ImagePath;
+            DialogResult = true;
         }
         catch (OperationCanceledException)
         {
