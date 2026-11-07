@@ -36,12 +36,15 @@ public partial class MainWindow : Window
         {
             var inventory = await Task.Run(() => WindowsPhysicalDiskDiscovery.Enumerate());
             var volumeMap = await Task.Run(() => WindowsPhysicalDiskVolumeMap.Enumerate());
+            var bootMap = await Task.Run(() => WindowsBootDeviceMap.Enumerate(volumeMap));
             var notes = new List<string>
             {
                 "WINDOWS PHYSICAL DISK INVENTORY",
-                "Read-only metadata probes plus volume-to-disk extent mapping.",
+                "Read-only metadata probes, volume-to-disk extents, and conservative Windows/firmware boot-device exclusion.",
                 $"Disks detected: {inventory.Disks.Count}",
                 $"Volume mapping: {(volumeMap.IsComplete ? "Complete" : "INCOMPLETE · fail-closed")}",
+                $"Boot-device mapping: {(bootMap.IsComplete ? "Complete · conservative" : "INCOMPLETE · fail-closed")}",
+                $"Boot-critical disks identified: {(bootMap.IsComplete ? string.Join(", ", bootMap.BootCriticalDiskNumbers.Order().Select(number => $"PhysicalDrive{number}")) : "Unknown · all disks remain blocked")}",
                 ""
             };
 
@@ -52,7 +55,7 @@ public partial class MainWindow : Window
                 notes.Add($"Serial: {disk.SerialNumber ?? "Not reported"}");
                 notes.Add($"Logical sector size: {disk.BytesPerSector:N0} bytes · Bus type: {(disk.BusType?.ToString() ?? "Not reported")} · Removable: {(disk.RemovableMedia?.ToString() ?? "Not reported")}");
                 notes.Add($"Device path: {disk.DevicePath}");
-                var safety = PhysicalDiskSafety.Assess(disk, inventory, volumeMap);
+                var safety = PhysicalDiskSafety.Assess(disk, inventory, volumeMap, bootMap);
                 notes.Add($"Physical scan preflight: {(safety.CanStartSectorScan ? "Passed" : "BLOCKED")}");
                 notes.AddRange(safety.Blockers.Select(blocker => "  • " + blocker));
                 if (volumeMap.VolumePathsByDisk.TryGetValue(disk.DiskNumber, out var volumes))
@@ -69,15 +72,16 @@ public partial class MainWindow : Window
                 notes.Add("");
             }
 
-            if (inventory.Issues.Count > 0 || volumeMap.Issues.Count > 0)
+            if (inventory.Issues.Count > 0 || volumeMap.Issues.Count > 0 || bootMap.Issues.Count > 0)
             {
                 notes.Add("Discovery diagnostics:");
                 notes.AddRange(inventory.Issues.Select(issue => "• Disk: " + issue));
                 notes.AddRange(volumeMap.Issues.Select(issue => "• Volume: " + issue));
+                notes.AddRange(bootMap.Issues.Select(issue => "• Boot-device: " + issue));
                 notes.Add("");
             }
 
-            notes.Add("SAFETY: Volume mapping is conservative and fail-closed; incomplete mapping never means a disk is unused. A complete mapping still does not prove that a disk is not the separate boot/system device, nor does it prevent Windows or other processes writing through mounted volumes. Hardware identity is best-effort and disk numbers are temporary locators. Physical sector scanning remains disabled until boot/system exclusion, device revalidation, and imaging-first handling are independently verified.");
+            notes.Add("SAFETY: Boot mapping marks the running Windows volume and recognized EFI/active-MBR partitions as boot-critical. It is conservative but is not firmware boot-order attestation; unsupported or unqueryable volumes make the result incomplete and block preflight. A read-only raw handle does not prevent Windows or other processes writing through mounted volumes. Hardware identity is best-effort and disk numbers are temporary locators. Physical sector scanning remains disabled; this inventory does not acquire an image or authorize recovery.");
             FindingsBox.Text = string.Join(Environment.NewLine, notes);
             StatusText.Text = $"Physical disk inventory complete · {inventory.Disks.Count} device(s) reported · No sector scan performed";
         }
