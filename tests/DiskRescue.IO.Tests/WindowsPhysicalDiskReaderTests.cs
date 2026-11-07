@@ -442,7 +442,7 @@ public sealed class WindowsPhysicalDiskReaderTests
     public void DestinationCapacityBlocksFilesystemSingleFileLimit(string fileSystem, long requiredBytes)
     {
         var issues = PhysicalImageDestinationSafety.ValidateFilesystemCapacity(
-            fileSystem, availableBytes: long.MaxValue, requiredBytes);
+            fileSystem, availableBytes: long.MaxValue, requiredBytes: requiredBytes);
 
         Assert.Contains(issues, issue => issue.Contains("single image file", StringComparison.OrdinalIgnoreCase));
     }
