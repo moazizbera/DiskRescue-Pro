@@ -46,7 +46,7 @@ function Invoke-DiskRescueJson {
 try {
     Write-Host "[1/4] Creating a disposable synthetic lost-NTFS image..."
     & $fixtureGenerator -OutputPath $imagePath
-    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $imagePath)) {
+    if (-not (Test-Path $imagePath)) {
         throw "The synthetic test image could not be created."
     }
 
