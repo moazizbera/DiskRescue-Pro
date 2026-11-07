@@ -118,7 +118,7 @@ public sealed class WindowsPhysicalDiskReaderTests
     {
         var data = new byte[144];
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 1);
-        WindowsBootDeviceMap.EfiSystemPartitionTypeForTests().ToByteArray().CopyTo(data, 32);
+        new Guid("C12A7328-F81F-11D2-BA4B-00A0C93EC93B").ToByteArray().CopyTo(data, 32);
 
         Assert.True(WindowsBootDeviceMap.IsFirmwareSystemPartition(data));
     }
