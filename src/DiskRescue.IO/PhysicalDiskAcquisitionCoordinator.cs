@@ -32,6 +32,7 @@ public interface IPhysicalDiskAcquisitionEnvironment
         int sourceDiskNumber, string destinationPath,
         PhysicalVolumeMappingResult volumeMap, long requiredBytes);
     PhysicalDiskOpenedSource OpenReadOnly(PhysicalDiskDescriptor descriptor);
+    Task PublishManifestAsync(string manifestPath, object manifest, string imagePath, string sha256);
 }
 
 /// <summary>Real Windows implementation. No virtual-device or production policy bypasses are added.</summary>
@@ -58,6 +59,9 @@ public sealed class WindowsPhysicalDiskAcquisitionEnvironment : IPhysicalDiskAcq
         var reader = WindowsPhysicalDiskReader.Open(descriptor);
         return new PhysicalDiskOpenedSource(reader, reader.Descriptor);
     }
+
+    public Task PublishManifestAsync(string manifestPath, object manifest, string imagePath, string sha256) =>
+        PhysicalDiskManifestPublisher.PublishAsync(manifestPath, manifest, imagePath, sha256);
 }
 
 /// <summary>
@@ -140,7 +144,7 @@ public static class PhysicalDiskAcquisitionCoordinator
             warnings = second.Assessment.Warnings
         };
 
-        await PhysicalDiskManifestPublisher.PublishAsync(
+        await environment.PublishManifestAsync(
             manifestPath, manifest, image.ImagePath, image.Sha256).ConfigureAwait(false);
 
         return new(image, manifestPath, opened.Descriptor, second.Assessment.Warnings);
