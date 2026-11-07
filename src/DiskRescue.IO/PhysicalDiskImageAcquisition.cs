@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace DiskRescue.IO;
 
 public sealed record PhysicalDiskAcquisitionAssessment(
@@ -172,29 +170,8 @@ public static class PhysicalDiskImageAcquisition
             warnings = second.Assessment.Warnings
         };
 
-        var manifestTemp = manifestPath + "." + Guid.NewGuid().ToString("N") + ".partial";
-        try
-        {
-            await using (var stream = new FileStream(
-                manifestTemp, FileMode.CreateNew, FileAccess.Write, FileShare.None,
-                64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan))
-            {
-                await JsonSerializer.SerializeAsync(stream, manifest, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                }, CancellationToken.None).ConfigureAwait(false);
-                await stream.FlushAsync(CancellationToken.None).ConfigureAwait(false);
-                stream.Flush(flushToDisk: true);
-            }
-            File.Move(manifestTemp, manifestPath, overwrite: false);
-        }
-        catch
-        {
-            try { if (File.Exists(manifestTemp)) File.Delete(manifestTemp); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-            throw;
-        }
+        await PhysicalDiskManifestPublisher.PublishAsync(
+            manifestPath, manifest, image.ImagePath, image.Sha256);
 
         return new(image, manifestPath, source.Descriptor, second.Assessment.Warnings);
     }
