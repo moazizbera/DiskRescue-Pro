@@ -30,7 +30,7 @@ if (Test-Path $recoveredPath) {
 function Invoke-DiskRescueJson {
     param([string[]]$CliArguments)
 
-    $output = & dotnet run --project $cliProject --configuration Release -- @CliArguments
+    $output = & dotnet run --project $cliProject --configuration Release --no-build -- @CliArguments
     if ($LASTEXITCODE -ne 0) {
         throw ("DiskRescue CLI command failed (exit $LASTEXITCODE): " + ($CliArguments -join " ") + [Environment]::NewLine + ($output -join [Environment]::NewLine))
     }
@@ -44,6 +44,12 @@ function Invoke-DiskRescueJson {
 }
 
 try {
+    Write-Host "Building the DiskRescue CLI in Release mode..."
+    & dotnet build $cliProject --configuration Release
+    if ($LASTEXITCODE -ne 0) {
+        throw "The DiskRescue CLI build failed (exit $LASTEXITCODE)."
+    }
+
     Write-Host "[1/4] Creating a disposable synthetic lost-NTFS image..."
     & $fixtureGenerator -OutputPath $imagePath
     if (-not (Test-Path $imagePath)) {
@@ -69,7 +75,7 @@ try {
         throw "The bounded NTFS preview did not return the expected Report.txt entry."
     }
 
-    $extractOutput = & dotnet run --project $cliProject --configuration Release -- extract-ntfs-file $imagePath --offset 1048576 --length 65024 --record 1 --output $recoveredPath --max-bytes 1024 2>&1
+    $extractOutput = & dotnet run --project $cliProject --configuration Release --no-build -- extract-ntfs-file $imagePath --offset 1048576 --length 65024 --record 1 --output $recoveredPath --max-bytes 1024 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "File extraction failed (exit $LASTEXITCODE): $($extractOutput -join ' ')"
     }
