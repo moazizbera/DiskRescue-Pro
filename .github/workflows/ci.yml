@@ -44,6 +44,12 @@ jobs:
           if ($ntfsDisk.mbr.partitions.Count -ne 1 -or $ntfsDisk.mbr.partitions[0].byteOffset -ne 512 -or $ntfsDisk.mbr.partitions[0].byteLength -ne 65024) { throw "Synthetic NTFS image did not expose the expected MBR partition boundary." }
           $lostDisk = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- inspect "$env:RUNNER_TEMP/DiskRescue-TestImages/lost-ntfs-partition.img" | ConvertFrom-Json
           if ($lostDisk.mbr.partitions.Count -ne 0 -or -not $lostDisk.mbr.signatureValid) { throw "Lost-partition fixture should have a valid empty MBR partition table." }
+          $discovery = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- discover-ntfs "$env:RUNNER_TEMP/DiskRescue-TestImages/lost-ntfs-partition.img" | ConvertFrom-Json
+          $lostCandidate = @($discovery.partitionDiscovery.candidates | Where-Object { $_.status -eq "Lost partition candidate" })
+          if ($lostCandidate.Count -ne 1 -or $lostCandidate[0].byteOffset -ne 1048576 -or -not $lostCandidate[0].backupBootSectorValid -or $lostCandidate[0].confidence -ne 95) { throw "Lost NTFS partition discovery did not validate the expected candidate." }
+          if (-not $discovery.safety.sourceOpenedReadOnly -or $discovery.safety.sourceWriteOperationsAvailable -or $discovery.safety.partitionTableChangesAvailable) { throw "Lost-partition discovery safety assertions failed." }
+          $lostPreview = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- scan-ntfs "$env:RUNNER_TEMP/DiskRescue-TestImages/lost-ntfs-partition.img" --offset 1048576 --length 65536 --max-records 4 | ConvertFrom-Json
+          if ($lostPreview.scan.entries.Count -ne 1 -or $lostPreview.scan.entries[0].name -ne "Report.txt") { throw "Lost NTFS candidate did not produce the expected bounded file preview." }
           $sourceImage = "$env:RUNNER_TEMP/DiskRescue-TestImages/gpt-valid.img"
           $copiedImage = "$env:RUNNER_TEMP/DiskRescue-TestImages/gpt-valid-copy.img"
           dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- image-copy $sourceImage $copiedImage
