@@ -175,8 +175,11 @@ public partial class MainWindow : Window
                 $"Tree roots: {result.Tree.Roots.Count:N0}",
                 $"Orphan roots: {result.Tree.Orphans.Count:N0}",
                 "",
-                "Coverage is limited to the initial validated $MFT::$DATA extent. Additional MFT extents and directory indexes are not followed. No file contents are read or recovered."
+                result.UsedMftContinuation
+                    ? "Validated resident $ATTRIBUTE_LIST continuation extents were included where reachable through the initial MFT map. Non-resident attribute lists, recursive bootstrap discovery, and directory indexes are not followed. No file contents are read or recovered."
+                    : "Coverage is limited to the initial validated $MFT::$DATA extent when continuation discovery was unavailable or unnecessary. Non-resident attribute lists, recursive bootstrap discovery, and directory indexes are not followed. No file contents are read or recovered."
             };
+            notes.AddRange(result.ContinuationIssues.Select(x => "• MFT continuation: " + x));
             notes.AddRange(result.Scan.Issues.Select(x => "• " + x));
             notes.AddRange(result.Tree.Issues.Select(x => "• Tree: " + x));
             FindingsBox.Text = string.Join(Environment.NewLine, notes);
@@ -323,11 +326,19 @@ public partial class MainWindow : Window
         if (!opened.IsValid || opened.Reader is null)
             throw new IOException("NTFS MFT validation failed: " + string.Join("; ", opened.Issues));
 
-        var scan = opened.Reader.ScanRecords(maximumRecords: 10000);
+        // Match the CLI's validated resident $ATTRIBUTE_LIST continuation handling
+        // so the desktop preview does not silently show a narrower MFT range.
+        var continuation = opened.Reader.ExtendUsingResidentAttributeList();
+        var scanReader = continuation.IsValid && continuation.Reader is not null
+            ? continuation.Reader
+            : opened.Reader;
+        var scan = scanReader.ScanRecords(maximumRecords: 10000);
         var tree = NtfsDirectoryTreeBuilder.Build(scan.Entries);
         if (!scan.IsValid || !tree.IsValid)
             throw new IOException("NTFS MFT scan could not produce a safe preview.");
-        return new NtfsScanUiResult(boot.BootSector, scan, tree);
+        return new NtfsScanUiResult(boot.BootSector, scan, tree,
+            continuation.IsValid && continuation.Extended,
+            continuation.Issues);
     }
 
     private static TreeViewItem CreateTreeItem(NtfsDirectoryNode node, int depth)
