@@ -1,4 +1,5 @@
 using DiskRescue.IO;
+using Xunit;
 
 namespace DiskRescue.IO.Tests;
 
