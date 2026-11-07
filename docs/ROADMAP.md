@@ -20,7 +20,7 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [x] Generated MBR/GPT images and CLI smoke tests
 - [ ] Manual Windows desktop smoke test recorded against generated MBR/GPT images
 - [x] Bounded, chunked NTFS boot-sector discovery in image files with primary BPB validation, backup-sector corroboration, progress, cancellation, and candidate evidence\n- [x] Classify NTFS candidates against parsed MBR/GPT ranges as existing, overlapping, or lost; add lost candidates to the desktop partition list for bounded NTFS preview\n- [ ] FAT32 and exFAT lost-partition candidate discovery and confidence scoring\n- [ ] Generated integration fixtures for lost NTFS candidates and desktop discovery flow
-- [~] Experimental Windows physical-disk inventory and guarded image acquisition coordinator/CLI; WPF integration and hardware validation remain release gates
+- [~] Experimental Windows physical-disk inventory and guarded image acquisition coordinator/CLI; WPF acquisition window is integrated; hardware validation remains a release gate
 
 ## Phase 2 — NTFS metadata preview
 
