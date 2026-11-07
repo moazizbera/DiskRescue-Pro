@@ -4,6 +4,8 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Shapes;
 using Microsoft.Win32;
 using DiskRescue.Filesystems;
 using DiskRescue.IO;
@@ -18,6 +20,7 @@ public partial class MainWindow : Window
     private string? _lastReportPath;
     private string? _lastImagePath;
     private CancellationTokenSource? _scanCancellation;
+    private long _partitionMapLength;
 
     public MainWindow()
     {
@@ -85,12 +88,14 @@ public partial class MainWindow : Window
             _lastImagePath = imagePath;
             PartitionsGrid.SelectedItem = null;
             ImageSizeText.Text = FormatBytes(result.Length);
+            _partitionMapLength = result.Length;
             PartitionCountText.Text = result.Rows.Count.ToString();
             TableTypeText.Text = result.TableType;
             ValidationText.Text = result.HasWarnings ? "Review findings" : "Checks passed";
             ValidationText.Foreground = (System.Windows.Media.Brush)FindResource(result.HasWarnings ? "Warn" : "Accent");
             _rows.Clear();
             foreach (var row in result.Rows) _rows.Add(row);
+            DrawPartitionMap();
             NtfsTreeView.Items.Clear();
             FindingsBox.Text = result.Findings;
             ExportButton.IsEnabled = true;
@@ -277,6 +282,7 @@ public partial class MainWindow : Window
             notes.AddRange(result.Issues.Select(issue => "• " + issue));
             FindingsBox.Text = string.Join(Environment.NewLine, notes);
             PartitionCountText.Text = _rows.Count.ToString();
+            DrawPartitionMap();
             StatusText.Text = result.WasCancelled
                 ? $"Partition search cancelled · {result.BytesScanned:N0} bytes scanned"
                 : $"Partition search complete · {result.Candidates.Count:N0} validated NTFS candidates";
@@ -426,9 +432,106 @@ public partial class MainWindow : Window
         }
     }
 
+    private void PartitionMapCanvas_SizeChanged(object sender, SizeChangedEventArgs e) => DrawPartitionMap();
+
+    private void DrawPartitionMap()
+    {
+        if (PartitionMapCanvas is null) return;
+        PartitionMapCanvas.Children.Clear();
+        var width = PartitionMapCanvas.ActualWidth;
+        var height = PartitionMapCanvas.ActualHeight;
+        if (_partitionMapLength <= 0 || width <= 1 || height <= 1) return;
+
+        const double inset = 4;
+        var usableWidth = Math.Max(1, width - inset * 2);
+        var scale = usableWidth / _partitionMapLength;
+        var cursor = 0L;
+        var laneTop = 16d;
+        var laneHeight = 38d;
+
+        void AddSegment(long start, long length, string label, Brush fill, double top, double segmentHeight, string tooltip)
+        {
+            if (length <= 0) return;
+            var left = inset + Math.Clamp(start * scale, 0, usableWidth);
+            var right = inset + Math.Clamp((start + (double)length) * scale, 0, usableWidth);
+            var segmentWidth = Math.Max(0, right - left);
+            if (segmentWidth <= 0.5) return;
+
+            var rectangle = new Rectangle
+            {
+                Width = segmentWidth,
+                Height = segmentHeight,
+                RadiusX = 3,
+                RadiusY = 3,
+                Fill = fill,
+                Stroke = new SolidColorBrush(Color.FromRgb(11, 18, 32)),
+                StrokeThickness = 1,
+                ToolTip = tooltip
+            };
+            Canvas.SetLeft(rectangle, left);
+            Canvas.SetTop(rectangle, top);
+            PartitionMapCanvas.Children.Add(rectangle);
+
+            if (segmentWidth >= 58 && !string.IsNullOrWhiteSpace(label))
+            {
+                var text = new TextBlock
+                {
+                    Text = label,
+                    Foreground = Brushes.White,
+                    FontSize = 10,
+                    FontWeight = FontWeights.SemiBold,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    IsHitTestVisible = false,
+                    Width = Math.Max(0, segmentWidth - 8),
+                    TextAlignment = TextAlignment.Center
+                };
+                Canvas.SetLeft(text, left + 4);
+                Canvas.SetTop(text, top + (segmentHeight - 14) / 2);
+                PartitionMapCanvas.Children.Add(text);
+            }
+        }
+
+        var knownRows = _rows.Where(row => row.Table != "SCAN" && row.ByteOffset >= 0 && row.ByteLength > 0)
+            .OrderBy(row => row.ByteOffset).ToArray();
+        foreach (var row in knownRows)
+        {
+            var start = Math.Clamp(row.ByteOffset, 0, _partitionMapLength);
+            var end = Math.Clamp(row.ByteOffset + row.ByteLength, start, _partitionMapLength);
+            if (start > cursor)
+                AddSegment(cursor, start - cursor, "", new SolidColorBrush(Color.FromRgb(37, 52, 72)), laneTop, laneHeight,
+                    $"Unallocated image space · {FormatBytes(start - cursor)}");
+            var color = row.Table == "GPT"
+                ? new SolidColorBrush(Color.FromRgb(36, 139, 156))
+                : new SolidColorBrush(Color.FromRgb(55, 111, 176));
+            AddSegment(start, end - start, row.Name, color, laneTop, laneHeight,
+                $"{row.Table} · {row.Name}\nStart: {FormatBytes(start)}\nSize: {FormatBytes(end - start)}");
+            cursor = Math.Max(cursor, end);
+        }
+        if (cursor < _partitionMapLength)
+            AddSegment(cursor, _partitionMapLength - cursor, "", new SolidColorBrush(Color.FromRgb(37, 52, 72)), laneTop, laneHeight,
+                $"Unallocated image space · {FormatBytes(_partitionMapLength - cursor)}");
+
+        foreach (var candidate in _rows.Where(row => row.Table == "SCAN" && row.ByteOffset >= 0 && row.ByteLength > 0))
+            AddSegment(candidate.ByteOffset, candidate.ByteLength, "", new SolidColorBrush(Color.FromRgb(242, 166, 90)),
+                3, 9, $"Detected lost-partition candidate · {candidate.Name}\nStart: {FormatBytes(candidate.ByteOffset)}\nSize: {candidate.Size}");
+
+        var legend = new TextBlock
+        {
+            Text = "■ GPT   ■ MBR   ■ Lost candidate   ■ Unallocated",
+            Foreground = (Brush)FindResource("Muted"),
+            FontSize = 9,
+            IsHitTestVisible = false
+        };
+        Canvas.SetRight(legend, 6);
+        Canvas.SetTop(legend, height - 12);
+        PartitionMapCanvas.Children.Add(legend);
+    }
+
     private void ResetResults()
     {
         _rows.Clear();
+        _partitionMapLength = 0;
+        PartitionMapCanvas.Children.Clear();
         _lastReport = null;
         _lastReportPath = null;
         _lastImagePath = null;
