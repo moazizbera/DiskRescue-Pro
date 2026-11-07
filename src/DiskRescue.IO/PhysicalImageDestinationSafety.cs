@@ -64,12 +64,10 @@ public static class PhysicalImageDestinationSafety
             var destinationDrive = new DriveInfo(driveRoot);
             if (!destinationDrive.IsReady)
                 throw new IOException("Destination filesystem is not ready.");
-            if (requiredBytes > 0 && destinationDrive.AvailableFreeSpace < requiredBytes)
-                blockers.Add($"Destination has insufficient free space: {destinationDrive.AvailableFreeSpace:N0} bytes available, {requiredBytes:N0} bytes required.");
-            if (requiredBytes > uint.MaxValue &&
-                (string.Equals(destinationDrive.DriveFormat, "FAT", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(destinationDrive.DriveFormat, "FAT32", StringComparison.OrdinalIgnoreCase)))
-                blockers.Add($"Destination filesystem {destinationDrive.DriveFormat} cannot store a single image file larger than 4 GiB.");
+            blockers.AddRange(ValidateFilesystemCapacity(
+                destinationDrive.DriveFormat,
+                destinationDrive.AvailableFreeSpace,
+                requiredBytes));
 
             var mountPath = new StringBuilder(1024);
             if (!NativeMethods.GetVolumePathName(destinationDirectory, mountPath, mountPath.Capacity))
@@ -120,6 +118,33 @@ public static class PhysicalImageDestinationSafety
         }
     }
 
+
+    public static IReadOnlyList<string> ValidateFilesystemCapacity(
+        string fileSystem,
+        long availableBytes,
+        long requiredBytes)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileSystem);
+        var issues = new List<string>();
+        if (availableBytes < 0 || requiredBytes < 0)
+        {
+            issues.Add("Filesystem capacity values cannot be negative.");
+            return issues.AsReadOnly();
+        }
+
+        if (requiredBytes > 0 && availableBytes < requiredBytes)
+            issues.Add($"Destination has insufficient free space: {availableBytes:N0} bytes available, {requiredBytes:N0} bytes required.");
+
+        if (string.Equals(fileSystem, "FAT", StringComparison.OrdinalIgnoreCase) &&
+            requiredBytes > int.MaxValue)
+            issues.Add("FAT destination cannot store a single image file larger than 2 GiB.");
+
+        if (string.Equals(fileSystem, "FAT32", StringComparison.OrdinalIgnoreCase) &&
+            requiredBytes > uint.MaxValue)
+            issues.Add("FAT32 destination cannot store a single image file larger than 4 GiB.");
+
+        return issues.AsReadOnly();
+    }
 
     internal static IReadOnlyList<string> ValidateDiskMappings(
         int sourceDiskNumber,
