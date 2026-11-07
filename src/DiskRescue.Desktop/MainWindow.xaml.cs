@@ -29,8 +29,16 @@ public partial class MainWindow : Window
     private void PhysicalDiskInventory_Click(object sender, RoutedEventArgs e)
     {
         var window = new PhysicalAcquisitionWindow { Owner = this };
-        window.ShowDialog();
-        StatusText.Text = "Physical acquisition window closed · source writes and repair remain unavailable";
+        if (window.ShowDialog() == true && !string.IsNullOrWhiteSpace(window.AcquiredImagePath))
+        {
+            ImagePathBox.Text = window.AcquiredImagePath;
+            ResetResults();
+            StatusText.Text = "Verified physical disk image selected · click Inspect image, then Find lost partitions";
+        }
+        else
+        {
+            StatusText.Text = "Physical acquisition window closed · source writes and repair remain unavailable";
+        }
     }
 
     private void Browse_Click(object sender, RoutedEventArgs e)
