@@ -10,16 +10,11 @@ namespace DiskRescue.IO.Tests;
 /// </summary>
 public sealed class WindowsVhdxSafetySmokeTests(ITestOutputHelper output)
 {
-    [Fact]
+    [WindowsVhdxFact]
     [Trait("Category", "WindowsVhdxIntegration")]
     public void AttachedReadOnlyVhdxIsDiscoveredAndPhysicalAcquisitionIsBlocked()
     {
         var diskNumberText = Environment.GetEnvironmentVariable("DISKRESCUE_TEST_VHDX_DISK_NUMBER");
-        if (string.IsNullOrWhiteSpace(diskNumberText))
-        {
-            output.WriteLine("SKIPPED: run tools/Test-WindowsVhdxSafety.ps1 to create and attach a disposable read-only VHDX.");
-            return;
-        }
 
         Assert.True(OperatingSystem.IsWindows(), "The VHDX integration test requires Windows.");
         Assert.True(int.TryParse(diskNumberText, out var diskNumber), "The VHDX disk number environment variable is invalid.");
@@ -44,5 +39,20 @@ public sealed class WindowsVhdxSafetySmokeTests(ITestOutputHelper output)
         output.WriteLine($"Detected disposable PhysicalDrive{diskNumber} as bus type {selected.BusType}.");
         output.WriteLine("Physical acquisition was correctly blocked by the production safety policy.");
         output.WriteLine("No source sectors were read and no acquisition API was invoked.");
+    }
+}
+
+/// <summary>
+/// xUnit v2 has no runtime skip API, so set the inherited Skip property during
+/// test discovery when the disposable VHDX harness has not supplied a disk number.
+/// </summary>
+public sealed class WindowsVhdxFactAttribute : FactAttribute
+{
+    public WindowsVhdxFactAttribute()
+    {
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DISKRESCUE_TEST_VHDX_DISK_NUMBER")))
+        {
+            Skip = "Run tools/Test-WindowsVhdxSafety.ps1 to create and attach a disposable read-only VHDX.";
+        }
     }
 }
