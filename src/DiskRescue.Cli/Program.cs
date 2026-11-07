@@ -491,7 +491,6 @@ static int RunPhysicalDiskInventory(string[] args)
 
     try
     {
-        WindowsPhysicalDiskDiscovery.EnsureWindows();
         var inventory = WindowsPhysicalDiskDiscovery.Enumerate();
         var volumeMap = WindowsPhysicalDiskVolumeMap.Enumerate();
         var bootMap = WindowsBootDeviceMap.Enumerate(volumeMap);
