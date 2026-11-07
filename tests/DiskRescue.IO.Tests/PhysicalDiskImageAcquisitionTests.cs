@@ -88,4 +88,63 @@ public sealed class PhysicalDiskImageAcquisitionTests
         Assert.False(assessment.CanAcquire);
         Assert.Contains(assessment.Blockers, blocker => blocker.Contains("serial number is unavailable", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void AssessmentBlocksDuplicateHardwareSerialNumbers()
+    {
+        var duplicate = Descriptor() with { DiskNumber = 3, DevicePath = @"\\.\PhysicalDrive3" };
+        var inventory = new PhysicalDiskDiscoveryResult(
+            new[] { Descriptor(), duplicate }, Array.Empty<string>());
+
+        var assessment = PhysicalDiskImageAcquisition.Assess(
+            Descriptor(),
+            inventory,
+            new PhysicalVolumeMappingResult(true,
+                new Dictionary<int, IReadOnlyList<string>>(), Array.Empty<string>()),
+            new WindowsBootDeviceMappingResult(true, new HashSet<int>(), Array.Empty<string>()));
+
+        Assert.False(assessment.CanAcquire);
+        Assert.Contains(assessment.Blockers, blocker => blocker.Contains("serial number is duplicated", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData(true, 3u)]
+    [InlineData(false, 0u)]
+    [InlineData(false, 8u)]
+    [InlineData(false, 14u)]
+    [InlineData(false, 15u)]
+    [InlineData(false, 16u)]
+    public void AssessmentBlocksRemovableOrUnsupportedStorageTypes(bool removable, uint busType)
+    {
+        var descriptor = Descriptor() with { RemovableMedia = removable, BusType = busType };
+        var assessment = PhysicalDiskImageAcquisition.Assess(
+            descriptor,
+            Inventory(descriptor),
+            new PhysicalVolumeMappingResult(true,
+                new Dictionary<int, IReadOnlyList<string>>(), Array.Empty<string>()),
+            new WindowsBootDeviceMappingResult(true, new HashSet<int>(), Array.Empty<string>()));
+
+        Assert.False(assessment.CanAcquire);
+        Assert.Contains(assessment.Blockers, blocker =>
+            blocker.Contains("removable", StringComparison.OrdinalIgnoreCase) ||
+            blocker.Contains("storage bus", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void AssessmentBlocksAnyPhysicalInventoryDiagnostic()
+    {
+        var inventory = new PhysicalDiskDiscoveryResult(
+            new[] { Descriptor() }, new[] { "PhysicalDrive7: access denied." });
+
+        var assessment = PhysicalDiskImageAcquisition.Assess(
+            Descriptor(),
+            inventory,
+            new PhysicalVolumeMappingResult(true,
+                new Dictionary<int, IReadOnlyList<string>>(), Array.Empty<string>()),
+            new WindowsBootDeviceMappingResult(true, new HashSet<int>(), Array.Empty<string>()));
+
+        Assert.False(assessment.CanAcquire);
+        Assert.Contains(assessment.Blockers, blocker => blocker.Contains("inventory is not fully trustworthy", StringComparison.OrdinalIgnoreCase));
+    }
+
 }
