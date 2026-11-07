@@ -243,7 +243,22 @@ static int RunNtfsDiscovery(string[] args)
                 partitionTableChangesAvailable = false,
                 fileRecoveryAvailable = false
             },
-            partitionDiscovery = result
+            partitionDiscovery = new
+            {
+                candidates = result.Candidates.Select(candidate => new
+                {
+                    byteOffset = candidate.ByteOffset,
+                    byteLength = candidate.ByteLength,
+                    status = candidate.Status,
+                    backupBootSectorValid = candidate.BackupBootSectorValid,
+                    confidence = candidate.Confidence,
+                    evidence = candidate.Evidence
+                }),
+                bytesScanned = result.BytesScanned,
+                totalBytes = result.TotalBytes,
+                wasCancelled = result.WasCancelled,
+                issues = result.Issues
+            }
         };
         Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         return result.WasCancelled ? 130 : 0;
