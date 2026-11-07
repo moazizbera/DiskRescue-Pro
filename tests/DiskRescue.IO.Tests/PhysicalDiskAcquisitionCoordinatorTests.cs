@@ -126,6 +126,28 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
     }
 
     [Fact]
+    public async Task SuccessfulAcquisitionPublishesVerifiedImageAndManifestAndDisposesSource()
+    {
+        using var folder = new TemporaryFolder();
+        var bytes = Enumerable.Range(0, 128 * 1024).Select(i => (byte)((i * 17) % 253)).ToArray();
+        var source = new MemorySource(bytes);
+        var environment = new FakeEnvironment { Source = source };
+        var imagePath = folder.File("successful.img");
+
+        var result = await PhysicalDiskAcquisitionCoordinator.AcquireAsync(
+            Descriptor(), imagePath, environment);
+
+        var expectedSha256 = Convert.ToHexString(SHA256.HashData(bytes));
+        Assert.True(File.Exists(imagePath));
+        Assert.Equal(bytes, await File.ReadAllBytesAsync(imagePath));
+        Assert.Equal(expectedSha256, result.Image.Sha256);
+        Assert.Equal(expectedSha256, environment.ManifestSha256);
+        Assert.Equal(imagePath + ".diskrescue.json", result.ManifestPath);
+        Assert.Equal(1, environment.ManifestCalls);
+        Assert.Equal(1, source.DisposeCalls);
+    }
+
+    [Fact]
     public async Task ManifestPublicationFailurePreservesVerifiedImageAndDigest()
     {
         using var folder = new TemporaryFolder();
