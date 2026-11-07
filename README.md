@@ -4,7 +4,7 @@
 
 DiskRescue Pro is designed to help users understand damaged or missing partition and filesystem metadata before considering recovery. Development is deliberately staged: validate image parsing first, then add discovery and file extraction with enforceable source/destination controls.
 
-> **Development status:** this is an engineering preview, not a complete recovery utility. Partition inspection and lost-partition scanning currently operate on regular disk-image files only; physical-device support is experimental inventory/preflight code, not a recovery workflow. Do not use it on the only copy of important data. If a drive clicks, repeatedly disconnects, overheats, or returns persistent I/O errors, stop using it and consider professional recovery.
+> **Development status:** this is an engineering preview, not a complete recovery utility. Partition inspection and lost-partition scanning currently operate on regular disk-image files only; physical-device support is experimental read-only imaging/preflight code; physical partition scanning and recovery are not enabled. Do not use it on the only copy of important data. If a drive clicks, repeatedly disconnects, overheats, or returns persistent I/O errors, stop using it and consider professional recovery.
 
 ## Current release scope
 
