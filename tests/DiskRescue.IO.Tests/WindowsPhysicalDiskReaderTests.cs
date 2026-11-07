@@ -114,6 +114,76 @@ public sealed class WindowsPhysicalDiskReaderTests
     }
 
     [Fact]
+    public void BootPartitionParserRecognizesGptEfiSystemPartition()
+    {
+        var data = new byte[144];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 1);
+        WindowsBootDeviceMap.EfiSystemPartitionTypeForTests().ToByteArray().CopyTo(data, 32);
+
+        Assert.True(WindowsBootDeviceMap.IsFirmwareSystemPartition(data));
+    }
+
+    [Theory]
+    [InlineData(0xEF, 0, true)]
+    [InlineData(0x07, 1, true)]
+    [InlineData(0x07, 0, false)]
+    public void BootPartitionParserConservativelyRecognizesMbrSystemPartitions(
+        byte partitionType, byte active, bool expected)
+    {
+        var data = new byte[48];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 0);
+        data[32] = partitionType;
+        data[33] = active;
+
+        Assert.Equal(expected, WindowsBootDeviceMap.IsFirmwareSystemPartition(data));
+    }
+
+    [Fact]
+    public void BootPartitionParserRejectsUnknownPartitionStyle()
+    {
+        var data = new byte[48];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 99);
+
+        Assert.Throws<InvalidDataException>(() => WindowsBootDeviceMap.IsFirmwareSystemPartition(data));
+    }
+
+    [Fact]
+    public void PhysicalPreflightUsesCompleteBootMapToIdentifyBootCriticalDisk()
+    {
+        var disk = new PhysicalDiskDescriptor(
+            3, @"\\.\\PhysicalDrive3", 4L * 1024 * 1024 * 1024, 512,
+            "ACME", "Model Z", "SERIAL-Z", 17, false);
+        var inventory = new PhysicalDiskDiscoveryResult(new[] { disk }, Array.Empty<string>());
+        var volumes = new PhysicalVolumeMappingResult(
+            true, new Dictionary<int, IReadOnlyList<string>>(), Array.Empty<string>());
+        var bootMap = new WindowsBootDeviceMappingResult(true, new HashSet<int> { 4 }, Array.Empty<string>());
+
+        var result = PhysicalDiskSafety.Assess(disk, inventory, volumes, bootMap);
+
+        Assert.DoesNotContain(result.Blockers,
+            x => x.Contains("boot-device exclusion", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Blockers,
+            x => x.Contains("verified sector image", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void PhysicalPreflightBlocksDiskContainingFirmwareSystemPartition()
+    {
+        var disk = new PhysicalDiskDescriptor(
+            3, @"\\.\\PhysicalDrive3", 4L * 1024 * 1024 * 1024, 512,
+            "ACME", "Model Z", "SERIAL-Z", 17, false);
+        var inventory = new PhysicalDiskDiscoveryResult(new[] { disk }, Array.Empty<string>());
+        var volumes = new PhysicalVolumeMappingResult(
+            true, new Dictionary<int, IReadOnlyList<string>>(), Array.Empty<string>());
+        var bootMap = new WindowsBootDeviceMappingResult(true, new HashSet<int> { 3 }, Array.Empty<string>());
+
+        var result = PhysicalDiskSafety.Assess(disk, inventory, volumes, bootMap);
+
+        Assert.Contains(result.Blockers,
+            x => x.Contains("firmware system partition", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void VolumeExtentParserReadsDistinctDiskNumbersFromMultiExtentVolume()
     {
         var data = new byte[8 + 2 * 24];
