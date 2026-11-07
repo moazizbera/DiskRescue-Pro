@@ -29,7 +29,8 @@ public static class PhysicalImageDestinationSafety
     public static PhysicalImageDestinationAssessment Assess(
         int sourceDiskNumber,
         string destinationPath,
-        PhysicalVolumeMappingResult volumeMap)
+        PhysicalVolumeMappingResult volumeMap,
+        long requiredBytes = 0)
     {
         ArgumentNullException.ThrowIfNull(volumeMap);
         var blockers = new List<string>();
@@ -37,6 +38,8 @@ public static class PhysicalImageDestinationSafety
             blockers.Add("Source disk number is invalid.");
         if (string.IsNullOrWhiteSpace(destinationPath))
             blockers.Add("Destination path is empty.");
+        if (requiredBytes < 0)
+            blockers.Add("Required image size cannot be negative.");
         if (!volumeMap.IsComplete || volumeMap.Issues.Count != 0)
             blockers.Add("A complete, diagnostic-free Windows volume map is required.");
 
@@ -54,6 +57,19 @@ public static class PhysicalImageDestinationSafety
                 : Path.GetDirectoryName(fullPath);
             if (string.IsNullOrWhiteSpace(destinationDirectory) || !Directory.Exists(destinationDirectory))
                 throw new DirectoryNotFoundException("Destination directory does not exist.");
+
+            var driveRoot = Path.GetPathRoot(destinationDirectory);
+            if (string.IsNullOrWhiteSpace(driveRoot))
+                throw new IOException("Unable to resolve the destination filesystem root.");
+            var destinationDrive = new DriveInfo(driveRoot);
+            if (!destinationDrive.IsReady)
+                throw new IOException("Destination filesystem is not ready.");
+            if (requiredBytes > 0 && destinationDrive.AvailableFreeSpace < requiredBytes)
+                blockers.Add($"Destination has insufficient free space: {destinationDrive.AvailableFreeSpace:N0} bytes available, {requiredBytes:N0} bytes required.");
+            if (requiredBytes > uint.MaxValue &&
+                (string.Equals(destinationDrive.DriveFormat, "FAT", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(destinationDrive.DriveFormat, "FAT32", StringComparison.OrdinalIgnoreCase)))
+                blockers.Add($"Destination filesystem {destinationDrive.DriveFormat} cannot store a single image file larger than 4 GiB.");
 
             var mountPath = new StringBuilder(1024);
             if (!NativeMethods.GetVolumePathName(destinationDirectory, mountPath, mountPath.Capacity))
