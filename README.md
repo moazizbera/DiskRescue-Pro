@@ -22,7 +22,7 @@ The current `.NET 10` solution includes:
 - A bounded first-stage MFT continuation workflow: it parses record 0's resident `$ATTRIBUTE_LIST`, reads only referenced FILE records already covered by the current validated MFT map, authenticates record/sequence/base-reference and attribute identity, then assembles non-sparse unnamed `$MFT::$DATA` extents with exact VCN continuity and physical-run overlap checks. It can extend reads beyond the initial extent when the continuation FILE records are themselves in that initial map. It fails closed for non-resident attribute lists or references outside the currently validated map; recursive/bootstrap discovery is not implemented.
 - A bounded file-data stream reader for resident and single-extent non-sparse, uncompressed, unencrypted NTFS `$DATA` attributes. It enforces a caller-supplied export byte ceiling, bounded 1 MiB copying, cancellation, volume/image bounds, and zero-fills bytes beyond initialized size. A CLI extraction command writes through a temporary file and publishes only to a new destination. Multi-extent file streams, sparse/compressed/encrypted streams, directory-index traversal, and full recovery-tree traversal remain unsupported.
 - A fail-closed Windows boot-critical disk mapper that identifies the running Windows installation volume, GPT EFI System Partition volumes, and active/EFI MBR partitions; any incomplete partition inspection blocks preflight. This does not attest firmware boot order.
-- A Windows-only physical acquisition foundation: bounded `PhysicalDriveN` metadata probes, best-effort vendor/model/serial/bus identity, volume-GUID-to-disk extent mapping, boot-critical disk exclusion, source identity/geometry revalidation, and a guarded acquisition coordinator that verifies destination-volume separation twice before opening the source read-only. It copies to a new image, verifies exact length and SHA-256 before publishing, and writes a JSON acquisition manifest. The coordinator is not yet exposed in the desktop UI or validated on physical hardware.
+- A Windows-only physical acquisition foundation: bounded `PhysicalDriveN` metadata probes, best-effort vendor/model/serial/bus identity, volume-GUID-to-disk extent mapping, boot-critical disk exclusion, source identity/geometry revalidation, and a guarded acquisition coordinator that verifies destination-volume separation twice before opening the source read-only. It copies to a new image, verifies exact length and SHA-256 before publishing, and writes a JSON acquisition manifest. The coordinator is exposed through an experimental CLI flow (not yet the desktop UI) and has not been validated on physical hardware.
 
 The attribute-list parser caps values at 16 MiB and 65,536 entries. The matcher caps candidates at 4,096 records and 16 MiB aggregate record bytes, and caps attribute parsing/comparison work at 4,096 parsed attributes and 1,000,000 comparisons. Invalid, stale, missing, duplicate, mismatched, unsupported, or ambiguous references produce diagnostics; any rejected entry makes the result incomplete.
 
@@ -70,7 +70,16 @@ Copy a regular image file to a **new** destination and calculate SHA-256 during 
 dotnet run --project src/DiskRescue.Cli -- image-copy "C:\Images\source.img" "D:\DiskRescue\source-copy.img"
 ```
 
-The destination directory must already exist and the destination file must not exist. The command reports progress and the resulting SHA-256; Ctrl+C cancels and removes incomplete temporary output when possible. This command accepts regular image files only. A separate experimental Windows physical-acquisition coordinator exists in the IO library but is not yet exposed through the CLI or desktop UI.
+The destination directory must already exist and the destination file must not exist. The command reports progress and the resulting SHA-256; Ctrl+C cancels and removes incomplete temporary output when possible. This command accepts regular image files only. A separate experimental Windows physical-acquisition workflow is exposed through the CLI commands below, but is not yet integrated into the desktop UI.
+
+Experimental Windows physical acquisition (not yet hardware-validated):
+
+```powershell
+dotnet run --project src/DiskRescue.Cli -- list-physical-disks
+dotnet run --project src/DiskRescue.Cli -- acquire-physical 2 "EXACT-REPORTED-SERIAL" "D:\DiskRescue\physical-drive-2.img"
+```
+
+The destination directory must already exist and be on a verified separate physical disk. The command repeats source and destination preflight, displays the selected device identity and warnings, and requires typing the exact phrase ACQUIRE PHYSICALDRIVE2 before opening the source. It aborts on read errors without zero-filling and publishes a verified image plus a JSON sidecar manifest. This is a live, non-resumable acquisition—not a hardware write-blocked forensic image or a point-in-time snapshot. Do not use it on the only copy of valuable data before disposable virtual-disk and Windows hardware validation. Prefer a hardware write blocker for irreplaceable media.
 
 Preview NTFS metadata after obtaining a volume byte offset and length from a trusted partition report:
 
