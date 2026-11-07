@@ -239,12 +239,13 @@ public partial class PhysicalAcquisitionWindow : Window
         DiskCombo.IsEnabled = false;
         DestinationBox.IsEnabled = false;
         ConfirmationBox.IsEnabled = false;
-        BrowseDestinationButtonEnabled(false);
+        BrowseDestinationButton.IsEnabled = false;
         AcquireProgress.Value = 0;
         ResultText.Text = string.Empty;
         ProgressText.Text = "Opening source read-only after fresh safety preflight…";
         Mouse.OverrideCursor = Cursors.Wait;
 
+        var cancellationToken = _acquisitionCancellation.Token;
         var progress = new Progress<DiskImageProgress>(value =>
         {
             AcquireProgress.Value = value.Percent;
@@ -255,7 +256,7 @@ public partial class PhysicalAcquisitionWindow : Window
         {
             var result = await Task.Run(async () =>
                 await PhysicalDiskImageAcquisition.AcquireAsync(
-                    choice.Descriptor, destination, progress, _acquisitionCancellation.Token));
+                    choice.Descriptor, destination, progress, cancellationToken));
             AcquireProgress.Value = 100;
             ProgressText.Text = "Acquisition completed · image read-back SHA-256 verified";
             ResultText.Text = $"IMAGE: {result.Image.ImagePath}\nBYTES: {result.Image.BytesCopied:N0}\nSHA-256: {result.Image.Sha256}\nMANIFEST: {result.ManifestPath}";
@@ -280,7 +281,7 @@ public partial class PhysicalAcquisitionWindow : Window
             CancelButton.IsEnabled = false;
             DestinationBox.IsEnabled = true;
             ConfirmationBox.IsEnabled = true;
-            BrowseDestinationButtonEnabled(true);
+            BrowseDestinationButton.IsEnabled = true;
             Mouse.OverrideCursor = null;
             RefreshPreflight();
         }
@@ -292,23 +293,6 @@ public partial class PhysicalAcquisitionWindow : Window
         CancelButton.IsEnabled = false;
         ProgressText.Text = "Cancellation requested · waiting for the current bounded read to stop…";
         _acquisitionCancellation.Cancel();
-    }
-
-    private void BrowseDestinationButtonEnabled(bool enabled)
-    {
-        foreach (var child in FindVisualChildren<Button>(this))
-            if (child.Content?.ToString() == "Browse…")
-                child.IsEnabled = enabled;
-    }
-
-    private static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent) where T : DependencyObject
-    {
-        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
-        {
-            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
-            if (child is T typed) yield return typed;
-            foreach (var descendant in FindVisualChildren<T>(child)) yield return descendant;
-        }
     }
 
     private sealed record DiskChoice(PhysicalDiskDescriptor Descriptor)
