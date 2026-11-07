@@ -210,7 +210,7 @@ public static class PhysicalDiskImageAcquisition
         if (!assessment.CanAcquire)
             return (assessment, selected);
 
-        var destination = PhysicalImageDestinationSafety.Assess(selected.DiskNumber, destinationPath, volumeMap);
+        var destination = PhysicalImageDestinationSafety.Assess(selected.DiskNumber, destinationPath, volumeMap, selected.LengthBytes);
         if (!destination.CanUseAsSeparateDestination)
         {
             var blockers = assessment.Blockers.Concat(destination.Blockers).ToArray();
