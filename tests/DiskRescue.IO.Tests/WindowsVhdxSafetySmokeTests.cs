@@ -20,7 +20,7 @@ public sealed class WindowsVhdxSafetySmokeTests(ITestOutputHelper output)
         Assert.True(int.TryParse(diskNumberText, out var diskNumber), "The VHDX disk number environment variable is invalid.");
 
         var inventory = WindowsPhysicalDiskDiscovery.Enumerate();
-        var selected = Assert.Single(inventory.Disks.Where(disk => disk.DiskNumber == diskNumber));
+        var selected = Assert.Single(inventory.Disks, disk => disk.DiskNumber == diskNumber);
 
         Assert.True(selected.BusType is 14 or 15,
             $"Expected a virtual or file-backed virtual storage bus (14 or 15), but observed {selected.BusType?.ToString() ?? "unknown"}.");
