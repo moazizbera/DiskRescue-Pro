@@ -173,7 +173,7 @@ public partial class PhysicalAcquisitionWindow : Window
                 else
                 {
                     _destinationAssessment = PhysicalImageDestinationSafety.Assess(
-                        choice.Descriptor.DiskNumber, fullPath, _volumeMap);
+                        choice.Descriptor.DiskNumber, fullPath, _volumeMap, choice.Descriptor.LengthBytes);
                     DestinationStatusText.Text = _destinationAssessment.CanUseAsSeparateDestination
                         ? $"SEPARATE DESTINATION VERIFIED · {_destinationAssessment.VolumeGuidPath} · Physical disk(s): {string.Join(", ", _destinationAssessment.DestinationDiskNumbers)}"
                         : "BLOCKED · " + string.Join(" ", _destinationAssessment.Blockers);
