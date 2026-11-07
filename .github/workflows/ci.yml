@@ -44,6 +44,21 @@ jobs:
           if ($ntfsDisk.mbr.partitions.Count -ne 1 -or $ntfsDisk.mbr.partitions[0].byteOffset -ne 512 -or $ntfsDisk.mbr.partitions[0].byteLength -ne 65024) { throw "Synthetic NTFS image did not expose the expected MBR partition boundary." }
           $lostDisk = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- inspect "$env:RUNNER_TEMP/DiskRescue-TestImages/lost-ntfs-partition.img" | ConvertFrom-Json
           if ($lostDisk.mbr.partitions.Count -ne 0 -or -not $lostDisk.mbr.signatureValid) { throw "Lost-partition fixture should have a valid empty MBR partition table." }
+          $discovery = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- discover-ntfs "$env:RUNNER_TEMP/DiskRescue-TestImages/lost-ntfs-partition.img" | ConvertFrom-Json
+          $lostCandidate = @($discovery.partitionDiscovery.candidates | Where-Object { $_.status -eq "Lost partition candidate" })
+          if ($lostCandidate.Count -ne 1 -or $lostCandidate[0].byteOffset -ne 1048576 -or -not $lostCandidate[0].backupBootSectorValid -or $lostCandidate[0].confidence -ne 95) { throw "Lost NTFS partition discovery did not validate the expected candidate." }
+          if (-not $discovery.safety.sourceOpenedReadOnly -or $discovery.safety.sourceWriteOperationsAvailable -or $discovery.safety.partitionTableChangesAvailable) { throw "Lost-partition discovery safety assertions failed." }
+          $lostPreview = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- scan-ntfs "$env:RUNNER_TEMP/DiskRescue-TestImages/lost-ntfs-partition.img" --offset 1048576 --length 65536 --max-records 4 | ConvertFrom-Json
+          if ($lostPreview.scan.entries.Count -ne 1 -or $lostPreview.scan.entries[0].name -ne "Report.txt") { throw "Lost NTFS candidate did not produce the expected bounded file preview." }
+          $lostRecovered = "$env:RUNNER_TEMP/DiskRescue-TestImages/Report-recovered-from-lost-partition.txt"
+          $lostExtractOutput = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- extract-ntfs-file "$env:RUNNER_TEMP/DiskRescue-TestImages/lost-ntfs-partition.img" --offset 1048576 --length 65024 --record 1 --output $lostRecovered --max-bytes 1024 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "Lost-partition file extraction failed: $($lostExtractOutput -join ' ')" }
+          if (-not (Test-Path $lostRecovered)) { throw "Lost-partition extraction did not publish its recovered file." }
+          $expectedLostPayload = [Text.Encoding]::UTF8.GetBytes("DiskRescue synthetic recovered content")
+          $actualLostPayload = [IO.File]::ReadAllBytes($lostRecovered)
+          if ([Convert]::ToHexString($actualLostPayload) -ne [Convert]::ToHexString($expectedLostPayload)) { throw "Lost-partition recovered content mismatch." }
+          $lostRecoveryHash = (Get-FileHash -Algorithm SHA256 $lostRecovered).Hash
+          Write-Output "Lost-partition end-to-end recovery verified. SHA256: $lostRecoveryHash"
           $sourceImage = "$env:RUNNER_TEMP/DiskRescue-TestImages/gpt-valid.img"
           $copiedImage = "$env:RUNNER_TEMP/DiskRescue-TestImages/gpt-valid-copy.img"
           dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- image-copy $sourceImage $copiedImage
@@ -68,6 +83,9 @@ jobs:
           $recoveryExitCode = $LASTEXITCODE
           if ($recoveryExitCode -eq 0) { throw "NTFS extraction unexpectedly overwrote an existing output file." }
           $global:LASTEXITCODE = 0
+      - name: Smoke-test one-command lost NTFS recovery harness
+        shell: pwsh
+        run: ./tools/Test-LostNtfsRecovery.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiskRescue-Recovery-Harness"
       - name: Build WPF desktop application
         run: dotnet build src/DiskRescue.Desktop/DiskRescue.Desktop.csproj --configuration Release --no-restore
       - name: Publish Windows x64 desktop preview
