@@ -426,4 +426,34 @@ public sealed class WindowsPhysicalDiskReaderTests
         Assert.Throws<InvalidDataException>(() => WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(data));
     }
 
+
+    [Fact]
+    public void DestinationCapacityBlocksWhenFreeSpaceIsInsufficient()
+    {
+        var issues = PhysicalImageDestinationSafety.ValidateFilesystemCapacity(
+            "NTFS", availableBytes: 10_000, requiredBytes: 10_001);
+
+        Assert.Contains(issues, issue => issue.Contains("insufficient free space", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData("FAT", 2_147_483_648L)]
+    [InlineData("FAT32", 4_294_967_296L)]
+    public void DestinationCapacityBlocksFilesystemSingleFileLimit(string fileSystem, long requiredBytes)
+    {
+        var issues = PhysicalImageDestinationSafety.ValidateFilesystemCapacity(
+            fileSystem, availableBytes: long.MaxValue, requiredBytes);
+
+        Assert.Contains(issues, issue => issue.Contains("single image file", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void DestinationCapacityAllowsLargeImageOnExfatWhenSpaceIsAvailable()
+    {
+        var issues = PhysicalImageDestinationSafety.ValidateFilesystemCapacity(
+            "exFAT", availableBytes: 8L * 1024 * 1024 * 1024, requiredBytes: 4L * 1024 * 1024 * 1024);
+
+        Assert.Empty(issues);
+    }
+
 }
