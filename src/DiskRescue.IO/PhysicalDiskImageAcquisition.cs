@@ -100,6 +100,9 @@ public static class PhysicalDiskImageAcquisition
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationImagePath);
         WindowsPhysicalDiskDiscovery.EnsureWindows();
         cancellationToken.ThrowIfCancellationRequested();
+        var manifestPath = Path.GetFullPath(destinationImagePath) + ".diskrescue.json";
+        if (File.Exists(manifestPath) || Directory.Exists(manifestPath))
+            throw new IOException("Acquisition manifest already exists; existing files are never overwritten.");
 
         var first = RunPreflight(selected, destinationImagePath);
         if (!first.Assessment.CanAcquire)
@@ -120,7 +123,6 @@ public static class PhysicalDiskImageAcquisition
         var image = await DiskImager.CreateImageAsync(
             source, destinationImagePath, progress, cancellationToken).ConfigureAwait(false);
 
-        var manifestPath = image.ImagePath + ".diskrescue.json";
         var manifest = new
         {
             format = "DiskRescue.PhysicalAcquisitionManifest.v1",
@@ -165,11 +167,10 @@ public static class PhysicalDiskImageAcquisition
                 await JsonSerializer.SerializeAsync(stream, manifest, new JsonSerializerOptions
                 {
                     WriteIndented = true
-                }, cancellationToken).ConfigureAwait(false);
-                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                }, CancellationToken.None).ConfigureAwait(false);
+                await stream.FlushAsync(CancellationToken.None).ConfigureAwait(false);
                 stream.Flush(flushToDisk: true);
             }
-            cancellationToken.ThrowIfCancellationRequested();
             File.Move(manifestTemp, manifestPath, overwrite: false);
         }
         catch
