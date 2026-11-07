@@ -604,7 +604,7 @@ static int RunPhysicalDiskAcquisition(string[] args)
         Console.Error.WriteLine("\nPhysical acquisition cancelled. The incomplete temporary image was removed when possible.");
         return 130;
     }
-    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException or InvalidOperationException or System.ComponentModel.Win32Exception)
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException or InvalidOperationException or PlatformNotSupportedException or System.ComponentModel.Win32Exception)
     {
         Console.Error.WriteLine($"Physical acquisition stopped safely: {exception.Message}");
         return 1;
