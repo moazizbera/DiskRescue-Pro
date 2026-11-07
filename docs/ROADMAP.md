@@ -80,7 +80,7 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 
 - [x] Initial WPF dashboard and partition inspection
 - [x] NTFS partial tree preview
-- [ ] Device/image acquisition wizard with explicit read-only identity checks and progress/cancellation UI
+- [x] Experimental physical-image acquisition window with read-only identity checks, destination preflight, explicit confirmation, progress, and cancellation (hardware validation remains a release gate)
 - [x] Guided NTFS lost-partition discovery with evidence/confidence panel, progress, cancellation, and selectable candidates (image files only)\n- [ ] Expand discovery UI to FAT32/exFAT and add deeper candidate comparison tools
 - [ ] Search, filter, sort, and metadata inspection for file entries
 - [ ] Accessible progress, cancellation, and clear failure states
