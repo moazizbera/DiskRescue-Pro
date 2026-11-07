@@ -92,6 +92,35 @@ public sealed class DiskImagerTests
     }
 
     [Fact]
+    public async Task DestinationDirectoryCollisionIsRejectedBeforeReadingSource()
+    {
+        using var source = new MemorySource(new byte[128 * 1024]);
+        using var folder = new TemporaryFolder();
+        var destination = Path.Combine(folder.Path, "already-a-directory");
+        Directory.CreateDirectory(destination);
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            DiskImager.CreateImageAsync(source, destination, chunkSize: 64 * 1024));
+
+        Assert.Equal(0, source.ReadAttempts);
+        Assert.True(Directory.Exists(destination));
+    }
+
+    [Fact]
+    public async Task MissingDestinationDirectoryIsRejectedBeforeReadingSource()
+    {
+        using var source = new MemorySource(new byte[128 * 1024]);
+        using var folder = new TemporaryFolder();
+        var destination = Path.Combine(folder.Path, "missing", "disk.img");
+
+        await Assert.ThrowsAsync<DirectoryNotFoundException>(() =>
+            DiskImager.CreateImageAsync(source, destination, chunkSize: 64 * 1024));
+
+        Assert.Equal(0, source.ReadAttempts);
+        Assert.False(Directory.Exists(Path.GetDirectoryName(destination)!));
+    }
+
+    [Fact]
     public async Task CancellationRemovesPartialImageAndDoesNotPublishDestination()
     {
         using var source = new MemorySource(new byte[256 * 1024]);
@@ -150,8 +179,10 @@ public sealed class DiskImagerTests
         }
         public long Length => _data.Length;
         public int WriteAttempts { get; private set; }
+        public int ReadAttempts { get; private set; }
         public void ReadExactlyAt(long offset, Span<byte> destination)
         {
+            ReadAttempts++;
             if (_failAfterFirstRead && _reads++ > 0) throw new IOException("Synthetic read failure.");
             if (offset < 0 || offset > _data.Length || destination.Length > _data.Length - offset)
                 throw new EndOfStreamException();
