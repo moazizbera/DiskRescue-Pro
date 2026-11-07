@@ -101,8 +101,19 @@ function New-FileRecord([UInt32]$RecordNumber, [bool]$IncludeMftData, [bool]$Inc
         $record[144] = 10
         $record[145] = 1
         [Text.Encoding]::Unicode.GetBytes("Report.txt").CopyTo($record, 146)
-        Write-U32 $record 168 4294967295
-        Write-U32 $record 24 172
+        # Add a small resident $DATA stream so the extraction CLI can be smoke-tested.
+        $payload = [Text.Encoding]::UTF8.GetBytes("DiskRescue synthetic recovered content")
+        $dataAttributeLength = (24 + $payload.Length + 7) -band -8
+        Write-U32 $record 168 0x80
+        Write-U32 $record 172 $dataAttributeLength
+        $record[176] = 0
+        Write-U16 $record 182 2
+        Write-U32 $record 184 $payload.Length
+        Write-U16 $record 188 24
+        [Array]::Copy($payload, 0, $record, 192, $payload.Length)
+        $endMarkerOffset = 168 + $dataAttributeLength
+        Write-U32 $record $endMarkerOffset 4294967295
+        Write-U32 $record 24 ($endMarkerOffset + 4)
     }
     else {
         Write-U32 $record 56 4294967295
@@ -135,5 +146,5 @@ if (-not [IO.Directory]::Exists($directory)) {
 $hash = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash
 Write-Output "Created synthetic NTFS MFT preview image: $fullPath"
 Write-Output "Length: $($image.Length) bytes; NTFS partition: offset $sectorSize bytes, length $($volumeSectors * $sectorSize) bytes; SHA256: $hash"
-Write-Output 'Fixture contains one FILE_NAME entry (Report.txt) and a fragmented $MFT data extent.'
+Write-Output 'Fixture contains one FILE_NAME entry (Report.txt), a small resident $DATA payload, and a fragmented $MFT data extent.'
 Write-Output "This fixture is for parser tests only and is not a mountable NTFS volume."
