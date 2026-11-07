@@ -53,7 +53,17 @@ public static class DiskImager
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var count = (int)Math.Min(buffer.Length, source.Length - copied);
-                    source.ReadExactlyAt(copied, buffer.AsSpan(0, count));
+                    try
+                    {
+                        source.ReadExactlyAt(copied, buffer.AsSpan(0, count));
+                    }
+                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+                    {
+                        throw new IOException(
+                            $"Source read failed at byte offset {copied} (0x{copied:X}) for {count} bytes. Acquisition aborted; unreadable data was not zero-filled.",
+                            exception);
+                    }
+
                     hash.AppendData(buffer, 0, count);
                     await output.WriteAsync(buffer.AsMemory(0, count), cancellationToken).ConfigureAwait(false);
                     copied = checked(copied + count);
