@@ -25,6 +25,7 @@ public static class PhysicalImageDestinationSafety
     private const uint FsctlVolumeGetVolumeDiskExtents = 0x00560000;
     private const int ErrorMoreData = 234;
     private const int ExtentBufferSize = 64 * 1024;
+    private const long ManifestAndMetadataReserveBytes = 64 * 1024;
 
     public static PhysicalImageDestinationAssessment Assess(
         int sourceDiskNumber,
@@ -132,8 +133,22 @@ public static class PhysicalImageDestinationSafety
             return issues.AsReadOnly();
         }
 
-        if (requiredBytes > 0 && availableBytes < requiredBytes)
-            issues.Add($"Destination has insufficient free space: {availableBytes:N0} bytes available, {requiredBytes:N0} bytes required.");
+        if (requiredBytes > 0)
+        {
+            long requiredWithReserve;
+            try
+            {
+                requiredWithReserve = checked(requiredBytes + ManifestAndMetadataReserveBytes);
+            }
+            catch (OverflowException)
+            {
+                issues.Add("Required image size exceeds supported capacity arithmetic.");
+                return issues.AsReadOnly();
+            }
+
+            if (availableBytes < requiredWithReserve)
+                issues.Add($"Destination has insufficient free space: {availableBytes:N0} bytes available, at least {requiredWithReserve:N0} bytes required including manifest/filesystem reserve.");
+        }
 
         if (string.Equals(fileSystem, "FAT", StringComparison.OrdinalIgnoreCase) &&
             requiredBytes > int.MaxValue)
