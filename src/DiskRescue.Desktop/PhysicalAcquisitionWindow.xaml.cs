@@ -275,8 +275,12 @@ public partial class PhysicalAcquisitionWindow : Window
         catch (Exception ex)
         {
             ProgressText.Text = "Acquisition stopped safely";
-            ResultText.Text = ex.Message + "\n\nRead errors abort the copy; unreadable sectors are never silently replaced with zeros.";
-            MessageBox.Show(this, ex.Message, "Physical acquisition stopped", MessageBoxButton.OK, MessageBoxImage.Warning);
+            var publishedImageNote = File.Exists(destination)
+                ? "\n\nA destination image file now exists. The failure may have occurred after the verified image was published while its manifest was being written. Preserve the image; do not overwrite or delete it. Check the manifest path and independently verify the image before use."
+                : string.Empty;
+            ResultText.Text = ex.Message + publishedImageNote +
+                "\n\nRead errors abort the copy; unreadable sectors are never silently replaced with zeros.";
+            MessageBox.Show(this, ex.Message + publishedImageNote, "Physical acquisition stopped", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
         {
