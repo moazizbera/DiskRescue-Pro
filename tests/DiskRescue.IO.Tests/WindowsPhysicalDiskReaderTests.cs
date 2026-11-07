@@ -148,6 +148,15 @@ public sealed class WindowsPhysicalDiskReaderTests
     }
 
     [Fact]
+    public void BootPartitionParserRejectsTruncatedGptPartitionTypeGuid()
+    {
+        var data = new byte[40];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 1);
+
+        Assert.Throws<InvalidDataException>(() => WindowsBootDeviceMap.IsFirmwareSystemPartition(data));
+    }
+
+    [Fact]
     public void PhysicalPreflightUsesCompleteBootMapToIdentifyBootCriticalDisk()
     {
         var disk = new PhysicalDiskDescriptor(
