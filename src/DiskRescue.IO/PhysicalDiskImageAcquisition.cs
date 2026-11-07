@@ -100,11 +100,26 @@ public static class PhysicalDiskImageAcquisition
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationImagePath);
         WindowsPhysicalDiskDiscovery.EnsureWindows();
         cancellationToken.ThrowIfCancellationRequested();
-        var manifestPath = Path.GetFullPath(destinationImagePath) + ".diskrescue.json";
+
+        // Reject invalid or existing destinations before opening the physical source.
+        if (destinationImagePath.StartsWith(@"\\.\", StringComparison.OrdinalIgnoreCase) ||
+            destinationImagePath.StartsWith(@"\\?\GLOBALROOT", StringComparison.OrdinalIgnoreCase) ||
+            destinationImagePath.StartsWith(@"\??\", StringComparison.OrdinalIgnoreCase) ||
+            destinationImagePath.StartsWith(@"\Device\", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Image destination must be a regular filesystem path.", nameof(destinationImagePath));
+
+        var fullImagePath = Path.GetFullPath(destinationImagePath);
+        var imageDirectory = Path.GetDirectoryName(fullImagePath)
+            ?? throw new IOException("Destination directory is invalid.");
+        if (!Directory.Exists(imageDirectory))
+            throw new DirectoryNotFoundException("Destination directory must already exist.");
+        if (File.Exists(fullImagePath) || Directory.Exists(fullImagePath))
+            throw new IOException("Destination image already exists; existing files are never overwritten.");
+
+        var manifestPath = fullImagePath + ".diskrescue.json";
         if (File.Exists(manifestPath) || Directory.Exists(manifestPath))
             throw new IOException("Acquisition manifest already exists; existing files are never overwritten.");
-
-        var first = RunPreflight(selected, destinationImagePath);
+        var first = RunPreflight(selected, fullImagePath);
         if (!first.Assessment.CanAcquire)
             throw new InvalidOperationException("Physical acquisition preflight failed: " +
                 string.Join(" ", first.Assessment.Blockers));
