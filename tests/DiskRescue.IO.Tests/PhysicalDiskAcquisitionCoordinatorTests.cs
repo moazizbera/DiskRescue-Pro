@@ -92,7 +92,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
     {
         using var folder = new TemporaryFolder();
         using var cancellation = new CancellationTokenSource();
-        var source = new MemorySource(new byte[256 * 1024]);
+        var source = new MemorySource(new byte[128 * 1024]);
         var environment = new FakeEnvironment { Source = source };
         var progress = new InlineProgress<DiskImageProgress>(_ => cancellation.Cancel());
 
