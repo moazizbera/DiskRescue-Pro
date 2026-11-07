@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -293,6 +294,23 @@ public partial class PhysicalAcquisitionWindow : Window
             BrowseDestinationButton.IsEnabled = true;
             Mouse.OverrideCursor = null;
             RefreshPreflight();
+        }
+    }
+
+    private void Window_Closing(object? sender, CancelEventArgs e)
+    {
+        if (!_busy)
+            return;
+
+        // Never let the window disappear while a raw-device read is still active.
+        // Request cancellation, keep the UI alive until the bounded read stops,
+        // and let the user close the window after cleanup completes.
+        e.Cancel = true;
+        if (_acquisitionCancellation is not null && !_acquisitionCancellation.IsCancellationRequested)
+        {
+            CancelButton.IsEnabled = false;
+            ProgressText.Text = "Window close requested · cancelling acquisition and waiting for safe cleanup…";
+            _acquisitionCancellation.Cancel();
         }
     }
 
