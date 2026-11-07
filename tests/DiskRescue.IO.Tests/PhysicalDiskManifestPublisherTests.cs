@@ -46,13 +46,13 @@ public sealed class PhysicalDiskManifestPublisherTests
 
         var exception = await Assert.ThrowsAsync<PhysicalDiskManifestPublicationException>(() =>
             PhysicalDiskManifestPublisher.PublishAsync(
-                "invalid\\0manifest.json",
+                "invalid\0manifest.json",
                 new { format = "test-manifest" },
                 imagePath,
                 digest));
 
         Assert.Equal(imagePath, exception.ImagePath);
-        Assert.Equal("invalid\\0manifest.json", exception.ManifestPath);
+        Assert.Equal("invalid\0manifest.json", exception.ManifestPath);
         Assert.Equal(digest, exception.Sha256);
         Assert.Contains("image has been preserved", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
