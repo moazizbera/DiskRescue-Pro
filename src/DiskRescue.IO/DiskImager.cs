@@ -65,8 +65,15 @@ public static class DiskImager
             }
 
             cancellationToken.ThrowIfCancellationRequested();
+            var expectedSha256 = Convert.ToHexString(hash.GetHashAndReset());
+            var verification = await DiskImageVerifier.VerifyAsync(
+                tempPath, source.Length, expectedSha256, cancellationToken).ConfigureAwait(false);
+            if (!verification.IsValid)
+                throw new IOException("The completed image failed verification: " + string.Join("; ", verification.Issues));
+
+            cancellationToken.ThrowIfCancellationRequested();
             File.Move(tempPath, fullPath, overwrite: false);
-            return new DiskImageResult(fullPath, copied, Convert.ToHexString(hash.GetHashAndReset()));
+            return new DiskImageResult(fullPath, copied, expectedSha256);
         }
         catch
         {
