@@ -250,6 +250,7 @@ public partial class PhysicalAcquisitionWindow : Window
         Mouse.OverrideCursor = Cursors.Wait;
 
         var cancellationToken = acquisitionCancellation.Token;
+        var acquisitionSucceeded = false;
         var progress = new Progress<DiskImageProgress>(value =>
         {
             AcquireProgress.Value = value.Percent;
@@ -266,7 +267,7 @@ public partial class PhysicalAcquisitionWindow : Window
             ResultText.Text = $"IMAGE: {result.Image.ImagePath}\nBYTES: {result.Image.BytesCopied:N0}\nSHA-256: {result.Image.Sha256}\nMANIFEST: {result.ManifestPath}";
             MessageBox.Show(this, "The image was copied and its exact length and SHA-256 were verified before publication. Review the manifest and preserve both files.", "Acquisition complete", MessageBoxButton.OK, MessageBoxImage.Information);
             AcquiredImagePath = result.Image.ImagePath;
-            DialogResult = true;
+            acquisitionSucceeded = true;
         }
         catch (OperationCanceledException)
         {
@@ -294,6 +295,8 @@ public partial class PhysicalAcquisitionWindow : Window
             BrowseDestinationButton.IsEnabled = true;
             Mouse.OverrideCursor = null;
             RefreshPreflight();
+            if (acquisitionSucceeded)
+                DialogResult = true;
         }
     }
 
