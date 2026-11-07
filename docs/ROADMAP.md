@@ -20,7 +20,7 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [x] Generated MBR/GPT images and CLI smoke tests
 - [ ] Manual Windows desktop smoke test recorded against generated MBR/GPT images
 - [x] Bounded, chunked NTFS boot-sector discovery in image files with primary BPB validation, backup-sector corroboration, progress, cancellation, and candidate evidence\n- [x] Classify NTFS candidates against parsed MBR/GPT ranges as existing, overlapping, or lost; add lost candidates to the desktop partition list for bounded NTFS preview\n- [ ] FAT32 and exFAT lost-partition candidate discovery and confidence scoring\n- [ ] Generated integration fixtures for lost NTFS candidates and desktop discovery flow
-- [ ] Physical disk inventory and acquisition (separate future safety gate)
+- [~] Experimental Windows physical-disk inventory and guarded image acquisition coordinator/CLI; WPF integration and hardware validation remain release gates
 
 ## Phase 2 — NTFS metadata preview
 
@@ -80,7 +80,7 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 
 - [x] Initial WPF dashboard and partition inspection
 - [x] NTFS partial tree preview
-- [ ] Device/image acquisition wizard with explicit read-only identity checks
+- [ ] Device/image acquisition wizard with explicit read-only identity checks and progress/cancellation UI
 - [x] Guided NTFS lost-partition discovery with evidence/confidence panel, progress, cancellation, and selectable candidates (image files only)\n- [ ] Expand discovery UI to FAT32/exFAT and add deeper candidate comparison tools
 - [ ] Search, filter, sort, and metadata inspection for file entries
 - [ ] Accessible progress, cancellation, and clear failure states
@@ -95,7 +95,11 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - Source write capability is not introduced into the inspection interfaces.
 - Recovery output is written only to a verified separate destination.
 - No destructive repair, format, initialize, or repartition feature is planned for the initial product.
-- No physical-device support ships without a dedicated read-only handle design, device identity validation, threat review, and separate test suite.
+- No physical-device support is considered release-ready without a dedicated read-only handle design, device identity validation, complete source/destination preflight, hardware write-blocker guidance, bad-sector/error policy, cancellation and failure recovery, threat review, disposable virtual-disk tests, and representative Windows hardware validation.
+
+## Physical acquisition status (experimental)
+
+The current feature branch includes a guarded all-or-nothing physical image acquisition coordinator and CLI entry points. It performs two source/destination preflights, excludes identified boot-critical disks, checks reported serial uniqueness and bus/removable status, opens the source read-only, aborts on read errors without zero-fill, verifies image length and SHA-256 before publication, and writes a sidecar manifest. Windows CI validates compilation and unit-level preflight decisions. It does not yet provide resumable acquisition, bad-sector maps/retries, a WPF acquisition wizard, or physical hardware validation. Do not use it on the user's only copy of valuable data until the remaining release gates are met.
 
 ## Current validation baseline
 
