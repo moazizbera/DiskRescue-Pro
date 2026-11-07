@@ -32,7 +32,7 @@ create vdisk file="$vhdPath" maximum=128 type=expandable
 select vdisk file="$vhdPath"
 attach vdisk readonly
 exit
-"@ | Set-Content -LiteralPath $diskpartPath -Encoding Ascii
+"@ | Set-Content -LiteralPath $diskpartPath -Encoding Unicode
 
     & diskpart.exe /s $diskpartPath
     # Check the actual attachment state even if DiskPart reports a non-zero exit;
@@ -85,7 +85,7 @@ finally {
 select vdisk file="$vhdPath"
 detach vdisk
 exit
-"@ | Set-Content -LiteralPath $diskpartPath -Encoding Ascii
+"@ | Set-Content -LiteralPath $diskpartPath -Encoding Unicode
         & diskpart.exe /s $diskpartPath
         $detachExitCode = $LASTEXITCODE
         $imageState = Get-DiskImage -ImagePath $vhdPath -ErrorAction SilentlyContinue
