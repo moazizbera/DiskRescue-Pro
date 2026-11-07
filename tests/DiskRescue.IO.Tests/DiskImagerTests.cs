@@ -23,6 +23,62 @@ public sealed class DiskImagerTests
     }
 
     [Fact]
+    public async Task VerifierAcceptsExactLengthAndMatchingSha256()
+    {
+        var bytes = Enumerable.Range(0, 180_000).Select(i => (byte)(i % 239)).ToArray();
+        using var folder = new TemporaryFolder();
+        var path = Path.Combine(folder.Path, "verified.img");
+        await File.WriteAllBytesAsync(path, bytes);
+
+        var result = await DiskImageVerifier.VerifyAsync(
+            path, bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)));
+
+        Assert.True(result.IsValid);
+        Assert.Equal(bytes.Length, result.ActualLength);
+        Assert.Empty(result.Issues);
+    }
+
+    [Fact]
+    public async Task VerifierRejectsChangedImageContent()
+    {
+        using var folder = new TemporaryFolder();
+        var path = Path.Combine(folder.Path, "changed.img");
+        await File.WriteAllBytesAsync(path, new byte[] { 1, 2, 3, 4 });
+
+        var result = await DiskImageVerifier.VerifyAsync(
+            path, 4, Convert.ToHexString(SHA256.HashData(new byte[] { 4, 3, 2, 1 }));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, issue => issue.Contains("SHA-256", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task VerifierRejectsLengthMismatchEvenWhenDigestMatches()
+    {
+        var bytes = new byte[] { 1, 2, 3, 4 };
+        using var folder = new TemporaryFolder();
+        var path = Path.Combine(folder.Path, "wrong-length.img");
+        await File.WriteAllBytesAsync(path, bytes);
+
+        var result = await DiskImageVerifier.VerifyAsync(
+            path, 5, Convert.ToHexString(SHA256.HashData(bytes)));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, issue => issue.Contains("length mismatch", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task VerifierRejectsMalformedExpectedDigest()
+    {
+        using var folder = new TemporaryFolder();
+        var path = Path.Combine(folder.Path, "digest.img");
+        await File.WriteAllBytesAsync(path, new byte[] { 1 });
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            DiskImageVerifier.VerifyAsync(path, 1, "not-a-sha256"));
+    }
+
+    [Fact]
     public async Task NeverOverwritesAnExistingDestination()
     {
         using var source = new MemorySource(new byte[128 * 1024]);
