@@ -232,7 +232,8 @@ public partial class PhysicalAcquisitionWindow : Window
             return;
 
         _busy = true;
-        _acquisitionCancellation = new CancellationTokenSource();
+        var acquisitionCancellation = new CancellationTokenSource();
+        _acquisitionCancellation = acquisitionCancellation;
         AcquireButton.IsEnabled = false;
         CancelButton.IsEnabled = true;
         RefreshButton.IsEnabled = false;
@@ -245,7 +246,7 @@ public partial class PhysicalAcquisitionWindow : Window
         ProgressText.Text = "Opening source read-only after fresh safety preflight…";
         Mouse.OverrideCursor = Cursors.Wait;
 
-        var cancellationToken = _acquisitionCancellation.Token;
+        var cancellationToken = acquisitionCancellation.Token;
         var progress = new Progress<DiskImageProgress>(value =>
         {
             AcquireProgress.Value = value.Percent;
@@ -275,7 +276,7 @@ public partial class PhysicalAcquisitionWindow : Window
         }
         finally
         {
-            _acquisitionCancellation.Dispose();
+            acquisitionCancellation.Dispose();
             _acquisitionCancellation = null;
             _busy = false;
             CancelButton.IsEnabled = false;
