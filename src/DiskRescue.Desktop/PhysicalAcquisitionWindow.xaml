@@ -48,7 +48,7 @@
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                             <TextBox x:Name="DestinationBox" MinHeight="34" VerticalContentAlignment="Center" Background="#0C1726" Foreground="#E8F0FA" BorderBrush="#30445D" TextChanged="DestinationBox_TextChanged"/>
-                            <Button Grid.Column="1" Content="Browse…" Click="BrowseDestination_Click" Margin="8,0,0,0" Padding="12,6"/>
+                            <Button Grid.Column="1" x:Name="BrowseDestinationButton" Content="Browse…" Click="BrowseDestination_Click" Margin="8,0,0,0" Padding="12,6"/>
                         </Grid>
                         <TextBlock Text="TYPE THE CONFIRMATION PHRASE" Foreground="#9FB0C5" FontSize="11" FontWeight="Bold" Margin="0,0,0,6"/>
                         <TextBox x:Name="ConfirmationBox" MinHeight="34" VerticalContentAlignment="Center" Background="#0C1726" Foreground="#E8F0FA" BorderBrush="#30445D" TextChanged="ConfirmationBox_TextChanged"/>
