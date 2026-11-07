@@ -49,12 +49,12 @@ public static class PhysicalDiskManifestPublisher
         var fullManifestPath = Path.GetFullPath(manifestPath);
         var directory = Path.GetDirectoryName(fullManifestPath)
             ?? throw new IOException("Manifest directory is invalid.");
-        if (!Directory.Exists(directory))
-            throw new DirectoryNotFoundException("Manifest directory no longer exists.");
-
         var temporaryPath = fullManifestPath + "." + Guid.NewGuid().ToString("N") + ".partial";
         try
         {
+            if (!Directory.Exists(directory))
+                throw new DirectoryNotFoundException("Manifest directory no longer exists.");
+
             await using (var stream = new FileStream(
                 temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None,
                 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan))
