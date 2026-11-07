@@ -73,14 +73,14 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
     public async Task SourceReadFailureAbortsAndDoesNotPublishImageOrManifest()
     {
         using var folder = new TemporaryFolder();
-        var source = new MemorySource(new byte[128 * 1024], failAfterFirstRead: true);
+        var source = new MemorySource(new byte[128 * 1024], failOnRead: true);
         var environment = new FakeEnvironment { Source = source };
 
         var error = await Assert.ThrowsAsync<IOException>(() =>
             PhysicalDiskAcquisitionCoordinator.AcquireAsync(
                 Descriptor(), folder.File("read-failure.img"), environment));
 
-        Assert.Contains("0x10000", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("byte offset 0", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("not zero-filled", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(Directory.GetFiles(folder.Path));
         Assert.Equal(0, environment.ManifestCalls);
@@ -217,9 +217,8 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         }
     }
 
-    private sealed class MemorySource(byte[] data, bool failAfterFirstRead = false) : IReadOnlyRandomAccessSource
+    private sealed class MemorySource(byte[] data, bool failOnRead = false) : IReadOnlyRandomAccessSource
     {
-        private int _reads;
         public long Length => data.Length;
         public int ReadAttempts { get; private set; }
         public int DisposeCalls { get; private set; }
@@ -227,7 +226,8 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         public void ReadExactlyAt(long offset, Span<byte> destination)
         {
             ReadAttempts++;
-            if (failAfterFirstRead && _reads++ > 0)
+            _reads++;
+            if (failOnRead)
                 throw new IOException("Synthetic source read failure.");
             if (offset < 0 || offset > data.Length || destination.Length > data.Length - offset)
                 throw new EndOfStreamException();
