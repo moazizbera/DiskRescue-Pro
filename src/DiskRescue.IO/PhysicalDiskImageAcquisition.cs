@@ -88,114 +88,16 @@ public static class PhysicalDiskImageAcquisition
     /// it to a new image on a verified separate physical volume. Requires Windows and
     /// usually an elevated process. Existing destination files are never overwritten.
     /// </summary>
-    public static async Task<PhysicalDiskAcquisitionResult> AcquireAsync(
+    public static Task<PhysicalDiskAcquisitionResult> AcquireAsync(
         PhysicalDiskDescriptor selected,
         string destinationImagePath,
         IProgress<DiskImageProgress>? progress = null,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(selected);
-        ArgumentException.ThrowIfNullOrWhiteSpace(destinationImagePath);
-        WindowsPhysicalDiskDiscovery.EnsureWindows();
-        cancellationToken.ThrowIfCancellationRequested();
+        CancellationToken cancellationToken = default) =>
+        PhysicalDiskAcquisitionCoordinator.AcquireAsync(
+            selected,
+            destinationImagePath,
+            new WindowsPhysicalDiskAcquisitionEnvironment(),
+            progress,
+            cancellationToken);
 
-        // Reject invalid or existing destinations before opening the physical source.
-        if (destinationImagePath.StartsWith(@"\\.\", StringComparison.OrdinalIgnoreCase) ||
-            destinationImagePath.StartsWith(@"\\?\GLOBALROOT", StringComparison.OrdinalIgnoreCase) ||
-            destinationImagePath.StartsWith(@"\??\", StringComparison.OrdinalIgnoreCase) ||
-            destinationImagePath.StartsWith(@"\Device\", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("Image destination must be a regular filesystem path.", nameof(destinationImagePath));
-
-        var fullImagePath = Path.GetFullPath(destinationImagePath);
-        var imageDirectory = Path.GetDirectoryName(fullImagePath)
-            ?? throw new IOException("Destination directory is invalid.");
-        if (!Directory.Exists(imageDirectory))
-            throw new DirectoryNotFoundException("Destination directory must already exist.");
-        if (File.Exists(fullImagePath) || Directory.Exists(fullImagePath))
-            throw new IOException("Destination image already exists; existing files are never overwritten.");
-
-        var manifestPath = fullImagePath + ".diskrescue.json";
-        if (File.Exists(manifestPath) || Directory.Exists(manifestPath))
-            throw new IOException("Acquisition manifest already exists; existing files are never overwritten.");
-        var first = RunPreflight(selected, fullImagePath);
-        if (!first.Assessment.CanAcquire)
-            throw new InvalidOperationException("Physical acquisition preflight failed: " +
-                string.Join(" ", first.Assessment.Blockers));
-
-        // Re-enumerate all safety-critical state immediately before opening the source.
-        cancellationToken.ThrowIfCancellationRequested();
-        var second = RunPreflight(selected, destinationImagePath);
-        if (!second.Assessment.CanAcquire)
-            throw new InvalidOperationException("Physical acquisition revalidation failed: " +
-                string.Join(" ", second.Assessment.Blockers));
-
-        using var source = WindowsPhysicalDiskReader.Open(second.CurrentDescriptor);
-        if (!WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(second.CurrentDescriptor, source.Descriptor))
-            throw new IOException("The opened physical device does not match the revalidated source identity.");
-
-        var image = await DiskImager.CreateImageAsync(
-            source, destinationImagePath, progress, cancellationToken).ConfigureAwait(false);
-
-        var manifest = new
-        {
-            format = "DiskRescue.PhysicalAcquisitionManifest.v1",
-            acquiredAtUtc = DateTimeOffset.UtcNow,
-            source = new
-            {
-                source.Descriptor.DiskNumber,
-                source.Descriptor.DevicePath,
-                source.Descriptor.LengthBytes,
-                source.Descriptor.BytesPerSector,
-                source.Descriptor.Vendor,
-                source.Descriptor.Model,
-                source.Descriptor.SerialNumber,
-                source.Descriptor.BusType,
-                source.Descriptor.RemovableMedia
-            },
-            image = new
-            {
-                image.ImagePath,
-                image.BytesCopied,
-                sha256 = image.Sha256,
-                verifiedBeforePublish = true
-            },
-            acquisition = new
-            {
-                mode = "read-only-live-copy",
-                unreadableSectorPolicy = "abort-without-zero-fill",
-                hardwareWriteBlocked = false,
-                pointInTimeConsistencyGuaranteed = false,
-                resumable = false
-            },
-            warnings = second.Assessment.Warnings
-        };
-
-        await PhysicalDiskManifestPublisher.PublishAsync(
-            manifestPath, manifest, image.ImagePath, image.Sha256);
-
-        return new(image, manifestPath, source.Descriptor, second.Assessment.Warnings);
-    }
-
-    private static (PhysicalDiskAcquisitionAssessment Assessment, PhysicalDiskDescriptor CurrentDescriptor)
-        RunPreflight(PhysicalDiskDescriptor selected, string destinationPath)
-    {
-        var inventory = WindowsPhysicalDiskDiscovery.Enumerate();
-        var volumeMap = WindowsPhysicalDiskVolumeMap.Enumerate();
-        var bootMap = WindowsBootDeviceMap.Enumerate(volumeMap);
-        var assessment = Assess(selected, inventory, volumeMap, bootMap);
-
-        if (!assessment.CanAcquire)
-            return (assessment, selected);
-
-        var destination = PhysicalImageDestinationSafety.Assess(selected.DiskNumber, destinationPath, volumeMap, selected.LengthBytes);
-        if (!destination.CanUseAsSeparateDestination)
-        {
-            var blockers = assessment.Blockers.Concat(destination.Blockers).ToArray();
-            assessment = assessment with { CanAcquire = false, Blockers = blockers };
-            return (assessment, selected);
-        }
-
-        var current = inventory.Disks.Single(d => d.DiskNumber == selected.DiskNumber);
-        return (assessment, current);
-    }
 }
