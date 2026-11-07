@@ -46,7 +46,7 @@ public sealed class DiskImagerTests
         await File.WriteAllBytesAsync(path, new byte[] { 1, 2, 3, 4 });
 
         var result = await DiskImageVerifier.VerifyAsync(
-            path, 4, Convert.ToHexString(SHA256.HashData(new byte[] { 4, 3, 2, 1 }));
+            path, 4, Convert.ToHexString(SHA256.HashData(new byte[] { 4, 3, 2, 1 })));
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Issues, issue => issue.Contains("SHA-256", StringComparison.OrdinalIgnoreCase));
