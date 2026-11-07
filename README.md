@@ -137,7 +137,7 @@ The next critical milestones are:
 3. Add multi-extent file streams, sparse-file handling, compressed/encrypted stream diagnostics, and stronger recovered-content integrity verification.
 4. Extend image-based lost-partition discovery to FAT32 and exFAT, improve candidate deduplication/conflict analysis, and expand generated regression fixtures. The current scanner is NTFS-only and does not access physical disks.
 5. Add recovery manifests, destination-volume verification, resume semantics, and end-to-end extraction validation.
-6. Finish the physical acquisition release gate: integrate the coordinator into the desktop UI, add durable bad-sector/error reporting and a safe resume journal, validate cancellation and manifest-failure recovery, and test against disposable virtual disks and representative Windows hardware. Keep physical partition scanning disabled until these checks pass.
+6. Finish the physical acquisition release gate: add durable bad-sector/error reporting and a safe resume journal, validate cancellation and manifest-failure recovery, and test the guarded workflow against sacrificial physical hardware. The experimental WPF acquisition window is integrated; physical partition scanning remains disabled until the remaining checks pass.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for status and release gates.
 
