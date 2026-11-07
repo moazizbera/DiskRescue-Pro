@@ -114,9 +114,13 @@ public sealed class DiskImagerTests
         using var folder = new TemporaryFolder();
         var destination = Path.Combine(folder.Path, "failed.img");
 
-        await Assert.ThrowsAsync<IOException>(() =>
+        var error = await Assert.ThrowsAsync<IOException>(() =>
             DiskImager.CreateImageAsync(source, destination, chunkSize: 64 * 1024));
 
+        Assert.Contains("byte offset 65536", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("0x10000", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("not zero-filled", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.IsType<IOException>(error.InnerException);
         Assert.False(File.Exists(destination));
         Assert.Empty(Directory.GetFiles(folder.Path));
     }
