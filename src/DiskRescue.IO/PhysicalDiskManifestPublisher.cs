@@ -1,3 +1,4 @@
+using System.Security;
 using System.Text.Json;
 
 namespace DiskRescue.IO;
@@ -46,12 +47,19 @@ public static class PhysicalDiskManifestPublisher
         ArgumentException.ThrowIfNullOrWhiteSpace(imagePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(sha256);
 
-        var fullManifestPath = Path.GetFullPath(manifestPath);
-        var directory = Path.GetDirectoryName(fullManifestPath)
-            ?? throw new IOException("Manifest directory is invalid.");
-        var temporaryPath = fullManifestPath + "." + Guid.NewGuid().ToString("N") + ".partial";
+        // Keep caller-provided paths as diagnostic fallbacks: even path-normalization
+        // failures must explain which already-verified image was preserved.
+        var fullManifestPath = manifestPath;
+        var fullImagePath = imagePath;
+        string? temporaryPath = null;
         try
         {
+            fullManifestPath = Path.GetFullPath(manifestPath);
+            fullImagePath = Path.GetFullPath(imagePath);
+            var directory = Path.GetDirectoryName(fullManifestPath)
+                ?? throw new IOException("Manifest directory is invalid.");
+            temporaryPath = fullManifestPath + "." + Guid.NewGuid().ToString("N") + ".partial";
+
             if (!Directory.Exists(directory))
                 throw new DirectoryNotFoundException("Manifest directory no longer exists.");
 
@@ -69,18 +77,20 @@ public static class PhysicalDiskManifestPublisher
 
             File.Move(temporaryPath, fullManifestPath, overwrite: false);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or JsonException or
+            ArgumentException or NotSupportedException or SecurityException)
         {
             try
             {
-                if (File.Exists(temporaryPath))
+                if (temporaryPath is not null && File.Exists(temporaryPath))
                     File.Delete(temporaryPath);
             }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
 
             throw new PhysicalDiskManifestPublicationException(
-                Path.GetFullPath(imagePath), fullManifestPath, sha256, exception);
+                fullImagePath, fullManifestPath, sha256, exception);
         }
     }
 }
