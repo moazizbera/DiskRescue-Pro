@@ -534,7 +534,6 @@ static int RunPhysicalDiskAcquisition(string[] args)
 
     try
     {
-        WindowsPhysicalDiskDiscovery.EnsureWindows();
         var inventory = WindowsPhysicalDiskDiscovery.Enumerate();
         var selected = inventory.Disks.SingleOrDefault(d => d.DiskNumber == diskNumber);
         if (selected is null)
