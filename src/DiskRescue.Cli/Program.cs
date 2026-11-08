@@ -720,6 +720,11 @@ static int RunNtfsDeletedExtract(string[] args)
 
             var deletedAssessment = copied.Assessment!;
             var sourceInfoAfterRead = new FileInfo(fullImagePath);
+            sourceInfoAfterRead.Refresh();
+            if (sourceInfoAfterRead.Length != image.Length ||
+                sourceInfoAfterRead.LastWriteTimeUtc != sourceLastWriteTimeUtc)
+                throw new IOException("Source image length or last-write timestamp changed during recovery; refusing to publish output and manifest.");
+
             var manifest = new
             {
                 product = "DiskRescue Pro",
