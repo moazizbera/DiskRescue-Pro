@@ -55,7 +55,8 @@ public sealed class NtfsClusterAllocationMap
         if (maximumBitmapBytes == 0 || maximumBitmapBytes > int.MaxValue)
             return Invalid("Bitmap memory limit must be between 1 byte and Int32.MaxValue.");
 
-        var requiredBytes = RequiredBytes(volumeClusterCount);
+        if (!TryRequiredBytes(volumeClusterCount, out var requiredBytes))
+            return Invalid("NTFS volume cluster count overflows bitmap sizing.");
         if (requiredBytes > maximumBitmapBytes)
             return Invalid($"NTFS $Bitmap requires {requiredBytes} bytes, exceeding the configured {maximumBitmapBytes}-byte safety limit.");
 
@@ -90,7 +91,8 @@ public sealed class NtfsClusterAllocationMap
         ArgumentNullException.ThrowIfNull(bitmap);
         if (volumeClusterCount == 0)
             return Invalid("NTFS volume cluster count is zero.");
-        var requiredBytes = RequiredBytes(volumeClusterCount);
+        if (!TryRequiredBytes(volumeClusterCount, out var requiredBytes))
+            return Invalid("NTFS volume cluster count overflows bitmap sizing.");
         if (requiredBytes > (ulong)bitmap.Length)
             return Invalid("Bitmap data does not contain one bit for every volume cluster.");
         return new(true, new NtfsClusterAllocationMap(bitmap.ToArray(), volumeClusterCount),
@@ -144,7 +146,11 @@ public sealed class NtfsClusterAllocationMap
         return new(status, total, free, allocated, warnings);
     }
 
-    private static ulong RequiredBytes(ulong clusters) => checked((clusters + 7) / 8);
+    private static bool TryRequiredBytes(ulong clusters, out ulong bytes)
+    {
+        try { bytes = checked((clusters + 7) / 8); return true; }
+        catch (OverflowException) { bytes = 0; return false; }
+    }
 
     private static NtfsClusterAllocationMapOpenResult Invalid(string issue) =>
         new(false, null, new[] { issue });
