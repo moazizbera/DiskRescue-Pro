@@ -93,11 +93,35 @@ jobs:
         run: dotnet build src/DiskRescue.Desktop/DiskRescue.Desktop.csproj --configuration Release --no-restore
       - name: Publish Windows x64 desktop preview
         run: dotnet publish src/DiskRescue.Desktop/DiskRescue.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/DiskRescue-Pro-Desktop-win-x64
+      - name: Capture actual WPF dashboard screenshot
+        shell: pwsh
+        run: |
+          $screenshot = Join-Path $PWD "artifacts/DiskRescue-Pro-Desktop-Screenshot.png"
+          $app = Join-Path $PWD "artifacts/DiskRescue-Pro-Desktop-win-x64/DiskRescue.Desktop.exe"
+          if (-not (Test-Path $app)) { throw "Published DiskRescue desktop executable was not found." }
+          $env:DISKRESCUE_CAPTURE_UI_SCREENSHOT = $screenshot
+          & $app
+          $captureExitCode = $LASTEXITCODE
+          Remove-Item Env:DISKRESCUE_CAPTURE_UI_SCREENSHOT -ErrorAction SilentlyContinue
+          if ($captureExitCode -ne 0 -or -not (Test-Path $screenshot)) {
+            throw "The real WPF dashboard screenshot could not be captured (exit $captureExitCode)."
+          }
+          $png = [System.IO.File]::ReadAllBytes($screenshot)
+          if ($png.Length -lt 100 -or $png[0] -ne 137 -or $png[1] -ne 80 -or $png[2] -ne 78 -or $png[3] -ne 71) {
+            throw "The WPF screenshot is not a valid PNG."
+          }
+          Write-Output "Captured actual DiskRescue Pro WPF dashboard screenshot: $screenshot ($($png.Length) bytes)."
       - name: Upload Windows x64 desktop preview
         uses: actions/upload-artifact@v4
         with:
           name: DiskRescue-Pro-Desktop-win-x64-preview
           path: artifacts/DiskRescue-Pro-Desktop-win-x64/**
+          if-no-files-found: error
+      - name: Upload Windows x64 desktop screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiskRescue-Pro-Desktop-Screenshot
+          path: artifacts/DiskRescue-Pro-Desktop-Screenshot.png
           if-no-files-found: error
       - name: Publish Windows x64 CLI preview
         run: dotnet publish src/DiskRescue.Cli/DiskRescue.Cli.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/DiskRescue-Pro-win-x64
