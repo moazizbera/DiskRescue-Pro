@@ -63,17 +63,14 @@ public sealed partial class NtfsMftReader
         var data = parsed.Attributes.Where(attribute =>
             attribute.Type == 0x80 &&
             string.Equals(attribute.Name, streamName, StringComparison.Ordinal)).ToArray();
-        if (data.Length != 1)
-            return InvalidDeletedCopy("The requested deleted $DATA stream is missing or ambiguous on re-read.", assessment);
 
         NtfsFileDataStreamReader reader;
-        var attribute = data[0];
-        if (attribute.Flags != 0)
-            return InvalidDeletedCopy("Deleted $DATA stream flags changed or are unsupported.", assessment);
-
         if (assessment.IsResident)
         {
-            if (attribute.IsNonResident || attribute.ResidentValue is null ||
+            if (data.Length != 1)
+                return InvalidDeletedCopy("The resident deleted $DATA stream is missing or ambiguous on re-read.", assessment);
+            var attribute = data[0];
+            if (attribute.Flags != 0 || attribute.IsNonResident || attribute.ResidentValue is null ||
                 attribute.ResidentValueLength != attribute.ResidentValue.Length ||
                 (ulong)attribute.ResidentValue.Length != assessment.Length ||
                 assessment.InitializedSize != assessment.Length)
@@ -84,32 +81,28 @@ public sealed partial class NtfsMftReader
         }
         else
         {
-            if (!attribute.IsNonResident || attribute.LowestVcn != 0 ||
-                attribute.HighestVcn is not ulong highestVcn ||
-                attribute.MappingPairs is null ||
-                attribute.InitializedSize is not ulong initializedSize ||
-                attribute.RealSize is not ulong realSize ||
-                attribute.AllocatedSize is not ulong allocatedSize ||
-                initializedSize != assessment.InitializedSize ||
-                realSize != assessment.Length ||
-                initializedSize > realSize)
-                return InvalidDeletedCopy("Non-resident deleted-stream metadata changed or is incomplete.", assessment);
+            // Re-run the complete MFT/attribute-list/extent/$Bitmap preflight immediately
+            // before content I/O. This validates continuation FILE records as well as the
+            // base record; parsing only the base record cannot validate a fragmented stream.
+            var refreshed = AssessDeletedDataStream(recordNumber, streamName, cancellationToken);
+            if (!refreshed.IsValid || refreshed.Assessment is null ||
+                !refreshed.Assessment.IsEligibleForBoundedRead)
+                return InvalidDeletedCopy("Deleted multi-extent stream failed immediate pre-read revalidation: " +
+                    string.Join("; ", refreshed.Issues.Concat(refreshed.Assessment?.Warnings ?? Array.Empty<string>())),
+                    refreshed.Assessment ?? assessment);
 
-            var volumeClusters = (ulong)(_volumeLength / _boot.ClusterSizeBytes);
-            var runlist = NtfsRunlistParser.Parse(attribute.MappingPairs, volumeClusters);
-            if (!runlist.IsValid || runlist.Runs.Any(run => run.IsSparse) ||
-                highestVcn == ulong.MaxValue || runlist.TotalClusters != highestVcn + 1 ||
-                !runlist.Runs.SequenceEqual(assessment.Runs))
-                return InvalidDeletedCopy("Non-resident deleted-stream runlist changed or failed revalidation.", assessment);
+            var current = refreshed.Assessment;
+            if (current.Metadata.RecordNumber != assessment.Metadata.RecordNumber ||
+                current.Metadata.SequenceNumber != assessment.Metadata.SequenceNumber ||
+                current.Length != assessment.Length ||
+                current.InitializedSize != assessment.InitializedSize ||
+                current.IsResident ||
+                !current.Runs.SequenceEqual(assessment.Runs))
+                return InvalidDeletedCopy("Deleted stream identity, sizes, or complete extent map changed after preflight.", current);
 
-            var mappedBytes = checked(runlist.TotalClusters * _boot.ClusterSizeBytes);
-            if (allocatedSize > mappedBytes || realSize > mappedBytes)
-                return InvalidDeletedCopy("Non-resident deleted-stream sizes exceed the revalidated runlist.", assessment);
-
-            // The preflight has already checked every run against the current $Bitmap.
-            // The existing reader enforces source and volume byte boundaries on every read.
             reader = new NtfsFileDataStreamReader(_source, _volumeOffset, _volumeLength,
-                _boot.ClusterSizeBytes, assessment.Runs, initializedSize, realSize);
+                _boot.ClusterSizeBytes, current.Runs, current.InitializedSize, current.Length);
+            assessment = current;
         }
 
         cancellationToken.ThrowIfCancellationRequested();
