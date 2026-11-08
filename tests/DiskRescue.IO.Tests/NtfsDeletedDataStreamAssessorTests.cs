@@ -68,7 +68,7 @@ public sealed class NtfsDeletedDataStreamAssessorTests
 
         Assert.Equal(NtfsDeletedDataStreamStatus.ClustersAllocated, result.Status);
         Assert.False(result.IsEligibleForBoundedRead);
-        Assert.Equal(NtfsClusterAllocationStatus.Allocated, result.ClusterAllocation!.Status);
+        Assert.Equal(NtfsClusterAllocationStatus.Mixed, result.ClusterAllocation!.Status);
     }
 
     [Fact]
