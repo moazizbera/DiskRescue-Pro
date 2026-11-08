@@ -21,6 +21,9 @@ public sealed record NtfsDeletedDataStreamAssessment(
     NtfsClusterAllocationAssessment? ClusterAllocation,
     IReadOnlyList<string> Warnings)
 {
+    /// <summary>NTFS initialized-size boundary; bytes after this offset are zero-filled.</summary>
+    public ulong InitializedSize { get; init; }
+
     public bool IsEligibleForBoundedRead => Status == NtfsDeletedDataStreamStatus.ReadyForBoundedRead;
 }
 
@@ -83,7 +86,7 @@ public static class NtfsDeletedDataStreamAssessor
                     warnings: new[] { "Resident $DATA value metadata is inconsistent." });
 
             return Result(NtfsDeletedDataStreamStatus.ReadyForBoundedRead, metadata,
-                resident: true, length: residentLength,
+                resident: true, length: residentLength, initializedSize: residentLength,
                 warnings: new[]
                 {
                     "Resident bytes remain inside the validated MFT record; this is only a bounded-read eligibility result.",
@@ -132,7 +135,7 @@ public static class NtfsDeletedDataStreamAssessor
                 warnings: new[] { "One or more clusters are currently allocated and may have been reused; do not read deleted content." });
 
         return Result(NtfsDeletedDataStreamStatus.ReadyForBoundedRead, metadata,
-            length: realSize, runs: parsedRuns.Runs, allocation: allocation,
+            length: realSize, initializedSize: initializedSize, runs: parsedRuns.Runs, allocation: allocation,
             warnings: new[]
             {
                 "The runlist and current allocation state passed preliminary checks only.",
@@ -145,10 +148,12 @@ public static class NtfsDeletedDataStreamAssessor
         NtfsDeletedFileAssessment metadata,
         bool resident = false,
         ulong length = 0,
+        ulong initializedSize = 0,
         IReadOnlyList<NtfsDataRun>? runs = null,
         NtfsClusterAllocationAssessment? allocation = null,
         IReadOnlyList<string>? warnings = null) =>
-        new(status, metadata, resident, length,
+        new NtfsDeletedDataStreamAssessment(status, metadata, resident, length,
             runs ?? Array.Empty<NtfsDataRun>(), allocation,
-            metadata.Warnings.Concat(warnings ?? Array.Empty<string>()).ToArray());
+            metadata.Warnings.Concat(warnings ?? Array.Empty<string>()).ToArray())
+        { InitializedSize = initializedSize };
 }
