@@ -181,4 +181,87 @@ public sealed class NtfsDeletedDataStreamAssessorTests
         Assert.Equal(NtfsDeletedDataStreamStatus.MetadataRejected, result.Status);
         Assert.False(result.IsEligibleForBoundedRead);
     }
+
+    private static NtfsAttribute NonResidentExtent(ulong lowestVcn, ulong highestVcn,
+        byte[] mappingPairs, ulong allocatedSize = 2048, ulong realSize = 2048,
+        ulong initializedSize = 2048) =>
+        new(0x80, 80, true, 1, 0, "", null, null,
+            lowestVcn, highestVcn, 64, allocatedSize, realSize, initializedSize,
+            mappingPairs, null);
+
+    [Fact]
+    public void AllowsValidatedFragmentedMultiExtentStreamWhenEveryClusterIsFree()
+    {
+        var map = NtfsClusterAllocationMap.Create(new byte[1], 8).Map!;
+        var result = NtfsDeletedDataStreamAssessor.AssessValidatedAttributeList(
+            Entry(), Record(), Name(), Parent(),
+            new[]
+            {
+                NonResidentExtent(0, 1, new byte[] { 0x11, 0x02, 0x01, 0x00 }),
+                NonResidentExtent(2, 3, new byte[] { 0x11, 0x02, 0x05, 0x00 })
+            },
+            8, 512, map, "");
+
+        Assert.Equal(NtfsDeletedDataStreamStatus.ReadyForBoundedRead, result.Status);
+        Assert.True(result.IsEligibleForBoundedRead);
+        Assert.Equal((ulong)2048, result.Length);
+        Assert.Equal((ulong)2048, result.InitializedSize);
+        Assert.Equal(2, result.Runs.Count);
+        Assert.Equal((ulong)1, result.Runs[0].StartingLcn);
+        Assert.Equal((ulong)5, result.Runs[1].StartingLcn);
+        Assert.Equal(NtfsClusterAllocationStatus.Free, result.ClusterAllocation!.Status);
+    }
+
+    [Fact]
+    public void RejectsValidatedMultiExtentStreamWithVcnGap()
+    {
+        var map = NtfsClusterAllocationMap.Create(new byte[1], 8).Map!;
+        var result = NtfsDeletedDataStreamAssessor.AssessValidatedAttributeList(
+            Entry(), Record(), Name(), Parent(),
+            new[]
+            {
+                NonResidentExtent(0, 1, new byte[] { 0x11, 0x02, 0x01, 0x00 }),
+                NonResidentExtent(3, 4, new byte[] { 0x11, 0x02, 0x05, 0x00 })
+            },
+            8, 512, map, "");
+
+        Assert.Equal(NtfsDeletedDataStreamStatus.InvalidRunlist, result.Status);
+        Assert.False(result.IsEligibleForBoundedRead);
+    }
+
+    [Fact]
+    public void RejectsValidatedMultiExtentStreamWithPhysicalOverlap()
+    {
+        var map = NtfsClusterAllocationMap.Create(new byte[1], 8).Map!;
+        var result = NtfsDeletedDataStreamAssessor.AssessValidatedAttributeList(
+            Entry(), Record(), Name(), Parent(),
+            new[]
+            {
+                NonResidentExtent(0, 1, new byte[] { 0x11, 0x02, 0x01, 0x00 }),
+                NonResidentExtent(2, 3, new byte[] { 0x11, 0x02, 0x01, 0x00 })
+            },
+            8, 512, map, "");
+
+        Assert.Equal(NtfsDeletedDataStreamStatus.InvalidRunlist, result.Status);
+        Assert.False(result.IsEligibleForBoundedRead);
+    }
+
+    [Fact]
+    public void BlocksValidatedMultiExtentStreamWhenContinuationClusterIsAllocated()
+    {
+        var map = NtfsClusterAllocationMap.Create(new byte[] { 0b0010_0000 }, 8).Map!;
+        var result = NtfsDeletedDataStreamAssessor.AssessValidatedAttributeList(
+            Entry(), Record(), Name(), Parent(),
+            new[]
+            {
+                NonResidentExtent(0, 1, new byte[] { 0x11, 0x02, 0x01, 0x00 }),
+                NonResidentExtent(2, 3, new byte[] { 0x11, 0x02, 0x05, 0x00 })
+            },
+            8, 512, map, "");
+
+        Assert.Equal(NtfsDeletedDataStreamStatus.ClustersAllocated, result.Status);
+        Assert.False(result.IsEligibleForBoundedRead);
+        Assert.Equal(NtfsClusterAllocationStatus.Mixed, result.ClusterAllocation!.Status);
+    }
+
 }
