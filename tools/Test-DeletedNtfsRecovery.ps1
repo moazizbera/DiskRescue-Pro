@@ -84,6 +84,9 @@ try {
         $manifest.deletedFile.metadataAssessment -ne "Verified" -or
         $manifest.deletedFile.clusterAllocation -ne "Free" -or
         $manifest.export.bytesWritten -ne 512 -or
+        $manifest.dataStream.lengthBytes -ne 512 -or
+        $manifest.dataStream.physicalRunCount -ne 1 -or
+        $manifest.dataStream.physicalRuns[0].startingLcn -ne 30 -or
         $manifest.export.sha256 -ne $outputHash -or
         $manifest.export.contentIntegrityVerified -ne $false -or
         $manifest.safety.sourceOpenedReadOnly -ne $true -or
@@ -115,6 +118,11 @@ try {
     $fragmentedManifest = Get-Content -LiteralPath "${fragmentedOutput}.recovery.json" -Raw | ConvertFrom-Json
     $fragmentedOutputHash = (Get-FileHash -LiteralPath $fragmentedOutput -Algorithm SHA256).Hash
     if ($fragmentedManifest.export.bytesWritten -ne 1024 -or
+        $fragmentedManifest.dataStream.lengthBytes -ne 1024 -or
+        $fragmentedManifest.dataStream.initializedSizeBytes -ne 1024 -or
+        $fragmentedManifest.dataStream.physicalRunCount -ne 2 -or
+        $fragmentedManifest.dataStream.physicalRuns[0].startingLcn -ne 30 -or
+        $fragmentedManifest.dataStream.physicalRuns[1].startingLcn -ne 34 -or
         $fragmentedManifest.export.sha256 -ne $fragmentedOutputHash -or
         $fragmentedManifest.export.contentIntegrityVerified -ne $false) {
         throw "Fragmented recovery manifest does not accurately describe the bounded export."
