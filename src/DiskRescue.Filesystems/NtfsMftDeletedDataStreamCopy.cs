@@ -27,6 +27,7 @@ public sealed partial class NtfsMftReader
         if (!destination.CanWrite)
             return InvalidDeletedCopy("Destination stream is not writable.");
 
+        cancellationToken.ThrowIfCancellationRequested();
         var preflight = AssessDeletedDataStream(recordNumber, streamName, cancellationToken);
         if (!preflight.IsValid || preflight.Assessment is null)
             return InvalidDeletedCopy("Deleted-stream preflight failed: " + string.Join("; ", preflight.Issues));
