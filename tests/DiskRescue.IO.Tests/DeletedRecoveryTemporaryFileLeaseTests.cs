@@ -46,7 +46,7 @@ public sealed class DeletedRecoveryTemporaryFileLeaseTests
             var lockPath = Path.Combine(directory, $".diskrescue-{token}.lock");
             var manifestPath = Path.Combine(directory, $".diskrescue-{token}.manifest.partial");
             var possiblePublishedOutput = Path.Combine(directory, "recovered.bin");
-            File.WriteAllText(lockPath, "DiskRescuePro.DeletedExport.v1\\n" + token);
+            File.WriteAllText(lockPath, "DiskRescuePro.DeletedExport.v1\n" + token);
             File.WriteAllText(manifestPath, "pending manifest");
             File.WriteAllText(possiblePublishedOutput, "published output");
 
