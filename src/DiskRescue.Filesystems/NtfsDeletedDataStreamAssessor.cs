@@ -40,6 +40,7 @@ public static class NtfsDeletedDataStreamAssessor
         NtfsFileRecord? parentRecord,
         IReadOnlyList<NtfsAttribute> attributes,
         ulong volumeClusterCount,
+        uint clusterSizeBytes,
         NtfsClusterAllocationMap? allocationMap,
         string streamName = "")
     {
@@ -86,7 +87,7 @@ public static class NtfsDeletedDataStreamAssessor
                 });
         }
 
-        if (volumeClusterCount == 0 || allocationMap is null ||
+        if (volumeClusterCount == 0 || clusterSizeBytes == 0 || allocationMap is null ||
             allocationMap.VolumeClusterCount != volumeClusterCount ||
             attribute.LowestVcn != 0 || attribute.HighestVcn is not ulong highestVcn ||
             attribute.MappingPairs is null || attribute.RealSize is not ulong realSize ||
@@ -104,16 +105,15 @@ public static class NtfsDeletedDataStreamAssessor
                 warnings: new[] { "Deleted $DATA mapping pairs are invalid, sparse, empty, or inconsistent with the declared VCN range." });
 
         ulong mappedBytes;
-        try { mappedBytes = checked(parsedRuns.TotalClusters * (ulong)1); }
+        try { mappedBytes = checked(parsedRuns.TotalClusters * clusterSizeBytes); }
         catch (OverflowException)
         {
             return Result(NtfsDeletedDataStreamStatus.InvalidRunlist, metadata,
                 warnings: new[] { "Deleted $DATA extent size overflows supported bounds." });
         }
-
-        // The caller supplies the cluster size indirectly through the parsed volume
-        // geometry in the subsequent reader stage. Here, validate cluster counts and
-        // allocation only; byte-size-to-cluster-size comparison is deferred.
+        if (allocatedSize > mappedBytes || realSize > mappedBytes)
+            return Result(NtfsDeletedDataStreamStatus.InvalidRunlist, metadata,
+                warnings: new[] { "Deleted $DATA size metadata exceeds the decoded extent map." });
         var allocation = allocationMap.Assess(parsedRuns.Runs);
         if (allocation.Status == NtfsClusterAllocationStatus.Unknown)
             return Result(NtfsDeletedDataStreamStatus.AllocationUnknown, metadata,
