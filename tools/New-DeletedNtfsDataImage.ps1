@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$OutputPath,
-    [switch]$MarkDataClustersAllocated
+    [switch]$MarkDataClustersAllocated,
+    [switch]$Fragmented
 )
 
 $ErrorActionPreference = "Stop"
@@ -47,7 +48,7 @@ $image[510] = 0x55
 $image[511] = 0xAA
 [Array]::Copy($boot, 0, $image, $sectorSize, $sectorSize)
 
-function New-FileRecord([UInt32]$RecordNumber, [UInt16]$Flags, [string]$Kind) {
+function New-FileRecord([UInt32]$RecordNumber, [UInt16]$Flags, [string]$Kind, [UInt64]$BaseReference = 0) {
     $record = New-Object byte[] 1024
     [Text.Encoding]::ASCII.GetBytes("FILE").CopyTo($record, 0)
     Write-U16 $record 4 48
@@ -58,6 +59,7 @@ function New-FileRecord([UInt32]$RecordNumber, [UInt16]$Flags, [string]$Kind) {
     Write-U16 $record 22 $Flags
     Write-U32 $record 28 1024
     Write-U32 $record 44 $RecordNumber
+    Write-U64 $record 32 $BaseReference
     Write-U16 $record 48 0x5A5A
     Write-U16 $record 50 0xAAAA
     Write-U16 $record 52 0xBBBB
@@ -83,45 +85,68 @@ function New-FileRecord([UInt32]$RecordNumber, [UInt16]$Flags, [string]$Kind) {
         Write-U32 $record 24 132
     }
     elseif ($Kind -eq "DeletedFile") {
-        # Deleted FILE record with one non-resident $DATA stream at LCN 30..31.
-        Write-U32 $record 56 0x80
-        Write-U32 $record 60 72
-        $record[64] = 1
-        Write-U64 $record 72 0
-        Write-U64 $record 80 1
-        Write-U16 $record 88 64
-        Write-U64 $record 96 1024
-        Write-U64 $record 104 512
-        Write-U64 $record 112 512
-        $record[120] = 0x11
-        $record[121] = 2
-        $record[122] = 30
-        $record[123] = 0
-        # Append a resident $FILE_NAME attribute referencing active parent record 5, sequence 9.
-        $name = "Deleted.txt"
-        $nameBytes = [Text.Encoding]::Unicode.GetBytes($name)
+        if ($Fragmented) {
+            # Base extent VCN 0 at LCN 30; continuation extent VCN 1 at LCN 34.
+            Write-U32 $record 56 0x80; Write-U32 $record 60 72; $record[64] = 1
+            Write-U64 $record 72 0; Write-U64 $record 80 0; Write-U16 $record 88 64
+            Write-U64 $record 96 1024; Write-U64 $record 104 1024; Write-U64 $record 112 1024
+            $record[120] = 0x11; $record[121] = 1; $record[122] = 30; $record[123] = 0
+        } else {
+            # Existing single-extent fixture: two clusters at LCN 30..31.
+            Write-U32 $record 56 0x80; Write-U32 $record 60 72; $record[64] = 1
+            Write-U64 $record 72 0; Write-U64 $record 80 1; Write-U16 $record 88 64
+            Write-U64 $record 96 1024; Write-U64 $record 104 512; Write-U64 $record 112 512
+            $record[120] = 0x11; $record[121] = 2; $record[122] = 30; $record[123] = 0
+        }
+        # Resident $FILE_NAME attribute references active parent record 5, sequence 9.
+        $name = "Deleted.txt"; $nameBytes = [Text.Encoding]::Unicode.GetBytes($name)
         $valueLength = 66 + $nameBytes.Length
         $attributeLength = (24 + $valueLength + 7) -band -8
-        Write-U32 $record 128 0x30
-        Write-U32 $record 132 $attributeLength
-        $record[136] = 0
-        Write-U32 $record 144 $valueLength
-        Write-U16 $record 148 24
+        Write-U32 $record 128 0x30; Write-U32 $record 132 $attributeLength; $record[136] = 0
+        Write-U32 $record 144 $valueLength; Write-U16 $record 148 24
         Write-U64 $record 152 (([UInt64]9 -shl 48) -bor [UInt64]5)
-        Write-U64 $record 192 4096
-        Write-U64 $record 200 2048
-        $record[216] = [byte]$name.Length
-        $record[217] = 1
+        Write-U64 $record 192 4096; Write-U64 $record 200 2048
+        $record[216] = [byte]$name.Length; $record[217] = 1
         [Array]::Copy($nameBytes, 0, $record, 218, $nameBytes.Length)
         $endMarkerOffset = 128 + $attributeLength
+        if ($Fragmented) {
+            # Resident $ATTRIBUTE_LIST contains exact identities for both deleted extents.
+            $listOffset = $endMarkerOffset; $entryLength = 32; $listAttributeLength = 88
+            Write-U32 $record $listOffset 0x20; Write-U32 $record ($listOffset + 4) $listAttributeLength
+            Write-U32 $record ($listOffset + 16) 64; Write-U16 $record ($listOffset + 20) 24
+            $firstEntry = $listOffset + 24
+            Write-U32 $record $firstEntry 0x80; Write-U16 $record ($firstEntry + 4) $entryLength
+            Write-U64 $record ($firstEntry + 8) 0
+            Write-U64 $record ($firstEntry + 16) (([UInt64]9 -shl 48) -bor [UInt64]1)
+            Write-U16 $record ($firstEntry + 24) 1
+            $secondEntry = $firstEntry + $entryLength
+            Write-U32 $record $secondEntry 0x80; Write-U16 $record ($secondEntry + 4) $entryLength
+            Write-U64 $record ($secondEntry + 8) 1
+            Write-U64 $record ($secondEntry + 16) (([UInt64]9 -shl 48) -bor [UInt64]2)
+            Write-U16 $record ($secondEntry + 24) 1
+            $endMarkerOffset = $listOffset + $listAttributeLength
+        }
         Write-U32 $record $endMarkerOffset 4294967295
         Write-U32 $record 24 ($endMarkerOffset + 4)
+    }
+    elseif ($Kind -eq "DeletedContinuation") {
+        # Deleted extension record 2 points back to base record 1, sequence 9.
+        Write-U32 $record 56 0x80; Write-U32 $record 60 72; $record[64] = 1
+        Write-U64 $record 72 1; Write-U64 $record 80 1; Write-U16 $record 88 64
+        Write-U64 $record 96 1024; Write-U64 $record 104 1024; Write-U64 $record 112 1024
+        $record[120] = 0x11; $record[121] = 1; $record[122] = 34; $record[123] = 0
+        Write-U32 $record 128 4294967295; Write-U32 $record 24 132
     }
     elseif ($Kind -eq "Bitmap") {
         # Resident $Bitmap data; 16 bytes cover the 127-cluster volume.
         $bitmap = New-Object byte[] 16
         if ($MarkDataClustersAllocated) {
-            $bitmap[3] = 0xC0 # bits 30 and 31: LCN 30 and 31 are allocated
+            if ($Fragmented) {
+                $bitmap[3] = 0x40 # LCN 30 is allocated.
+                $bitmap[4] = 0x04 # LCN 34 is allocated in the continuation extent.
+            } else {
+                $bitmap[3] = 0xC0 # LCN 30 and 31 are allocated.
+            }
         }
         $attributeLength = 40
         Write-U32 $record 56 0x80
@@ -150,13 +175,25 @@ $bitmap = New-FileRecord 6 1 "Bitmap"
 $volumeBase = $sectorSize
 [Array]::Copy($mft, 0, $image, $volumeBase + 4 * $clusterSize, 1024)
 [Array]::Copy($file, 0, $image, $volumeBase + 6 * $clusterSize, 1024)
+if ($Fragmented) {
+    $baseReference = ([UInt64]9 -shl 48) -bor [UInt64]1
+    $continuation = New-FileRecord 2 0 "DeletedContinuation" $baseReference
+    [Array]::Copy($continuation, 0, $image, $volumeBase + 8 * $clusterSize, 1024)
+}
 [Array]::Copy($parent, 0, $image, $volumeBase + 14 * $clusterSize, 1024)
 [Array]::Copy($bitmap, 0, $image, $volumeBase + 16 * $clusterSize, 1024)
 
-# Deterministic 512-byte payload at LCN 30. No real disk is opened or modified.
-$payload = New-Object byte[] 512
-for ($i = 0; $i -lt $payload.Length; $i++) { $payload[$i] = [byte]($i % 251) }
-[Array]::Copy($payload, 0, $image, $volumeBase + 30 * $clusterSize, $payload.Length)
+# Deterministic payload split across physically fragmented clusters.
+if ($Fragmented) {
+    $payload = New-Object byte[] 1024
+    for ($i = 0; $i -lt $payload.Length; $i++) { $payload[$i] = [byte]($i % 251) }
+    [Array]::Copy($payload, 0, $image, $volumeBase + 30 * $clusterSize, 512)
+    [Array]::Copy($payload, 512, $image, $volumeBase + 34 * $clusterSize, 512)
+} else {
+    $payload = New-Object byte[] 512
+    for ($i = 0; $i -lt $payload.Length; $i++) { $payload[$i] = [byte]($i % 251) }
+    [Array]::Copy($payload, 0, $image, $volumeBase + 30 * $clusterSize, $payload.Length)
+}
 
 $fullPath = [IO.Path]::GetFullPath($OutputPath)
 $directory = [IO.Path]::GetDirectoryName($fullPath)
@@ -169,7 +206,7 @@ if ([IO.File]::Exists($fullPath)) {
 [IO.File]::WriteAllBytes($fullPath, $image)
 $hash = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash
 Write-Output "Created synthetic deleted-NTFS fixture: $fullPath"
-Write-Output "Volume offset: 512 bytes; volume length: $($volumeSectors * $sectorSize) bytes; deleted record: 1; parent: 5; payload: 512 bytes"
-Write-Output "Data clusters 30..31: $(if ($MarkDataClustersAllocated) { 'marked allocated for refusal test' } else { 'marked free for bounded-read test' })"
+Write-Output "Volume offset: 512 bytes; volume length: $($volumeSectors * $sectorSize) bytes; deleted record: 1; parent: 5; payload: $(if ($Fragmented) { 1024 } else { 512 }) bytes"
+Write-Output "Data clusters: $(if ($Fragmented) { '30 and 34 (fragmented)' } else { '30..31' }); allocation: $(if ($MarkDataClustersAllocated) { 'allocated for refusal test' } else { 'free for bounded-read test' })"
 Write-Output "SHA256: $hash"
 Write-Output "Disposable parser fixture only; no physical disk was accessed."
