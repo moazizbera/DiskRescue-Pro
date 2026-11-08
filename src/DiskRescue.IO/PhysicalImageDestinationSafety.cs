@@ -59,20 +59,19 @@ public static class PhysicalImageDestinationSafety
             if (string.IsNullOrWhiteSpace(destinationDirectory) || !Directory.Exists(destinationDirectory))
                 throw new DirectoryNotFoundException("Destination directory does not exist.");
 
-            var driveRoot = Path.GetPathRoot(destinationDirectory);
-            if (string.IsNullOrWhiteSpace(driveRoot))
-                throw new IOException("Unable to resolve the destination filesystem root.");
-            var destinationDrive = new DriveInfo(driveRoot);
+            var mountPath = new StringBuilder(1024);
+            if (!NativeMethods.GetVolumePathName(destinationDirectory, mountPath, mountPath.Capacity))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to resolve the destination mount point.");
+
+            // Use the resolved mount path, not Path.GetPathRoot(destinationDirectory):
+            // a directory can be a mounted volume nested beneath another drive.
+            var destinationDrive = new DriveInfo(mountPath.ToString());
             if (!destinationDrive.IsReady)
                 throw new IOException("Destination filesystem is not ready.");
             blockers.AddRange(ValidateFilesystemCapacity(
                 destinationDrive.DriveFormat,
                 destinationDrive.AvailableFreeSpace,
                 requiredBytes));
-
-            var mountPath = new StringBuilder(1024);
-            if (!NativeMethods.GetVolumePathName(destinationDirectory, mountPath, mountPath.Capacity))
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to resolve the destination mount point.");
 
             var volumeName = new StringBuilder(1024);
             if (!NativeMethods.GetVolumeNameForVolumeMountPoint(mountPath.ToString(), volumeName, volumeName.Capacity))
