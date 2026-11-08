@@ -231,8 +231,8 @@ public sealed class NtfsMftReaderTests
         Assert.NotNull(result.Copy);
         Assert.Equal((ulong)512, result.Copy!.BytesWritten);
         Assert.Equal(expected, destination.ToArray());
-        Assert.False(result.Assessment.Warnings.Any(warning =>
-            warning.Contains("integrity verified", StringComparison.OrdinalIgnoreCase)));
+        Assert.DoesNotContain(result.Assessment.Warnings, warning =>
+            warning.Contains("integrity verified", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
