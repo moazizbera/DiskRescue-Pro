@@ -108,10 +108,14 @@ public sealed class NtfsClusterAllocationMap
         ulong total = 0;
         ulong free = 0;
         ulong allocated = 0;
+        ulong expectedVcn = 0;
+        var physicalRanges = new List<(ulong Start, ulong End)>();
         foreach (var run in runs)
         {
             if (run.ClusterCount == 0 || run.StartingVcn > ulong.MaxValue - run.ClusterCount)
                 return Unknown("A data run contains an empty or overflowing VCN range.");
+            if (run.StartingVcn != expectedVcn)
+                return Unknown("Data runs are not a contiguous, ordered VCN map starting at VCN 0.");
             if (run.IsSparse)
                 return Unknown("Sparse runs cannot be mapped to physical cluster allocation bits.");
             var start = run.StartingLcn!.Value;
@@ -120,6 +124,8 @@ public sealed class NtfsClusterAllocationMap
             if (run.ClusterCount > MaximumAssessmentClusters - total)
                 return Unknown($"Assessment exceeds the {MaximumAssessmentClusters}-cluster safety limit.");
 
+            var physicalEnd = checked(start + run.ClusterCount);
+            physicalRanges.Add((start, physicalEnd));
             for (ulong i = 0; i < run.ClusterCount; i++)
             {
                 var cluster = start + i;
@@ -131,6 +137,14 @@ public sealed class NtfsClusterAllocationMap
                     allocated++;
             }
             total = checked(total + run.ClusterCount);
+            expectedVcn = checked(expectedVcn + run.ClusterCount);
+        }
+
+        var orderedPhysicalRanges = physicalRanges.OrderBy(range => range.Start).ToArray();
+        for (var index = 1; index < orderedPhysicalRanges.Length; index++)
+        {
+            if (orderedPhysicalRanges[index].Start < orderedPhysicalRanges[index - 1].End)
+                return Unknown("Data runs contain overlapping physical cluster ranges.");
         }
 
         var status = allocated == 0 ? NtfsClusterAllocationStatus.Free
