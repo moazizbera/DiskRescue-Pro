@@ -65,7 +65,7 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [ ] Detect hard links, alternate data streams, and reparse points
 - [x] Verify bounded exported byte count and calculate a SHA-256 for the exported bytes (not an original-file integrity check)
 - [x] Keep deleted-file metadata/allocation eligibility separate from content-integrity claims; the current export always reports integrity unverified
-- [ ] Add multi-extent deleted-stream mapping and stronger recovered-content integrity evidence
+- [x] Assemble deleted multi-extent streams through a deleted-specific validated `$ATTRIBUTE_LIST` matcher; validate VCN continuity, physical-run overlap, and allocation across every extent (content integrity remains unverified)
 
 ## Phase 5 — Safe extraction
 
@@ -92,9 +92,11 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 
 ## Deleted NTFS bounded-export milestone (image files only)
 
-The draft feature branch now includes a separate deleted-stream export command gated by verified deleted FILE-record/parent identity and current `$Bitmap` evidence. Only resident or single-extent non-sparse, uncompressed, unencrypted streams are supported; deleted `$ATTRIBUTE_LIST` continuations and multi-extent layouts fail closed. Successful exports produce a sidecar recovery manifest. The manifest's SHA-256 identifies the exported bytes only. A free allocation bit does not prove the bytes were never overwritten, so content integrity is always reported as unverified.
+The PR #9 feature branch includes a separate deleted-stream export command gated by verified deleted base FILE-record/parent identity and current `$Bitmap` evidence. It supports resident streams and non-resident multi-extent streams when a resident `$ATTRIBUTE_LIST` completely identifies the deleted base and continuation FILE records, and those records are reachable through the initially validated MFT map. The deleted-specific matcher checks record sequence, base reference, attribute type/name/ID/lowest VCN; the stream assessor enforces contiguous VCN coverage, valid mapping pairs, non-overlapping physical runs, and currently-free allocation across every extent. The exporter re-runs the complete preflight immediately before content reads.
 
-The dedicated `tools/Test-DeletedNtfsRecovery.ps1` harness generates disposable synthetic images and checks the positive and refusal paths. This does not validate physical HDD recovery, and the original HDD is not used.
+The recovery manifest records stream size, initialized size, cluster size, and the validated physical run map, alongside the output SHA-256. That hash identifies exported bytes only. A free allocation bit does not prove the bytes were never overwritten, so content integrity is always reported as unverified. Sparse, compressed, encrypted, non-resident `$ATTRIBUTE_LIST` bootstrap, recursive MFT discovery, and physical-device partition recovery remain unsupported.
+
+The dedicated `tools/Test-DeletedNtfsRecovery.ps1` harness generates disposable synthetic images and checks single-extent and physically fragmented multi-extent exports, exact payload bytes, manifest run-map provenance, source-image immutability, allocation refusal including a continuation-only allocated cluster, byte ceilings, collision protections, and temporary-file cleanup. Matcher unit tests also cover stale continuation sequences, incorrect base references, duplicate entries, and active continuation records. This does not validate physical HDD recovery, and the original HDD is not used.
 
 ## Non-negotiable release gates
 
