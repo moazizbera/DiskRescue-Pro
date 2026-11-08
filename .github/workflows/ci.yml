@@ -85,7 +85,7 @@ jobs:
           $global:LASTEXITCODE = 0
       - name: Smoke-test deleted NTFS extraction and recovery manifest
         shell: pwsh
-        run: ./tools/Test-DeletedNtfsRecovery.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiskRescue-DeletedRecovery"
+        run: ./tools/Test-DeletedNtfsRecovery.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiskRescue-DeletedRecovery-Source" -DestinationDirectory "$env:TEMP/DiskRescue-DeletedRecovery-Destination"
       - name: Smoke-test one-command lost NTFS recovery harness
         shell: pwsh
         run: ./tools/Test-LostNtfsRecovery.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiskRescue-Recovery-Harness"
