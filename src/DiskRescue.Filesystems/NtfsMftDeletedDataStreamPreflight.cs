@@ -27,8 +27,9 @@ public sealed partial class NtfsMftReader
             return InvalidDeletedPreflight("Unable to read deleted FILE record: " + string.Join("; ", read.Issues));
 
         var record = read.Record;
-        if ((record.Flags & 0x0001) != 0 || !record.BaseFileReference.IsNull)
-            return InvalidDeletedPreflight("Requested FILE record is not an independent deleted base record.");
+        // Let the shared deleted-file assessor produce a MetadataRejected assessment
+        // for active records and extension records. Callers rely on a structured result
+        // so export refusal is observable without a null assessment.
 
         var parsed = NtfsAttributeParser.Parse(record);
         if (!parsed.IsValid)
