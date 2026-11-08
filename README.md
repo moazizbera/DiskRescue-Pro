@@ -114,6 +114,16 @@ dotnet run --project src/DiskRescue.Cli -- extract-deleted-ntfs-file "C:\Images\
 
 This command does not follow deleted-file `$ATTRIBUTE_LIST` continuations or multi-extent streams. It requires a single supported stream, verified deleted FILE-record and parent identity, and current `$Bitmap` evidence that all referenced clusters are free. It revalidates the record and runlist before reading, zero-fills bytes beyond initialized size, enforces the explicit byte ceiling, writes to a temporary file, and never overwrites an existing output. A free-cluster result cannot establish overwrite history; the output SHA-256 is only a hash of the exported bytes. Content integrity is always reported as unverified. Use a new destination on separate storage, never the source.
 
+A successful export also creates a sidecar `<output-file>.recovery.json` manifest. It records source path/name/length and timestamps, volume boundaries and sector size, deleted MFT record and stream, metadata and allocation assessments, exported byte count and SHA-256, safety flags, and warnings. The manifest explicitly says the export hash is not an original-file hash and that content integrity and physical-device recovery are unverified. The CLI refuses to overwrite an existing output or manifest and removes the output if it cannot publish the matching manifest.
+
+Run the complete disposable end-to-end checklist locally:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-DeletedNtfsRecovery.ps1
+```
+
+The harness builds the CLI and validates successful export and manifest contents, source-image immutability, refusal of allocated clusters, byte-limit enforcement, source-path and existing-file protection, manifest collision handling, and temporary-file cleanup. It uses generated synthetic images only.
+
 ## Safe test images
 
 Generate disposable fixtures without touching physical disks:
@@ -153,7 +163,7 @@ The next critical milestones are:
 2. Parse NTFS directory indexes and validate complete parent relationships; export files using verified names and safe path handling.
 3. Add multi-extent file streams, sparse-file handling, compressed/encrypted stream diagnostics, and stronger recovered-content integrity verification.
 4. Extend image-based lost-partition discovery to FAT32 and exFAT, improve candidate deduplication/conflict analysis, and expand generated regression fixtures. The current scanner is NTFS-only and does not access physical disks.
-5. Add recovery manifests, destination-volume verification, resume semantics, and end-to-end extraction validation.
+5. Recovery manifests and deleted-stream CLI end-to-end validation are implemented for the bounded single-extent image workflow. Remaining: destination-volume verification, resume semantics, and broader multi-extent/fragmented recovery validation.
 6. Finish the physical acquisition release gate: add durable bad-sector/error reporting and a safe resume journal, validate cancellation and manifest-failure recovery, and test the guarded workflow against sacrificial physical hardware. The experimental WPF acquisition window is integrated; physical partition scanning remains disabled until the remaining checks pass.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for status and release gates.
