@@ -533,13 +533,32 @@ public partial class MainWindow : Window
             AddSegment(candidate.ByteOffset, candidate.ByteLength, "", new SolidColorBrush(Color.FromRgb(242, 166, 90)),
                 3, 9, $"Detected lost-partition candidate · {candidate.Name}\nStart: {FormatBytes(candidate.ByteOffset)}\nSize: {candidate.Size}");
 
-        var legend = new TextBlock
+        var legendItems = new (string Label, Color Color)[]
         {
-            Text = "■ GPT   ■ MBR   ■ Lost candidate   ■ Unallocated",
-            Foreground = (Brush)FindResource("Muted"),
-            FontSize = 9,
-            IsHitTestVisible = false
+            ("GPT", Color.FromRgb(36, 139, 156)),
+            ("MBR", Color.FromRgb(55, 111, 176)),
+            ("Lost candidate", Color.FromRgb(242, 166, 90)),
+            ("Unallocated", Color.FromRgb(37, 52, 72))
         };
+        var legend = new StackPanel { Orientation = Orientation.Horizontal, IsHitTestVisible = false };
+        foreach (var item in legendItems)
+        {
+            legend.Children.Add(new Rectangle
+            {
+                Width = 7, Height = 7, RadiusX = 1, RadiusY = 1,
+                Fill = new SolidColorBrush(item.Color),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 4, 0)
+            });
+            legend.Children.Add(new TextBlock
+            {
+                Text = item.Label,
+                Foreground = (Brush)FindResource("Muted"),
+                FontSize = 9,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 10, 0)
+            });
+        }
         Canvas.SetRight(legend, 6);
         Canvas.SetTop(legend, height - 12);
         PartitionMapCanvas.Children.Add(legend);
