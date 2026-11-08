@@ -6,8 +6,9 @@ public sealed record NtfsDeletedDataStreamPreflightResult(
     IReadOnlyList<string> Issues);
 
 /// <summary>
-/// Builds a deleted-stream preflight from records read through this validated MFT
-/// reader. It does not return a content reader and performs no file-data reads.
+/// Builds a deleted-stream preflight from validated MFT records. Deleted continuation
+/// records are resolved only through a resident, parsed attribute list and a dedicated
+/// deleted-record matcher. No file content is read here.
 /// </summary>
 public sealed partial class NtfsMftReader
 {
@@ -20,11 +21,15 @@ public sealed partial class NtfsMftReader
         if (streamName.Length > byte.MaxValue)
             return InvalidDeletedPreflight("NTFS stream name exceeds the supported 255-character limit.");
 
+        cancellationToken.ThrowIfCancellationRequested();
         var read = ReadRecord(recordNumber);
         if (!read.IsValid || read.Record is null)
             return InvalidDeletedPreflight("Unable to read deleted FILE record: " + string.Join("; ", read.Issues));
 
         var record = read.Record;
+        if ((record.Flags & 0x0001) != 0 || !record.BaseFileReference.IsNull)
+            return InvalidDeletedPreflight("Requested FILE record is not an independent deleted base record.");
+
         var parsed = NtfsAttributeParser.Parse(record);
         if (!parsed.IsValid)
             return InvalidDeletedPreflight("Deleted FILE record attributes are invalid: " + string.Join("; ", parsed.Issues));
@@ -54,20 +59,69 @@ public sealed partial class NtfsMftReader
             fileName.AllocatedSize,
             fileName.RealSize,
             fileName.FileAttributes,
-            (record.Flags & 0x0001) == 0);
+            true);
 
         var parentRead = ReadRecord(fileName.ParentRecordNumber);
         var parent = parentRead.IsValid ? parentRead.Record : null;
-        var metadata = NtfsDeletedFileAssessor.Assess(entry, record, fileName, parent);
-
+        var issues = new List<string>();
+        var assessmentAttributes = parsed.Attributes.Where(attribute => attribute.Type != 0x20 && attribute.Type != 0x80).ToList();
         var matchingData = parsed.Attributes
             .Where(attribute => attribute.Type == 0x80 &&
                                 string.Equals(attribute.Name, streamName, StringComparison.Ordinal))
-            .ToArray();
+            .ToList();
+        var attributeListValidated = false;
+
+        var attributeLists = parsed.Attributes.Where(attribute => attribute.Type == 0x20).ToArray();
+        if (attributeLists.Length > 1)
+            return InvalidDeletedPreflight("Deleted FILE record has multiple $ATTRIBUTE_LIST attributes.");
+        if (attributeLists.Length == 1)
+        {
+            var list = NtfsAttributeListParser.Parse(attributeLists[0]);
+            if (!list.IsValid)
+                return InvalidDeletedPreflight("Deleted $ATTRIBUTE_LIST is invalid or unsupported: " + string.Join("; ", list.Issues));
+            if (list.Entries.Count > NtfsAttributeListMatcher.MaximumRecords)
+                return InvalidDeletedPreflight("Deleted $ATTRIBUTE_LIST exceeds the continuation-record limit.");
+
+            var baseReference = new NtfsFileReference(record.RecordNumber, record.SequenceNumber);
+            var recordsByNumber = new Dictionary<ulong, NtfsFileRecord> { [record.RecordNumber] = record };
+            foreach (var listEntry in list.Entries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (listEntry.FileRecordNumber == record.RecordNumber)
+                    continue;
+                if (listEntry.FileRecordNumber > uint.MaxValue)
+                    return InvalidDeletedPreflight("Deleted $ATTRIBUTE_LIST references an unsupported MFT record number.");
+                if (recordsByNumber.ContainsKey(listEntry.FileRecordNumber))
+                    continue;
+
+                var referenced = ReadReferencedRecord(
+                    new NtfsFileReference(listEntry.FileRecordNumber, listEntry.FileSequenceNumber), baseReference);
+                if (!referenced.IsValid || referenced.Record is null)
+                    return InvalidDeletedPreflight(
+                        $"Deleted continuation record {listEntry.FileRecordNumber} failed identity validation: " +
+                        string.Join("; ", referenced.Issues));
+                recordsByNumber.Add(listEntry.FileRecordNumber, referenced.Record);
+            }
+
+            var match = NtfsDeletedAttributeListMatcher.Match(
+                list, recordsByNumber.Values.ToArray(), baseReference);
+            if (!match.IsComplete)
+                return InvalidDeletedPreflight("Deleted $ATTRIBUTE_LIST matching failed: " +
+                    string.Join("; ", match.Diagnostics.Select(diagnostic => diagnostic.Message)));
+
+            matchingData = match.Matches
+                .Where(item => item.Entry.Type == 0x80 &&
+                               string.Equals(item.Entry.Name, streamName, StringComparison.Ordinal))
+                .Select(item => item.Attribute)
+                .ToList();
+            attributeListValidated = true;
+        }
+
+        assessmentAttributes.AddRange(matchingData);
+        var metadata = NtfsDeletedFileAssessor.Assess(entry, record, fileName, parent);
 
         NtfsClusterAllocationMap? allocationMap = null;
-        var issues = new List<string>();
-        if (metadata.MetadataVerified && matchingData.Length == 1 && matchingData[0].IsNonResident)
+        if (metadata.MetadataVerified && matchingData.Count > 0 && matchingData.All(attribute => attribute.IsNonResident))
         {
             var volumeClusters = (ulong)(_volumeLength / _boot.ClusterSizeBytes);
             var bitmap = NtfsClusterAllocationMap.Read(this, volumeClusters, cancellationToken: cancellationToken);
@@ -77,9 +131,9 @@ public sealed partial class NtfsMftReader
         }
 
         var assessment = NtfsDeletedDataStreamAssessor.Assess(
-            entry, record, fileName, parent, parsed.Attributes,
+            entry, record, fileName, parent, assessmentAttributes,
             (ulong)(_volumeLength / _boot.ClusterSizeBytes),
-            _boot.ClusterSizeBytes, allocationMap, streamName);
+            _boot.ClusterSizeBytes, allocationMap, streamName, attributeListValidated);
 
         return new(true, assessment, issues);
     }
