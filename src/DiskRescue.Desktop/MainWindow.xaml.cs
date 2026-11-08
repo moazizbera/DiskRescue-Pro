@@ -507,15 +507,22 @@ public partial class MainWindow : Window
         foreach (var row in knownRows)
         {
             var start = Math.Clamp(row.ByteOffset, 0, _partitionMapLength);
-            var end = Math.Clamp(row.ByteOffset + row.ByteLength, start, _partitionMapLength);
+            // Use subtraction before addition so malformed ranges cannot overflow.
+            var length = Math.Min(row.ByteLength, _partitionMapLength - start);
+            var end = start + length;
             if (start > cursor)
                 AddSegment(cursor, start - cursor, "", new SolidColorBrush(Color.FromRgb(37, 52, 72)), laneTop, laneHeight,
                     $"Unallocated image space · {FormatBytes(start - cursor)}");
-            var color = row.Table == "GPT"
-                ? new SolidColorBrush(Color.FromRgb(36, 139, 156))
-                : new SolidColorBrush(Color.FromRgb(55, 111, 176));
-            AddSegment(start, end - start, row.Name, color, laneTop, laneHeight,
-                $"{row.Table} · {row.Name}\nStart: {FormatBytes(start)}\nSize: {FormatBytes(end - start)}");
+            // Do not paint duplicate/overlapping ranges on top of earlier validated entries.
+            var visibleStart = Math.Max(start, cursor);
+            if (end > visibleStart)
+            {
+                var color = row.Table == "GPT"
+                    ? new SolidColorBrush(Color.FromRgb(36, 139, 156))
+                    : new SolidColorBrush(Color.FromRgb(55, 111, 176));
+                AddSegment(visibleStart, end - visibleStart, row.Name, color, laneTop, laneHeight,
+                    $"{row.Table} · {row.Name}\nStart: {FormatBytes(start)}\nSize: {FormatBytes(length)}");
+            }
             cursor = Math.Max(cursor, end);
         }
         if (cursor < _partitionMapLength)
