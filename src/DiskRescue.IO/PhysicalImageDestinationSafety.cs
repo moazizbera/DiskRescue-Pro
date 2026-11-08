@@ -63,15 +63,19 @@ public static class PhysicalImageDestinationSafety
             if (!NativeMethods.GetVolumePathName(destinationDirectory, mountPath, mountPath.Capacity))
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to resolve the destination mount point.");
 
-            // Use the resolved mount path, not Path.GetPathRoot(destinationDirectory):
-            // a directory can be a mounted volume nested beneath another drive.
-            var destinationDrive = new DriveInfo(mountPath.ToString());
-            if (!destinationDrive.IsReady)
-                throw new IOException("Destination filesystem is not ready.");
+            // Query the resolved mount path directly. DriveInfo normalizes a path
+            // to its drive root, which can report the parent volume for nested mount points.
+            var fileSystemName = new StringBuilder(256);
+            if (!NativeMethods.GetVolumeInformation(
+                    mountPath.ToString(), new StringBuilder(1), 1,
+                    out _, out _, out _, fileSystemName, fileSystemName.Capacity))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to inspect the destination filesystem type.");
+            if (!NativeMethods.GetDiskFreeSpaceEx(
+                    mountPath.ToString(), out var availableBytes, out _, out _))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to inspect destination free space.");
+            var availableCapacity = availableBytes > long.MaxValue ? long.MaxValue : (long)availableBytes;
             blockers.AddRange(ValidateFilesystemCapacity(
-                destinationDrive.DriveFormat,
-                destinationDrive.AvailableFreeSpace,
-                requiredBytes));
+                fileSystemName.ToString(), availableCapacity, requiredBytes));
 
             var volumeName = new StringBuilder(1024);
             if (!NativeMethods.GetVolumeNameForVolumeMountPoint(mountPath.ToString(), volumeName, volumeName.Capacity))
@@ -319,6 +323,19 @@ public static class PhysicalImageDestinationSafety
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool GetVolumePathName(string fileName, StringBuilder volumePathName, int bufferLength);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetVolumeInformation(
+            string rootPathName, StringBuilder volumeNameBuffer, int volumeNameSize,
+            out uint volumeSerialNumber, out uint maximumComponentLength, out uint fileSystemFlags,
+            StringBuilder fileSystemNameBuffer, int fileSystemNameSize);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetDiskFreeSpaceEx(
+            string directoryName, out ulong freeBytesAvailableToCaller,
+            out ulong totalNumberOfBytes, out ulong totalNumberOfFreeBytes);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
