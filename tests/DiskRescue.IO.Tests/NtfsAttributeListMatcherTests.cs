@@ -12,6 +12,65 @@ public sealed class NtfsAttributeListMatcherTests
     private static readonly NtfsFileReference BaseReference = new(0, 7);
 
     [Fact]
+    public void DeletedMatcherAcceptsDeletedBaseAndContinuationRecords()
+    {
+        var deletedBase = MarkDeleted(CreateRecord(0, 7, new NtfsFileReference(0, 0),
+            new AttributeSpec(0x80, "Data", 1, 0)));
+        var deletedContinuation = MarkDeleted(CreateRecord(12, 9, BaseReference,
+            new AttributeSpec(0x80, "Data", 2, 2)));
+        var list = ParseList(
+            new EntrySpec(0x80, "Data", 0, 0, 7, 1),
+            new EntrySpec(0x80, "Data", 2, 12, 9, 2));
+
+        var result = NtfsDeletedAttributeListMatcher.Match(
+            list, new[] { deletedBase, deletedContinuation }, BaseReference);
+
+        Assert.True(result.IsComplete, string.Join("; ", result.Diagnostics.Select(d => d.Message)));
+        Assert.Equal(2, result.Matches.Count);
+    }
+
+    [Fact]
+    public void DeletedMatcherRejectsContinuationRecordStillMarkedInUse()
+    {
+        var deletedBase = MarkDeleted(CreateRecord(0, 7, new NtfsFileReference(0, 0),
+            new AttributeSpec(0x80, "Data", 1, 0)));
+        var activeContinuation = CreateRecord(12, 9, BaseReference,
+            new AttributeSpec(0x80, "Data", 2, 2));
+        var list = ParseList(
+            new EntrySpec(0x80, "Data", 0, 0, 7, 1),
+            new EntrySpec(0x80, "Data", 2, 12, 9, 2));
+
+        var result = NtfsDeletedAttributeListMatcher.Match(
+            list, new[] { deletedBase, activeContinuation }, BaseReference);
+
+        AssertDiagnostic(result, NtfsAttributeListDiagnosticCode.RecordInUse);
+    }
+
+    [Fact]
+    public void DeletedMatcherRejectsActiveOrInvalidBaseRecord()
+    {
+        var activeBase = CreateRecord(0, 7, new NtfsFileReference(0, 0),
+            new AttributeSpec(0x80, "Data", 1, 0));
+        var deletedContinuation = MarkDeleted(CreateRecord(12, 9, BaseReference,
+            new AttributeSpec(0x80, "Data", 2, 2)));
+        var list = ParseList(
+            new EntrySpec(0x80, "Data", 0, 0, 7, 1),
+            new EntrySpec(0x80, "Data", 2, 12, 9, 2));
+
+        var result = NtfsDeletedAttributeListMatcher.Match(
+            list, new[] { activeBase, deletedContinuation }, BaseReference);
+
+        AssertDiagnostic(result, NtfsAttributeListDiagnosticCode.InvalidExpectedBaseReference);
+    }
+
+    private static NtfsFileRecord MarkDeleted(NtfsFileRecord record)
+    {
+        var bytes = record.FixedUpBytes.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(22, 2), 0);
+        return record with { Flags = 0, FixedUpBytes = bytes };
+    }
+
+    [Fact]
     public void MatchesContinuationByFullAttributeIdentity()
     {
         var continuation = CreateRecord(12, 9, BaseReference,
