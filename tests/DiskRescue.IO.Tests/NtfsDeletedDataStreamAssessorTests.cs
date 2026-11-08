@@ -108,6 +108,54 @@ public sealed class NtfsDeletedDataStreamAssessorTests
     }
 
     [Fact]
+    public void RejectsSparseDeletedDataRuns()
+    {
+        var map = NtfsClusterAllocationMap.Create(new byte[1], 8).Map!;
+        var result = NtfsDeletedDataStreamAssessor.Assess(
+            Entry(), Record(), Name(), Parent(),
+            new[] { NonResidentData(mappingPairs: new byte[] { 0x01, 0x02, 0x00 }) },
+            8, 512, map);
+
+        Assert.Equal(NtfsDeletedDataStreamStatus.InvalidRunlist, result.Status);
+        Assert.False(result.IsEligibleForBoundedRead);
+    }
+
+    [Fact]
+    public void RejectsMalformedMappingPairsWithoutTerminator()
+    {
+        var map = NtfsClusterAllocationMap.Create(new byte[1], 8).Map!;
+        var result = NtfsDeletedDataStreamAssessor.Assess(
+            Entry(), Record(), Name(), Parent(),
+            new[] { NonResidentData(mappingPairs: new byte[] { 0x11, 0x02, 0x01 }) },
+            8, 512, map);
+
+        Assert.Equal(NtfsDeletedDataStreamStatus.InvalidRunlist, result.Status);
+        Assert.False(result.IsEligibleForBoundedRead);
+    }
+
+    [Fact]
+    public void RejectsDeletedRecordThatHasBecomeActive()
+    {
+        var result = NtfsDeletedDataStreamAssessor.Assess(
+            Entry(), Record(flags: 0x0001), Name(), Parent(),
+            new[] { ResidentData() }, 8, 512, allocationMap: null);
+
+        Assert.Equal(NtfsDeletedDataStreamStatus.MetadataRejected, result.Status);
+        Assert.False(result.IsEligibleForBoundedRead);
+    }
+
+    [Fact]
+    public void ReportsMissingRequestedDataStream()
+    {
+        var result = NtfsDeletedDataStreamAssessor.Assess(
+            Entry(), Record(), Name(), Parent(),
+            Array.Empty<NtfsAttribute>(), 8, 512, allocationMap: null);
+
+        Assert.Equal(NtfsDeletedDataStreamStatus.StreamMissing, result.Status);
+        Assert.False(result.IsEligibleForBoundedRead);
+    }
+
+    [Fact]
     public void RejectsUnverifiedParentBeforeConsideringStream()
     {
         var result = NtfsDeletedDataStreamAssessor.Assess(
