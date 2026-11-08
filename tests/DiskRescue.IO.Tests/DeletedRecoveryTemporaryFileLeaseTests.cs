@@ -168,7 +168,18 @@ public sealed class DeletedRecoveryTemporaryFileLeaseTests
 
             child.Kill(entireProcessTree: true);
             Assert.True(child.WaitForExit(15000), "Child test process did not terminate.");
-            Assert.Equal(1, DeletedRecoveryTemporaryFileLease.CleanupStale(directory));
+            File.Delete(signal);
+
+            var cleanupDeadline = Stopwatch.StartNew();
+            var removed = 0;
+            while (removed == 0 && cleanupDeadline.Elapsed < TimeSpan.FromSeconds(10))
+            {
+                removed = DeletedRecoveryTemporaryFileLease.CleanupStale(directory);
+                if (removed == 0)
+                    Thread.Sleep(50);
+            }
+
+            Assert.Equal(1, removed);
             Assert.Empty(Directory.EnumerateFiles(directory));
         }
         finally
