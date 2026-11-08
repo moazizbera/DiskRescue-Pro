@@ -711,16 +711,17 @@ static int RunNtfsDeletedExtract(string[] args)
             File.Move(temporaryPath, fullOutputPath, overwrite: false);
             temporaryPath = null;
 
+            var deletedAssessment = copied.Assessment!;
             Console.WriteLine();
             Console.WriteLine($"Recovered output: {fullOutputPath}");
             Console.WriteLine($"Bytes written: {bytesWritten:N0}");
             Console.WriteLine($"SHA-256 of exported bytes: {sha256}");
             Console.WriteLine($"MFT record: {recordNumber.Value}");
-            Console.WriteLine($"Metadata assessment: {copied.Assessment!.Metadata.MetadataStatus}");
-            Console.WriteLine($"Cluster allocation: {copied.Assessment.ClusterAllocation?.Status.ToString() ?? "not applicable (resident stream)"}");
+            Console.WriteLine($"Metadata assessment: {deletedAssessment.Metadata.MetadataStatus}");
+            Console.WriteLine($"Cluster allocation: {deletedAssessment.ClusterAllocation?.Status.ToString() ?? "not applicable (resident stream)"}");
             Console.WriteLine("Content integrity verified: false");
             Console.WriteLine("The export hash identifies this output only; it is not an original-file integrity check.");
-            foreach (var warning in copied.Assessment.Warnings)
+            foreach (var warning in deletedAssessment.Warnings)
                 Console.WriteLine("WARNING: " + warning);
             return 0;
         }
