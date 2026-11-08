@@ -696,7 +696,6 @@ static int RunNtfsDeletedExtract(string[] args)
         if (!opened.IsValid || opened.Reader is null)
             throw new IOException("NTFS MFT validation failed: " + string.Join("; ", opened.Issues));
 
-        var outputName = Path.GetFileName(fullOutputPath);
         using var temporaryLease = DeletedRecoveryTemporaryFileLease.Create(destinationDirectory);
         temporaryPath = temporaryLease.OutputPath;
         using var cancellation = new CancellationTokenSource();
