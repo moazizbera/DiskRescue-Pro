@@ -20,7 +20,7 @@ New-Item -ItemType Directory -Path $directory -Force | Out-Null
 $freeImage = Join-Path $directory "deleted-ntfs-free.img"
 $allocatedImage = Join-Path $directory "deleted-ntfs-allocated.img"
 $output = Join-Path $directory "Deleted-recovered.bin"
-$manifestPath = "$output.recovery.json"
+$manifestPath = "${output}.recovery.json"
 
 foreach ($path in @($freeImage, $allocatedImage, $output, $manifestPath)) {
     if (Test-Path $path) { throw "Refusing to overwrite an existing test artifact: $path" }
@@ -98,7 +98,7 @@ try {
         "--offset", "512", "--length", "65024", "--record", "1",
         "--output", $allocatedOutput, "--max-bytes", "1024"
     )
-    if ($allocated.ExitCode -eq 0 -or (Test-Path $allocatedOutput) -or (Test-Path "$allocatedOutput.recovery.json")) {
+    if ($allocated.ExitCode -eq 0 -or (Test-Path $allocatedOutput) -or (Test-Path "${allocatedOutput}.recovery.json")) {
         throw "The CLI failed to refuse currently allocated clusters."
     }
 
@@ -109,7 +109,7 @@ try {
         "--offset", "512", "--length", "65024", "--record", "1",
         "--output", $limitedOutput, "--max-bytes", "128"
     )
-    if ($limited.ExitCode -eq 0 -or (Test-Path $limitedOutput) -or (Test-Path "$limitedOutput.recovery.json")) {
+    if ($limited.ExitCode -eq 0 -or (Test-Path $limitedOutput) -or (Test-Path "${limitedOutput}.recovery.json")) {
         throw "The CLI failed to enforce the caller's maximum byte limit."
     }
 
@@ -135,7 +135,7 @@ try {
     }
 
     $manifestCollisionOutput = Join-Path $directory "Manifest-collision.bin"
-    [IO.File]::WriteAllText("$manifestCollisionOutput.recovery.json", "preserve-existing-manifest")
+    [IO.File]::WriteAllText("${manifestCollisionOutput}.recovery.json", "preserve-existing-manifest")
     $manifestCollision = Invoke-DiskRescueCli -Arguments @(
         "extract-deleted-ntfs-file", $freeImage,
         "--offset", "512", "--length", "65024", "--record", "1",
@@ -144,7 +144,7 @@ try {
     if ($manifestCollision.ExitCode -eq 0 -or (Test-Path $manifestCollisionOutput)) {
         throw "The CLI did not safely refuse an existing recovery manifest."
     }
-    if ((Get-Content -LiteralPath "$manifestCollisionOutput.recovery.json" -Raw) -ne "preserve-existing-manifest") {
+    if ((Get-Content -LiteralPath "${manifestCollisionOutput}.recovery.json" -Raw) -ne "preserve-existing-manifest") {
         throw "The CLI modified an existing recovery manifest."
     }
 
