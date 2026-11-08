@@ -120,6 +120,76 @@ public static class PhysicalImageDestinationSafety
     }
 
 
+    /// <summary>
+    /// Verifies that an image-file export destination is on physical storage that
+    /// does not overlap any disk backing the source image file. Unknown, incomplete,
+    /// virtual, network, or otherwise unmappable source/destination storage fails closed.
+    /// </summary>
+    public static PhysicalImageDestinationAssessment AssessForImageFile(
+        string sourceImagePath,
+        string destinationPath,
+        PhysicalVolumeMappingResult volumeMap,
+        long requiredBytes = 0)
+    {
+        ArgumentNullException.ThrowIfNull(volumeMap);
+        if (string.IsNullOrWhiteSpace(sourceImagePath))
+            return new(false, null, Array.Empty<int>(), new[] { "Source image path is empty." });
+        if (!volumeMap.IsComplete || volumeMap.Issues.Count != 0)
+            return new(false, null, Array.Empty<int>(),
+                new[] { "A complete, diagnostic-free Windows volume map is required." });
+        if (!OperatingSystem.IsWindows())
+            return new(false, null, Array.Empty<int>(),
+                new[] { "Source/destination physical-volume verification is available only on Windows." });
+
+        try
+        {
+            var fullSourcePath = Path.GetFullPath(sourceImagePath);
+            if (!File.Exists(fullSourcePath))
+                throw new FileNotFoundException("Source image file does not exist.", fullSourcePath);
+            if ((File.GetAttributes(fullSourcePath) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException("Source image is a reparse point; its physical storage identity cannot be trusted.");
+
+            var sourceMountPath = new StringBuilder(1024);
+            if (!NativeMethods.GetVolumePathName(fullSourcePath, sourceMountPath, sourceMountPath.Capacity))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to resolve the source image volume mount point.");
+            var sourceVolumeName = new StringBuilder(1024);
+            if (!NativeMethods.GetVolumeNameForVolumeMountPoint(
+                    sourceMountPath.ToString(), sourceVolumeName, sourceVolumeName.Capacity))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to resolve the source image volume GUID.");
+
+            var sourceGuid = sourceVolumeName.ToString();
+            var sourceDisks = volumeMap.VolumePathsByDisk
+                .Where(pair => pair.Value.Contains(sourceGuid, StringComparer.OrdinalIgnoreCase))
+                .Select(pair => pair.Key)
+                .Order()
+                .ToArray();
+            if (sourceDisks.Length == 0 || sourceDisks.Any(number => number < 0))
+                throw new IOException("Source image volume has no verifiable physical-disk mapping.");
+
+            PhysicalImageDestinationAssessment? destinationAssessment = null;
+            var blockers = new List<string>();
+            foreach (var sourceDisk in sourceDisks)
+            {
+                destinationAssessment = Assess(sourceDisk, destinationPath, volumeMap, requiredBytes);
+                if (!destinationAssessment.CanUseAsSeparateDestination)
+                    blockers.AddRange(destinationAssessment.Blockers);
+            }
+
+            if (blockers.Count != 0)
+                return new(false, destinationAssessment?.VolumeGuidPath,
+                    destinationAssessment?.DestinationDiskNumbers ?? Array.Empty<int>(),
+                    blockers.Distinct(StringComparer.Ordinal).ToArray());
+
+            return destinationAssessment!;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or
+                                   Win32Exception or OverflowException)
+        {
+            return new(false, null, Array.Empty<int>(),
+                new[] { "Source/destination physical separation could not be verified: " + ex.Message });
+        }
+    }
+
     public static IReadOnlyList<string> ValidateFilesystemCapacity(
         string fileSystem,
         long availableBytes,
