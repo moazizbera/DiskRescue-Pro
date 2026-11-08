@@ -782,7 +782,10 @@ static int RunNtfsDeletedExtract(string[] args)
                     contentIntegrityVerified = false,
                     physicalDiskRecoveryValidated = false
                 },
-                warnings = deletedAssessment.Warnings
+                warnings = deletedAssessment.Warnings.Concat(new[]
+                {
+                    "Source length and last-write timestamp were compared before publication; this is not a stable snapshot guarantee and cannot rule out writes through a handle that was already open."
+                }).ToArray()
             };
             var manifestBytes = JsonSerializer.SerializeToUtf8Bytes(manifest,
                 new JsonSerializerOptions { WriteIndented = true });
