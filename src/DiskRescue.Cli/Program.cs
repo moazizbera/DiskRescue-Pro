@@ -697,7 +697,8 @@ static int RunNtfsDeletedExtract(string[] args)
             throw new IOException("NTFS MFT validation failed: " + string.Join("; ", opened.Issues));
 
         var outputName = Path.GetFileName(fullOutputPath);
-        temporaryPath = Path.Combine(destinationDirectory, $".{outputName}.{Guid.NewGuid():N}.partial");
+        using var temporaryLease = DeletedRecoveryTemporaryFileLease.Create(destinationDirectory);
+        temporaryPath = temporaryLease.OutputPath;
         using var cancellation = new CancellationTokenSource();
         ConsoleCancelEventHandler handler = (_, eventArgs) =>
         {
@@ -799,8 +800,7 @@ static int RunNtfsDeletedExtract(string[] args)
             };
             var manifestBytes = JsonSerializer.SerializeToUtf8Bytes(manifest,
                 new JsonSerializerOptions { WriteIndented = true });
-            temporaryManifestPath = Path.Combine(destinationDirectory,
-                $".{Path.GetFileName(manifestPath)}.{Guid.NewGuid():N}.partial");
+            temporaryManifestPath = temporaryLease.ManifestPath;
             using (var manifestStream = new FileStream(temporaryManifestPath, FileMode.CreateNew,
                 FileAccess.Write, FileShare.None, 16 * 1024, FileOptions.SequentialScan))
             {
