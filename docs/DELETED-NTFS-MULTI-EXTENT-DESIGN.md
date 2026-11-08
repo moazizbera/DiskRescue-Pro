@@ -2,13 +2,13 @@
 
 ## Status
 
-Design and implementation boundary for the next PR #9 milestone. This document does not enable multi-extent deleted-file reads. The current deleted-file exporter remains limited to resident and single-extent non-resident streams and must continue to fail closed for $ATTRIBUTE_LIST and multi-extent layouts.
+Implemented in PR #9 as a separate deleted-file recovery path. The implementation supports resident streams and non-resident streams assembled from a resident $ATTRIBUTE_LIST when every referenced deleted FILE record is reachable through the initially validated MFT map.
 
-## Source-code findings
+The deleted-specific matcher validates the deleted base record, continuation record sequence and base reference, and complete attribute identity without weakening the existing live-file matcher. The deleted preflight assembles contiguous VCN extents, validates mapping pairs and physical overlap, assesses every physical run against $Bitmap, and revalidates the complete map and allocation evidence immediately before copying.
 
-The current live-file path in NtfsMftReader.OpenDataStream already parses a resident $ATTRIBUTE_LIST, resolves referenced FILE records through ReadReferencedRecord, matches complete attribute identity, orders non-resident $DATA extents by lowest VCN, requires exact VCN continuity, validates mapping pairs and physical-run overlap, and builds one logical run map.
+The synthetic end-to-end harness now includes a fragmented two-extent stream (VCNs 0 and 1 mapped to physical LCNs 30 and 34), exact output-byte comparison, recovery-manifest checks, source-image hash comparison, and refusal when a continuation-extent cluster is marked allocated. The recovery manifest records the validated physical run map for provenance.
 
-However, NtfsAttributeListMatcher.Match currently requires every referenced FILE record to be marked in-use. That is appropriate for its existing live-file use, but it cannot validate deleted-file continuation records. The deleted preflight currently rejects any $ATTRIBUTE_LIST before attempting extent resolution. The live matcher and live-file behavior must not be weakened to accommodate deleted records.
+Remaining limitations: non-resident $ATTRIBUTE_LIST bootstrap, recursive MFT discovery, sparse/compressed/encrypted streams, directory-index traversal, and physical-device partition recovery remain unsupported. A free $Bitmap bit is not evidence that the old content was never overwritten. Successful export and its SHA-256 do not prove original-content integrity.
 
 ## Required implementation
 
