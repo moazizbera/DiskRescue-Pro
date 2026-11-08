@@ -180,7 +180,14 @@ public static class PhysicalImageDestinationSafety
                     destinationAssessment?.DestinationDiskNumbers ?? Array.Empty<int>(),
                     blockers.Distinct(StringComparer.Ordinal).ToArray());
 
-            return destinationAssessment!;
+            var inventory = WindowsPhysicalDiskDiscovery.Enumerate();
+            var identityIssues = ValidatePhysicalDiskIdentities(
+                inventory, sourceDisks, destinationAssessment!.DestinationDiskNumbers);
+            if (identityIssues.Count != 0)
+                return new(false, destinationAssessment.VolumeGuidPath,
+                    destinationAssessment.DestinationDiskNumbers, identityIssues);
+
+            return destinationAssessment;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or
                                    Win32Exception or OverflowException)
@@ -256,6 +263,50 @@ public static class PhysicalImageDestinationSafety
             issues.Add("Destination volume extents do not agree with the complete Windows volume map.");
         if (actualDiskNumbers.Contains(sourceDiskNumber))
             issues.Add("Destination volume shares the source physical disk; it cannot be used for the disk image.");
+        return issues.AsReadOnly();
+    }
+
+    internal static IReadOnlyList<string> ValidatePhysicalDiskIdentities(
+        PhysicalDiskDiscoveryResult inventory,
+        IReadOnlyList<int> sourceDiskNumbers,
+        IReadOnlyList<int> destinationDiskNumbers)
+    {
+        ArgumentNullException.ThrowIfNull(inventory);
+        ArgumentNullException.ThrowIfNull(sourceDiskNumbers);
+        ArgumentNullException.ThrowIfNull(destinationDiskNumbers);
+
+        var issues = new List<string>();
+        if (inventory.Issues.Count != 0)
+            issues.Add("Physical-disk identity enumeration reported diagnostics; separate storage cannot be verified.");
+        if (sourceDiskNumbers.Count == 0 || destinationDiskNumbers.Count == 0)
+            issues.Add("Source and destination must both resolve to at least one physical disk.");
+
+        var relevantNumbers = sourceDiskNumbers.Concat(destinationDiskNumbers).Distinct().ToArray();
+        var relevant = new List<PhysicalDiskDescriptor>();
+        foreach (var number in relevantNumbers)
+        {
+            var matches = inventory.Disks.Where(disk => disk.DiskNumber == number).ToArray();
+            if (matches.Length != 1)
+            {
+                issues.Add($"Physical disk {number} does not have exactly one current identity descriptor.");
+                continue;
+            }
+
+            var disk = matches[0];
+            if (string.IsNullOrWhiteSpace(disk.SerialNumber))
+                issues.Add($"Physical disk {number} has no reported serial number.");
+            if (!disk.BusType.HasValue ||
+                disk.BusType.Value is 0 or 8 or 14 or 15 or 16)
+                issues.Add($"Physical disk {number} has an unknown, RAID, virtual, file-backed virtual, or Storage Spaces bus identity.");
+            relevant.Add(disk);
+        }
+
+        foreach (var duplicate in relevant
+                     .Where(disk => !string.IsNullOrWhiteSpace(disk.SerialNumber))
+                     .GroupBy(disk => disk.SerialNumber!.Trim(), StringComparer.OrdinalIgnoreCase)
+                     .Where(group => group.Select(disk => disk.DiskNumber).Distinct().Count() > 1))
+            issues.Add("Physical disk serial identity is duplicated across source/destination devices.");
+
         return issues.AsReadOnly();
     }
 
