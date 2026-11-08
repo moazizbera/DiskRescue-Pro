@@ -77,6 +77,7 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [x] Export a JSON sidecar manifest with source identity metadata, volume boundaries, MFT identity, allocation evidence, output SHA-256, diagnostics, and explicit integrity/safety status
 - [x] Test synthetic deleted-export success, allocated-cluster refusal, byte ceilings, source immutability, existing-output/manifest collisions, and temporary-file cleanup
 - [ ] Test disk-full, permission failures, process termination, and injected manifest-publication failures
+- [ ] Add deleted-image export destination-volume identity checks or explicitly require and verify a separate destination before release
 
 ## Phase 6 — Professional desktop experience
 
@@ -103,7 +104,7 @@ The dedicated `tools/Test-DeletedNtfsRecovery.ps1` harness generates disposable 
 - Every parser change includes positive, negative, boundary, and adversarial tests.
 - Every read is bounded by the supplied image/volume and uses checked arithmetic.
 - Source write capability is not introduced into the inspection interfaces.
-- Recovery output is written only to a verified separate destination.
+- Physical image acquisition requires a verified physically separate destination. Deleted-file extraction from an image file currently requires a new, non-overwriting output path but does not verify that the output storage is physically separate from the source image; users must select separate storage manually.
 - No destructive repair, format, initialize, or repartition feature is planned for the initial product.
 - No physical-device support is considered release-ready without a dedicated read-only handle design, device identity validation, complete source/destination preflight, hardware write-blocker guidance, bad-sector/error policy, cancellation and failure recovery, threat review, disposable virtual-disk tests, and representative Windows hardware validation.
 
