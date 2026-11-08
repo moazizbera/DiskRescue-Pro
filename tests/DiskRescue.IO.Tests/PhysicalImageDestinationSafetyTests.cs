@@ -118,6 +118,22 @@ public sealed class PhysicalImageDestinationSafetyTests
     }
 
     [Fact]
+    public void PhysicalIdentityCheckRejectsVirtualDeviceDescriptionEvenOnScsiBus()
+    {
+        var virtualDisk = new PhysicalDiskDescriptor(
+            0, @"\\.\PhysicalDrive0", 1024 * 1024, 512,
+            Vendor: "Microsoft", Model: "Msft Virtual Disk",
+            SerialNumber: "VIRTUAL-0", BusType: 1, RemovableMedia: false);
+        var inventory = new PhysicalDiskDiscoveryResult(
+            new[] { virtualDisk, PhysicalDisk(1) }, Array.Empty<string>());
+
+        var issues = PhysicalImageDestinationSafety.ValidatePhysicalDiskIdentities(
+            inventory, new[] { 0 }, new[] { 1 });
+
+        Assert.Contains(issues, issue => issue.Contains("virtualized or layered", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void PhysicalIdentityCheckRejectsMissingSerialAndIncompleteInventory()
     {
         var missingSerial = new PhysicalDiskDiscoveryResult(
