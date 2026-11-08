@@ -140,6 +140,8 @@ public sealed class DeletedRecoveryTemporaryFileLeaseTests
         };
         child.StartInfo.ArgumentList.Add("test");
         child.StartInfo.ArgumentList.Add(projectPath);
+        child.StartInfo.ArgumentList.Add("--configuration");
+        child.StartInfo.ArgumentList.Add("Release");
         child.StartInfo.ArgumentList.Add("--no-build");
         child.StartInfo.ArgumentList.Add("--no-restore");
         child.StartInfo.ArgumentList.Add("--filter");
