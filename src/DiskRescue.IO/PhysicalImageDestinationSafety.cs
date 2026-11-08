@@ -13,7 +13,7 @@ public sealed record PhysicalImageDestinationAssessment(
 
 /// <summary>
 /// Verifies that an existing image destination resolves to storage that does not
-/// overlap the selected physical source disk. This is a preflight only; it does
+/// overlap the selected physical source disk(s). This is a preflight only; it does
 /// not create files or open the source device.
 /// </summary>
 public static class PhysicalImageDestinationSafety
