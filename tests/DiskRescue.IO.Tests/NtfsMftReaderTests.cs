@@ -219,6 +219,8 @@ public sealed class NtfsMftReaderTests
     {
         var expected = Enumerable.Range(0, 512).Select(value => (byte)(value % 251)).ToArray();
         using var image = CreateDeletedFileImage(expected, allocatedDataClusters: false);
+        var sourceBefore = new byte[512];
+        image.ReadExactlyAt(30 * 512, sourceBefore);
         var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
         Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
 
@@ -226,6 +228,9 @@ public sealed class NtfsMftReaderTests
         var result = opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024);
 
         Assert.True(result.IsValid, string.Join("; ", result.Issues));
+        var sourceAfter = new byte[512];
+        image.ReadExactlyAt(30 * 512, sourceAfter);
+        Assert.Equal(sourceBefore, sourceAfter);
         Assert.NotNull(result.Assessment);
         Assert.Equal(NtfsDeletedDataStreamStatus.ReadyForBoundedRead, result.Assessment!.Status);
         Assert.NotNull(result.Copy);
