@@ -16,12 +16,18 @@ public partial class App : Application
         if (string.IsNullOrWhiteSpace(screenshotPath))
             return;
 
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
         Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
         {
             try
             {
-                var window = MainWindow ?? throw new InvalidOperationException(
-                    "The DiskRescue main window was not created for screenshot capture.");
+                var window = MainWindow ?? Windows.OfType<Window>().FirstOrDefault()
+                    ?? throw new InvalidOperationException(
+                        "The DiskRescue main window was not created for screenshot capture.");
+                if (!window.IsVisible)
+                    window.Show();
+                window.WindowState = WindowState.Normal;
+                window.Activate();
                 window.UpdateLayout();
 
                 var dpi = VisualTreeHelper.GetDpi(window);
@@ -46,6 +52,14 @@ public partial class App : Application
             }
             catch (Exception exception)
             {
+                try
+                {
+                    File.WriteAllText(screenshotPath + ".error.txt", exception.ToString());
+                }
+                catch
+                {
+                    // Preserve the original screenshot-capture failure.
+                }
                 Console.Error.WriteLine("DiskRescue UI screenshot capture failed: " + exception);
                 Shutdown(1);
             }
