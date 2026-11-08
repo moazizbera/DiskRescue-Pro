@@ -329,7 +329,20 @@ public sealed class DeletedRecoveryTemporaryFileLeaseTests
                 child.Kill(entireProcessTree: true);
                 child.WaitForExit(15000);
             }
-            Directory.Delete(directory, recursive: true);
+            var cleanupDeadline = Stopwatch.StartNew();
+            while (Directory.Exists(directory))
+            {
+                try
+                {
+                    Directory.Delete(directory, recursive: true);
+                    break;
+                }
+                catch (IOException) when (cleanupDeadline.Elapsed < TimeSpan.FromSeconds(10))
+                {
+                    // The killed testhost may release its final Windows file handle asynchronously.
+                    Thread.Sleep(50);
+                }
+            }
         }
     }
 
