@@ -168,7 +168,6 @@ public static class WindowsPhysicalDiskVolumeMap
         internal static extern bool FindNextVolume(IntPtr findHandle, StringBuilder volumeName, int bufferLength);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern SafeFileHandle CreateFile(
             string fileName, uint desiredAccess, uint shareMode, IntPtr securityAttributes,
             uint creationDisposition, uint flagsAndAttributes, IntPtr templateFile);
