@@ -39,26 +39,29 @@ public sealed class DeletedRecoveryTemporaryFileLease : IDisposable
             var operationId = Guid.NewGuid();
             var token = operationId.ToString("N");
             var lockPath = Path.Combine(directory, LockPrefix + token + LockSuffix);
+            FileStream handle;
             try
             {
-                var handle = new FileStream(lockPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
-                try
-                {
-                    var marker = System.Text.Encoding.UTF8.GetBytes(MarkerPrefix + token);
-                    handle.Write(marker);
-                    handle.Flush(true);
-                    return new DeletedRecoveryTemporaryFileLease(directory, operationId, handle);
-                }
-                catch
-                {
-                    handle.Dispose();
-                    try { File.Delete(lockPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
-                    throw;
-                }
+                handle = new FileStream(lockPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
             }
             catch (IOException) when (File.Exists(lockPath))
             {
                 // A GUID collision is extraordinarily unlikely; retry without reusing a path.
+                continue;
+            }
+
+            try
+            {
+                var marker = System.Text.Encoding.UTF8.GetBytes(MarkerPrefix + token);
+                handle.Write(marker);
+                handle.Flush(true);
+                return new DeletedRecoveryTemporaryFileLease(directory, operationId, handle);
+            }
+            catch
+            {
+                handle.Dispose();
+                try { File.Delete(lockPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                throw;
             }
         }
 
