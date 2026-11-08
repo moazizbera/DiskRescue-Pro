@@ -10,7 +10,13 @@ public static class NtfsDeletedDataStreamAssessor
 {
     private const uint DataAttributeType = 0x80;
     private const int MaximumRuns = 1_000_000;
-    public static NtfsDeletedDataStreamAssessment Assess(NtfsMftEntry entry, NtfsFileRecord record, NtfsFileName fileName, NtfsFileRecord? parentRecord, IReadOnlyList<NtfsAttribute> attributes, ulong volumeClusterCount, uint clusterSizeBytes, NtfsClusterAllocationMap? allocationMap, string streamName = "", bool attributeListValidated = false)
+    public static NtfsDeletedDataStreamAssessment Assess(NtfsMftEntry entry, NtfsFileRecord record, NtfsFileName fileName, NtfsFileRecord? parentRecord, IReadOnlyList<NtfsAttribute> attributes, ulong volumeClusterCount, uint clusterSizeBytes, NtfsClusterAllocationMap? allocationMap, string streamName = "") =>
+        AssessCore(entry, record, fileName, parentRecord, attributes, volumeClusterCount, clusterSizeBytes, allocationMap, streamName, false);
+
+    internal static NtfsDeletedDataStreamAssessment AssessValidatedAttributeList(NtfsMftEntry entry, NtfsFileRecord record, NtfsFileName fileName, NtfsFileRecord? parentRecord, IReadOnlyList<NtfsAttribute> attributes, ulong volumeClusterCount, uint clusterSizeBytes, NtfsClusterAllocationMap? allocationMap, string streamName) =>
+        AssessCore(entry, record, fileName, parentRecord, attributes, volumeClusterCount, clusterSizeBytes, allocationMap, streamName, true);
+
+    private static NtfsDeletedDataStreamAssessment AssessCore(NtfsMftEntry entry, NtfsFileRecord record, NtfsFileName fileName, NtfsFileRecord? parentRecord, IReadOnlyList<NtfsAttribute> attributes, ulong volumeClusterCount, uint clusterSizeBytes, NtfsClusterAllocationMap? allocationMap, string streamName, bool attributeListValidated)
     {
         ArgumentNullException.ThrowIfNull(entry); ArgumentNullException.ThrowIfNull(record); ArgumentNullException.ThrowIfNull(fileName); ArgumentNullException.ThrowIfNull(attributes); ArgumentNullException.ThrowIfNull(streamName);
         var metadata = NtfsDeletedFileAssessor.Assess(entry, record, fileName, parentRecord);
