@@ -100,11 +100,12 @@ jobs:
           $app = Join-Path $PWD "artifacts/DiskRescue-Pro-Desktop-win-x64/DiskRescue.Desktop.exe"
           if (-not (Test-Path $app)) { throw "Published DiskRescue desktop executable was not found." }
           $env:DISKRESCUE_CAPTURE_UI_SCREENSHOT = $screenshot
-          & $app
-          $captureExitCode = $LASTEXITCODE
+          $captureProcess = Start-Process -FilePath $app -PassThru -Wait
+          $captureExitCode = $captureProcess.ExitCode
           Remove-Item Env:DISKRESCUE_CAPTURE_UI_SCREENSHOT -ErrorAction SilentlyContinue
           if ($captureExitCode -ne 0 -or -not (Test-Path $screenshot)) {
-            throw "The real WPF dashboard screenshot could not be captured (exit $captureExitCode)."
+            $diagnostic = if (Test-Path "$screenshot.error.txt") { Get-Content "$screenshot.error.txt" -Raw } else { "No WPF diagnostic file was produced." }
+            throw "The real WPF dashboard screenshot could not be captured (exit $captureExitCode). $diagnostic"
           }
           $png = [System.IO.File]::ReadAllBytes($screenshot)
           if ($png.Length -lt 100 -or $png[0] -ne 137 -or $png[1] -ne 80 -or $png[2] -ne 78 -or $png[3] -ne 71) {
