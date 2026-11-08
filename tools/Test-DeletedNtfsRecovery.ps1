@@ -152,6 +152,8 @@ try {
     $partials = @(Get-ChildItem -LiteralPath $directory -Force -File | Where-Object { $_.Name.EndsWith(".partial", [StringComparison]::OrdinalIgnoreCase) })
     if ($partials.Count -ne 0) { throw "Temporary partial output files remain after the test run." }
 
+    # Expected negative CLI cases leave a non-zero native exit code; the harness itself passed.
+    $global:LASTEXITCODE = 0
     Write-Host ""
     Write-Host "PASS: deleted NTFS CLI export, recovery manifest, source immutability, allocated-cluster refusal, byte ceiling, overwrite protection, and temporary cleanup."
     Write-Host "Synthetic source SHA-256: $sourceHashBefore"
