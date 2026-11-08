@@ -133,7 +133,9 @@ public sealed class DeletedRecoveryTemporaryFileLeaseTests
                 FileName = "dotnet",
                 WorkingDirectory = Path.GetDirectoryName(projectPath)!,
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             }
         };
         child.StartInfo.ArgumentList.Add("test");
@@ -153,10 +155,14 @@ public sealed class DeletedRecoveryTemporaryFileLeaseTests
             while (!File.Exists(signal) && !child.HasExited && deadline.Elapsed < TimeSpan.FromSeconds(30))
                 Thread.Sleep(25);
 
-            Assert.True(File.Exists(signal),
-                child.HasExited
-                    ? $"Child test process exited before acquiring its lease (exit {child.ExitCode})."
+            if (!File.Exists(signal))
+            {
+                var childOutput = child.HasExited ? child.StandardOutput.ReadToEnd() : string.Empty;
+                var childError = child.HasExited ? child.StandardError.ReadToEnd() : string.Empty;
+                Assert.Fail(child.HasExited
+                    ? $"Child test process exited before acquiring its lease (exit {child.ExitCode}). Output: {childOutput} Error: {childError}"
                     : "Child test process did not acquire its lease before the timeout.");
+            }
 
             child.Kill(entireProcessTree: true);
             Assert.True(child.WaitForExit(15000), "Child test process did not terminate.");
