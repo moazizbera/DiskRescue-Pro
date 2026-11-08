@@ -13,7 +13,8 @@ public sealed partial class NtfsMftReader
 {
     public NtfsDeletedDataStreamPreflightResult AssessDeletedDataStream(
         ulong recordNumber,
-        string streamName = "")
+        string streamName = "",
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(streamName);
         if (streamName.Length > byte.MaxValue)
@@ -69,7 +70,7 @@ public sealed partial class NtfsMftReader
         if (metadata.MetadataVerified && matchingData.Length == 1 && matchingData[0].IsNonResident)
         {
             var volumeClusters = (ulong)(_volumeLength / _boot.ClusterSizeBytes);
-            var bitmap = NtfsClusterAllocationMap.Read(this, volumeClusters);
+            var bitmap = NtfsClusterAllocationMap.Read(this, volumeClusters, cancellationToken: cancellationToken);
             allocationMap = bitmap.Map;
             if (!bitmap.IsValid)
                 issues.AddRange(bitmap.Issues);
