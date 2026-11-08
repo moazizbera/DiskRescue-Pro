@@ -275,6 +275,21 @@ public sealed class NtfsMftReaderTests
     }
 
     [Fact]
+    public void ClusterAllocationBitmapReadPropagatesCancellation()
+    {
+        var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
+        using var image = CreateDeletedFileImage(payload, allocatedDataClusters: false);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() =>
+            NtfsClusterAllocationMap.Read(opened.Reader!, 128, cancellationToken: cancellation.Token));
+    }
+
+    [Fact]
     public void DeletedStreamCopyRefusesClustersMarkedAllocated()
     {
         var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
