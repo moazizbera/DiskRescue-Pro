@@ -300,6 +300,7 @@ public sealed class NtfsMftReaderTests
         mftBase[121] = 16;
         mftBase[122] = 4;
         mftBase[123] = 0;
+        mftBase.AsSpan(124, 4).Clear();
         mftBase.AsSpan(0, 1024).CopyTo(bytes.AsSpan(4 * 512, 1024));
 
         var file = CreateFileRecord(1, includeMftDataAttribute: false, includeFileName: true,
