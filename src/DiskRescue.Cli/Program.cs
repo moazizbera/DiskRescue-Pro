@@ -655,8 +655,6 @@ static int RunNtfsDeletedExtract(string[] args)
     string? temporaryPath = null;
     string? temporaryManifestPath = null;
     string? manifestPath = null;
-    var outputPublished = false;
-    var manifestPublished = false;
     try
     {
         var fullImagePath = Path.GetFullPath(imagePath);
@@ -818,22 +816,10 @@ static int RunNtfsDeletedExtract(string[] args)
                 throw new IOException("Recovery destination failed its final physical-separation check: " +
                     string.Join("; ", publicationDestinationAssessment.Blockers));
 
-            File.Move(temporaryPath, fullOutputPath, overwrite: false);
+            DeletedRecoveryOutputPublisher.PublishPair(
+                temporaryPath!, fullOutputPath, temporaryManifestPath!, manifestPath!);
             temporaryPath = null;
-            outputPublished = true;
-            try
-            {
-                File.Move(temporaryManifestPath, manifestPath, overwrite: false);
-                temporaryManifestPath = null;
-                manifestPublished = true;
-            }
-            catch
-            {
-                try { File.Delete(fullOutputPath); outputPublished = false; }
-                catch (IOException) { }
-                catch (UnauthorizedAccessException) { }
-                throw;
-            }
+            temporaryManifestPath = null;
 
             Console.WriteLine();
             Console.WriteLine($"Recovered output: {fullOutputPath}");
@@ -875,12 +861,6 @@ static int RunNtfsDeletedExtract(string[] args)
         if (temporaryManifestPath is not null)
         {
             try { if (File.Exists(temporaryManifestPath)) File.Delete(temporaryManifestPath); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-        }
-        if (manifestPublished && !outputPublished && manifestPath is not null && File.Exists(manifestPath))
-        {
-            try { File.Delete(manifestPath); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
