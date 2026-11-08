@@ -63,18 +63,20 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [ ] Support fragmented files with strict VCN/LCN and logical-size checks
 - [ ] Handle sparse, compressed, encrypted, and resident content safely (or report unsupported)
 - [ ] Detect hard links, alternate data streams, and reparse points
-- [ ] Verify extracted candidate length and hash
-- [ ] Keep file listing separate from claims of recoverability
+- [x] Verify bounded exported byte count and calculate a SHA-256 for the exported bytes (not an original-file integrity check)
+- [x] Keep deleted-file metadata/allocation eligibility separate from content-integrity claims; the current export always reports integrity unverified
+- [ ] Add multi-extent deleted-stream mapping and stronger recovered-content integrity evidence
 
 ## Phase 5 — Safe extraction
 
-- [ ] Enforce source/destination physical identity separation
-- [ ] Canonicalize destination paths and prevent traversal/reparse-point escape
-- [ ] Never overwrite existing destination files by default
-- [ ] Stream with bounded buffers and short-write handling
-- [ ] Support cancellation and safe resume of interrupted extraction
-- [ ] Export manifest, hashes, source offsets, diagnostics, and audit log
-- [ ] Test disk-full, permission failures, collisions, and interrupted writes
+- [~] Refuse output paths that equal the source image path; physical volume/device separation is not yet verified
+- [ ] Canonicalize destination paths and prevent traversal/reparse-point escape for future filename/tree recovery
+- [x] Never overwrite existing deleted-export destination or manifest files
+- [x] Copy supported streams with bounded buffers, caller byte ceilings, initialized-size handling, and volume/image bounds
+- [~] Support cancellation and temporary-file cleanup; resumable extraction remains outstanding
+- [x] Export a JSON sidecar manifest with source identity metadata, volume boundaries, MFT identity, allocation evidence, output SHA-256, diagnostics, and explicit integrity/safety status
+- [x] Test synthetic deleted-export success, allocated-cluster refusal, byte ceilings, source immutability, existing-output/manifest collisions, and temporary-file cleanup
+- [ ] Test disk-full, permission failures, process termination, and injected manifest-publication failures
 
 ## Phase 6 — Professional desktop experience
 
@@ -87,6 +89,12 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [ ] Recovery destination verification and extraction queue
 - [ ] Signed installer, versioning, release notes, and reproducible release workflow
 - [ ] Manual usability, accessibility, and Windows-version testing
+
+## Deleted NTFS bounded-export milestone (image files only)
+
+The draft feature branch now includes a separate deleted-stream export command gated by verified deleted FILE-record/parent identity and current `$Bitmap` evidence. Only resident or single-extent non-sparse, uncompressed, unencrypted streams are supported; deleted `$ATTRIBUTE_LIST` continuations and multi-extent layouts fail closed. Successful exports produce a sidecar recovery manifest. The manifest's SHA-256 identifies the exported bytes only. A free allocation bit does not prove the bytes were never overwritten, so content integrity is always reported as unverified.
+
+The dedicated `tools/Test-DeletedNtfsRecovery.ps1` harness generates disposable synthetic images and checks the positive and refusal paths. This does not validate physical HDD recovery, and the original HDD is not used.
 
 ## Non-negotiable release gates
 
