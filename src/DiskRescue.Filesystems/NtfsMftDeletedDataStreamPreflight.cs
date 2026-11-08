@@ -130,10 +130,15 @@ public sealed partial class NtfsMftReader
                 issues.AddRange(bitmap.Issues);
         }
 
-        var assessment = NtfsDeletedDataStreamAssessor.Assess(
+        var assessment = attributeListValidated
+            ? NtfsDeletedDataStreamAssessor.AssessValidatedAttributeList(
             entry, record, fileName, parent, assessmentAttributes,
             (ulong)(_volumeLength / _boot.ClusterSizeBytes),
-            _boot.ClusterSizeBytes, allocationMap, streamName, attributeListValidated);
+            _boot.ClusterSizeBytes, allocationMap, streamName)
+            : NtfsDeletedDataStreamAssessor.Assess(
+                entry, record, fileName, parent, assessmentAttributes,
+                (ulong)(_volumeLength / _boot.ClusterSizeBytes),
+                _boot.ClusterSizeBytes, allocationMap, streamName);
 
         return new(true, assessment, issues);
     }
