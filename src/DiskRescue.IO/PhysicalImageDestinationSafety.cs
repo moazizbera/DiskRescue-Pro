@@ -67,7 +67,7 @@ public static class PhysicalImageDestinationSafety
             // to its drive root, which can report the parent volume for nested mount points.
             var fileSystemName = new StringBuilder(256);
             if (!NativeMethods.GetVolumeInformation(
-                    mountPath.ToString(), new StringBuilder(1), 1,
+                    mountPath.ToString(), IntPtr.Zero, 0,
                     out _, out _, out _, fileSystemName, fileSystemName.Capacity))
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to inspect the destination filesystem type.");
             if (!NativeMethods.GetDiskFreeSpaceEx(
@@ -327,7 +327,7 @@ public static class PhysicalImageDestinationSafety
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool GetVolumeInformation(
-            string rootPathName, StringBuilder volumeNameBuffer, int volumeNameSize,
+            string rootPathName, IntPtr volumeNameBuffer, int volumeNameSize,
             out uint volumeSerialNumber, out uint maximumComponentLength, out uint fileSystemFlags,
             StringBuilder fileSystemNameBuffer, int fileSystemNameSize);
 
