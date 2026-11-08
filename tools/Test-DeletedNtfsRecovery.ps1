@@ -221,7 +221,7 @@ try {
     Write-Host "Recovered output SHA-256: $outputHash"
     Write-Host "Fragmented output SHA-256: $fragmentedOutputHash (two extents, LCN 30 and 34)"
     Write-Host "Recovery manifest: $manifestPath"
-    Write-Host "Content integrity: explicitly unverified; no physical disk was accessed."
+    Write-Host "Content integrity: explicitly unverified; only read-only physical disk identity metadata was queried, and no physical source sectors were read."
 }
 catch {
     Write-Error $_
