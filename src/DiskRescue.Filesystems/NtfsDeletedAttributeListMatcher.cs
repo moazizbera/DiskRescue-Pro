@@ -2,51 +2,6 @@ using System.Buffers.Binary;
 
 namespace DiskRescue.Filesystems;
 
-public enum NtfsAttributeListDiagnosticCode
-{
-    InvalidAttributeList,
-    InvalidExpectedBaseReference,
-    RecordLimitExceeded,
-    RecordMemoryLimitExceeded,
-    InvalidCandidateRecord,
-    UnsupportedRecordNumber,
-    DuplicateEntry,
-    MissingRecord,
-    AmbiguousRecord,
-    SequenceMismatch,
-    RecordNotInUse,
-    RecordInUse,
-    BaseRecordSequenceMismatch,
-    BaseFileReferenceMismatch,
-    MalformedRecordAttributes,
-    ParsingWorkLimitExceeded,
-    AttributeTypeMismatch,
-    AttributeNameMismatch,
-    AttributeIdMismatch,
-    LowestVcnMismatch,
-    AmbiguousAttributeMatch
-}
-
-public sealed record NtfsAttributeListDiagnostic(
-    NtfsAttributeListDiagnosticCode Code,
-    int? EntryIndex,
-    string Message);
-
-public sealed record NtfsMatchedAttribute(
-    int EntryIndex,
-    NtfsAttributeListEntry Entry,
-    NtfsFileRecord Record,
-    NtfsAttribute Attribute);
-
-public sealed record NtfsAttributeListMatchResult(
-    bool IsComplete,
-    IReadOnlyList<NtfsMatchedAttribute> Matches,
-    IReadOnlyList<NtfsAttributeListDiagnostic> Diagnostics);
-
-/// <summary>
-/// Matches a deleted file's parsed attribute list against validated deleted FILE records.
-/// This is separate from the live-file matcher and never reads or discovers records.
-/// </summary>
 public static class NtfsDeletedAttributeListMatcher
 {
     public const int MaximumRecords = 4096;
