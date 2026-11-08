@@ -69,7 +69,7 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 
 ## Phase 5 — Safe extraction
 
-- [~] Refuse output paths that equal the source image path; physical volume/device separation is not yet verified
+- [x] Refuse source-image overwrite and verify deleted-image export destination resolves to physical disk(s) separate from every disk backing the source image; fail closed on incomplete/unmappable identities and recheck before publication
 - [ ] Canonicalize destination paths and prevent traversal/reparse-point escape for future filename/tree recovery
 - [x] Never overwrite existing deleted-export destination or manifest files
 - [x] Copy supported streams with bounded buffers, caller byte ceilings, initialized-size handling, and volume/image bounds
@@ -77,7 +77,7 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [x] Export a JSON sidecar manifest with source identity metadata, volume boundaries, MFT identity, allocation evidence, output SHA-256, diagnostics, and explicit integrity/safety status
 - [x] Test synthetic deleted-export success, allocated-cluster refusal, byte ceilings, source immutability, existing-output/manifest collisions, and temporary-file cleanup
 - [ ] Test disk-full, permission failures, process termination, and injected manifest-publication failures
-- [ ] Add deleted-image export destination-volume identity checks or explicitly require and verify a separate destination before release
+- [x] Add deleted-image export destination-volume identity checks; source and destination physical disk mappings must be complete and non-overlapping before export and again before publication
 
 ## Phase 6 — Professional desktop experience
 
@@ -104,7 +104,7 @@ The dedicated `tools/Test-DeletedNtfsRecovery.ps1` harness generates disposable 
 - Every parser change includes positive, negative, boundary, and adversarial tests.
 - Every read is bounded by the supplied image/volume and uses checked arithmetic.
 - Source write capability is not introduced into the inspection interfaces.
-- Physical image acquisition requires a verified physically separate destination. Deleted-file extraction from an image file currently requires a new, non-overwriting output path but does not verify that the output storage is physically separate from the source image; users must select separate storage manually.
+- Physical image acquisition and deleted-image export require a verified physically separate destination. Deleted-image export resolves the source image volume and destination volume to physical disk extents, rejects any overlap or incomplete mapping, checks destination capacity, and repeats the check before publishing output. This is a Windows-only gate; unknown, network, virtual, reparse-point, or otherwise unmappable storage fails closed.
 - No destructive repair, format, initialize, or repartition feature is planned for the initial product.
 - No physical-device support is considered release-ready without a dedicated read-only handle design, device identity validation, complete source/destination preflight, hardware write-blocker guidance, bad-sector/error policy, cancellation and failure recovery, threat review, disposable virtual-disk tests, and representative Windows hardware validation.
 
