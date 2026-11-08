@@ -12,7 +12,8 @@ public sealed record NtfsMftEntry(
     bool IsDirectory,
     ulong AllocatedSize,
     ulong RealSize,
-    uint FileAttributes);
+    uint FileAttributes,
+    bool IsDeleted = false);
 
 public sealed record NtfsMftScanResult(
     bool IsValid,
@@ -28,7 +29,7 @@ public sealed record NtfsMftScanResult(
 /// </summary>
 public sealed partial class NtfsMftReader
 {
-    public NtfsMftScanResult ScanRecords(int maximumRecords = 10000, CancellationToken cancellationToken = default)
+    public NtfsMftScanResult ScanRecords(int maximumRecords = 10000, CancellationToken cancellationToken = default, bool includeDeleted = false)
     {
         if (maximumRecords is < 1 or > 65536)
             return new(false, false, Array.Empty<NtfsMftEntry>(), 0, 0,
@@ -61,7 +62,8 @@ public sealed partial class NtfsMftReader
             }
 
             var record = read.Record;
-            if ((record.Flags & 0x0001) == 0)
+            var isDeleted = (record.Flags & 0x0001) == 0;
+            if (isDeleted && !includeDeleted)
                 continue;
 
             var parsedAttributes = NtfsAttributeParser.Parse(record);
@@ -101,7 +103,8 @@ public sealed partial class NtfsMftReader
                     (record.Flags & 0x0002) != 0,
                     fileName.AllocatedSize,
                     fileName.RealSize,
-                    fileName.FileAttributes));
+                    fileName.FileAttributes,
+                    isDeleted));
             }
         }
 
