@@ -308,6 +308,23 @@ public sealed class NtfsMftReaderTests
     }
 
     [Fact]
+    public void DeletedStreamCopyRefusesRunlistBeyondSuppliedVolumeBoundary()
+    {
+        var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
+        using var image = CreateDeletedFileImage(payload, allocatedDataClusters: false);
+        const long truncatedVolumeLength = 31 * 512;
+        var opened = NtfsMftReader.Open(image, 0, truncatedVolumeLength, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        using var destination = new MemoryStream();
+        var result = opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024);
+
+        Assert.False(result.IsValid);
+        Assert.Equal(NtfsDeletedDataStreamStatus.AllocationUnknown, result.Assessment!.Status);
+        Assert.Equal(0, destination.Length);
+    }
+
+    [Fact]
     public void DeletedStreamCopyRejectsActiveMftRecord()
     {
         var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
