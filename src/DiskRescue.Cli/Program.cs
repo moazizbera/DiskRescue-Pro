@@ -653,6 +653,9 @@ static int RunNtfsDeletedExtract(string[] args)
     }
 
     string? temporaryPath = null;
+    string? temporaryManifestPath = null;
+    string? manifestPath = null;
+    var outputPublished = false;
     try
     {
         var fullImagePath = Path.GetFullPath(imagePath);
@@ -665,7 +668,12 @@ static int RunNtfsDeletedExtract(string[] args)
             throw new DirectoryNotFoundException("Recovery output directory must already exist.");
         if (File.Exists(fullOutputPath) || Directory.Exists(fullOutputPath))
             throw new IOException("Recovery output already exists; existing files are never overwritten.");
+        manifestPath = fullOutputPath + ".recovery.json";
+        if (File.Exists(manifestPath) || Directory.Exists(manifestPath))
+            throw new IOException("Recovery manifest already exists; existing files are never overwritten.");
 
+        var sourceInfo = new FileInfo(fullImagePath);
+        var sourceLastWriteTimeUtc = sourceInfo.LastWriteTimeUtc;
         using var image = FileImageReader.Open(fullImagePath);
         var boot = NtfsBootSectorParser.Parse(image, volumeOffset.Value, volumeLength.Value);
         if (!boot.IsValid || boot.BootSector is null)
@@ -708,12 +716,85 @@ static int RunNtfsDeletedExtract(string[] args)
             using (var verification = File.OpenRead(temporaryPath))
                 sha256 = Convert.ToHexString(SHA256.HashData(verification));
             cancellation.Token.ThrowIfCancellationRequested();
-            File.Move(temporaryPath, fullOutputPath, overwrite: false);
-            temporaryPath = null;
 
             var deletedAssessment = copied.Assessment!;
+            var sourceInfoAfterRead = new FileInfo(fullImagePath);
+            var manifest = new
+            {
+                product = "DiskRescue Pro",
+                manifestVersion = 1,
+                operation = "bounded-deleted-ntfs-data-stream-export",
+                createdAtUtc = DateTimeOffset.UtcNow,
+                source = new
+                {
+                    fileName = Path.GetFileName(fullImagePath),
+                    fullPath = fullImagePath,
+                    lengthBytes = image.Length,
+                    lastWriteTimeUtcBeforeRead = sourceLastWriteTimeUtc,
+                    lastWriteTimeUtcAfterRead = sourceInfoAfterRead.LastWriteTimeUtc,
+                    volumeOffsetBytes = volumeOffset.Value,
+                    volumeLengthBytes = volumeLength.Value,
+                    logicalSectorSizeBytes = sectorSize
+                },
+                deletedFile = new
+                {
+                    mftRecordNumber = recordNumber.Value,
+                    streamName,
+                    metadataAssessment = deletedAssessment.Metadata.MetadataStatus.ToString(),
+                    preflightStatus = deletedAssessment.Status.ToString(),
+                    clusterAllocation = deletedAssessment.ClusterAllocation?.Status.ToString() ?? "NotApplicableResidentStream"
+                },
+                export = new
+                {
+                    fileName = Path.GetFileName(fullOutputPath),
+                    fullPath = fullOutputPath,
+                    bytesWritten,
+                    maximumBytes = maximumBytes.Value,
+                    sha256,
+                    contentIntegrityVerified = false,
+                    sha256Meaning = "Hash of exported bytes only; not an original-file hash or proof of content integrity."
+                },
+                safety = new
+                {
+                    sourceOpenedReadOnly = true,
+                    sourceWriteOperationsAvailable = false,
+                    sourceContentHashCompared = false,
+                    contentIntegrityVerified = false,
+                    physicalDiskRecoveryValidated = false
+                },
+                warnings = deletedAssessment.Warnings
+            };
+            var manifestBytes = JsonSerializer.SerializeToUtf8Bytes(manifest,
+                new JsonSerializerOptions { WriteIndented = true });
+            temporaryManifestPath = Path.Combine(destinationDirectory,
+                $".{Path.GetFileName(manifestPath)}.{Guid.NewGuid():N}.partial");
+            using (var manifestStream = new FileStream(temporaryManifestPath, FileMode.CreateNew,
+                FileAccess.Write, FileShare.None, 16 * 1024, FileOptions.SequentialScan))
+            {
+                manifestStream.Write(manifestBytes);
+                manifestStream.Flush(true);
+            }
+
+            cancellation.Token.ThrowIfCancellationRequested();
+            File.Move(temporaryPath, fullOutputPath, overwrite: false);
+            temporaryPath = null;
+            outputPublished = true;
+            try
+            {
+                File.Move(temporaryManifestPath, manifestPath, overwrite: false);
+                temporaryManifestPath = null;
+            }
+            catch
+            {
+                try { File.Delete(fullOutputPath); outputPublished = false; }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+                throw;
+            }
+
             Console.WriteLine();
             Console.WriteLine($"Recovered output: {fullOutputPath}");
+            Console.WriteLine($"Recovery manifest: {manifestPath}");
             Console.WriteLine($"Bytes written: {bytesWritten:N0}");
             Console.WriteLine($"SHA-256 of exported bytes: {sha256}");
             Console.WriteLine($"MFT record: {recordNumber.Value}");
@@ -745,6 +826,18 @@ static int RunNtfsDeletedExtract(string[] args)
         if (temporaryPath is not null)
         {
             try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+        if (temporaryManifestPath is not null)
+        {
+            try { if (File.Exists(temporaryManifestPath)) File.Delete(temporaryManifestPath); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+        if (!outputPublished && manifestPath is not null && File.Exists(manifestPath))
+        {
+            try { File.Delete(manifestPath); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
