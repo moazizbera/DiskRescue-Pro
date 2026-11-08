@@ -37,6 +37,31 @@ public sealed class DeletedRecoveryTemporaryFileLeaseTests
     }
 
     [Fact]
+    public void CleanupPreservesManifestWhenOutputMayAlreadyHaveBeenPublished()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var token = Guid.NewGuid().ToString("N");
+            var lockPath = Path.Combine(directory, $".diskrescue-{token}.lock");
+            var manifestPath = Path.Combine(directory, $".diskrescue-{token}.manifest.partial");
+            var possiblePublishedOutput = Path.Combine(directory, "recovered.bin");
+            File.WriteAllText(lockPath, "DiskRescuePro.DeletedExport.v1\\n" + token);
+            File.WriteAllText(manifestPath, "pending manifest");
+            File.WriteAllText(possiblePublishedOutput, "published output");
+
+            Assert.Equal(0, DeletedRecoveryTemporaryFileLease.CleanupStale(directory));
+            Assert.True(File.Exists(lockPath));
+            Assert.Equal("pending manifest", File.ReadAllText(manifestPath));
+            Assert.Equal("published output", File.ReadAllText(possiblePublishedOutput));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void CleanupDoesNotTouchAnActiveOperation()
     {
         var directory = CreateDirectory();
