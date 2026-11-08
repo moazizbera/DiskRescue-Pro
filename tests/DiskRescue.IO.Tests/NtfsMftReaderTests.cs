@@ -26,6 +26,26 @@ public sealed class NtfsMftReaderTests
     }
 
     [Fact]
+    public void DeletedFileNameMetadataIsOptInAndExplicitlyMarked()
+    {
+        using var image = CreateImage(deletedRecordOne: true);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        var normalScan = opened.Reader!.ScanRecords(16);
+        Assert.True(normalScan.IsValid, string.Join("; ", normalScan.Issues));
+        Assert.DoesNotContain(normalScan.Entries, entry => entry.RecordNumber == 1);
+
+        var forensicScan = opened.Reader.ScanRecords(16, includeDeleted: true);
+        Assert.True(forensicScan.IsValid, string.Join("; ", forensicScan.Issues));
+        var deleted = Assert.Single(forensicScan.Entries, entry => entry.RecordNumber == 1);
+        Assert.True(deleted.IsDeleted);
+        Assert.Equal("Deleted.txt", deleted.Name);
+        Assert.Equal((ulong)5, deleted.ParentRecordNumber);
+        Assert.Equal((ushort)9, deleted.ParentSequenceNumber);
+    }
+
+    [Fact]
     public void ReadsReferencedRecordOnlyWhenSequenceAndBaseReferenceMatch()
     {
         const ulong baseReference = (9UL << 48);
@@ -200,14 +220,15 @@ public sealed class NtfsMftReaderTests
     private static MemoryImage CreateImage(uint recordZeroNumber = 0, ulong recordTwoBaseReferenceRaw = 0,
         bool includeAttributeList = false, bool includeContinuation = false, byte[]? residentFileData = null,
         byte[]? nonResidentFileData = null, bool includeMultiExtentFileData = false,
-        byte[]? firstFileDataExtent = null, byte[]? secondFileDataExtent = null)
+        byte[]? firstFileDataExtent = null, byte[]? secondFileDataExtent = null,
+        bool deletedRecordOne = false)
     {
         var bytes = new byte[128 * 512];
         CreateFileRecord(recordZeroNumber, includeMftDataAttribute: true,
             includeAttributeList: includeAttributeList, mftSize: includeContinuation ? 8192UL : 4096UL).CopyTo(bytes, 4 * 512);
         var recordOne = CreateFileRecord(1, includeMftDataAttribute: false, includeFileName: true,
             residentData: residentFileData, nonResidentDataLength: nonResidentFileData?.Length ?? 0,
-            includeMultiExtentFileData: includeMultiExtentFileData);
+            includeMultiExtentFileData: includeMultiExtentFileData, isInUse: !deletedRecordOne);
         if (nonResidentFileData is not null)
             nonResidentFileData.AsSpan().CopyTo(bytes.AsSpan(30 * 512));
         if (firstFileDataExtent is not null)
@@ -227,7 +248,7 @@ public sealed class NtfsMftReaderTests
     }
 
     private static byte[] CreateFileRecord(uint recordNumber, bool includeMftDataAttribute, bool includeFileName = false,
-        bool isDirectory = false, ulong baseFileReferenceRaw = 0, bool includeAttributeList = false,
+        bool isDirectory = false, bool isInUse = true, ulong baseFileReferenceRaw = 0, bool includeAttributeList = false,
         bool includeContinuationData = false, ulong mftSize = 4096, byte[]? residentData = null,
         int nonResidentDataLength = 0, bool includeMultiExtentFileData = false,
         bool includeFileDataContinuation = false)
@@ -239,7 +260,7 @@ public sealed class NtfsMftReaderTests
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(16, 2), 9);
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(18, 2), 1);
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(20, 2), 56);
-        BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(22, 2), (ushort)(1 | (isDirectory ? 2 : 0)));
+        BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(22, 2), (ushort)((isInUse ? 1 : 0) | (isDirectory ? 2 : 0)));
         BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(28, 4), 1024);
         BinaryPrimitives.WriteUInt64LittleEndian(raw.AsSpan(32, 8), baseFileReferenceRaw);
         BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(44, 4), recordNumber);
@@ -370,6 +391,37 @@ public sealed class NtfsMftReaderTests
             BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(56, 4), 0xFFFFFFFF);
             BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(24, 4), 60);
         }
+        if (includeFileName)
+        {
+            var bytesInUse = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(24, 4)));
+            var endMarkerOffset = bytesInUse - sizeof(uint);
+            const string fileName = "Deleted.txt";
+            var nameBytes = Encoding.Unicode.GetBytes(fileName);
+            var valueLength = checked(66 + nameBytes.Length);
+            var attributeLength = checked((24 + valueLength + 7) & ~7);
+            var newEndMarkerOffset = checked(endMarkerOffset + attributeLength);
+            if (newEndMarkerOffset + sizeof(uint) > raw.Length)
+                throw new InvalidOperationException("Synthetic FILE_NAME attribute exceeds the record.");
+
+            // Move the existing end marker and append a valid resident $FILE_NAME attribute.
+            raw.AsSpan(endMarkerOffset, sizeof(uint)).CopyTo(raw.AsSpan(newEndMarkerOffset, sizeof(uint)));
+            var attribute = raw.AsSpan(endMarkerOffset, attributeLength);
+            BinaryPrimitives.WriteUInt32LittleEndian(attribute[..4], 0x30);
+            BinaryPrimitives.WriteUInt32LittleEndian(attribute.Slice(4, 4), checked((uint)attributeLength));
+            attribute[8] = 0;
+            attribute[9] = 0;
+            BinaryPrimitives.WriteUInt32LittleEndian(attribute.Slice(16, 4), checked((uint)valueLength));
+            BinaryPrimitives.WriteUInt16LittleEndian(attribute.Slice(20, 2), 24);
+            var value = attribute.Slice(24, valueLength);
+            BinaryPrimitives.WriteUInt64LittleEndian(value[..8], (9UL << 48) | 5UL);
+            BinaryPrimitives.WriteUInt64LittleEndian(value.Slice(40, 8), 4096);
+            BinaryPrimitives.WriteUInt64LittleEndian(value.Slice(48, 8), 2048);
+            value[64] = checked((byte)fileName.Length);
+            value[65] = 1;
+            nameBytes.CopyTo(value[66..]);
+            BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(24, 4), checked((uint)(newEndMarkerOffset + sizeof(uint))));
+        }
+
         return raw;
     }
 
