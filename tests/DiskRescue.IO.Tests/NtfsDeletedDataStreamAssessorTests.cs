@@ -78,7 +78,7 @@ public sealed class NtfsDeletedDataStreamAssessorTests
             Entry(), Record(), Name(), Parent(), new[] { NonResidentData() },
             8, 512, allocationMap: null);
 
-        Assert.Equal(NtfsDeletedDataStreamStatus.UnsupportedStreamLayout, result.Status);
+        Assert.Equal(NtfsDeletedDataStreamStatus.AllocationUnknown, result.Status);
         Assert.False(result.IsEligibleForBoundedRead);
     }
 
