@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$OutputDirectory = (Join-Path ([IO.Path]::GetTempPath()) ("DiskRescue-DeletedRecovery-" + [Guid]::NewGuid().ToString("N")))
+    [string]$OutputDirectory = (Join-Path ([IO.Path]::GetTempPath()) ("DiskRescue-DeletedRecovery-Source-" + [Guid]::NewGuid().ToString("N"))),
+    [string]$DestinationDirectory = (Join-Path $env:SystemDrive ("DiskRescue-DeletedRecovery-Destination-" + [Guid]::NewGuid().ToString("N")))
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,13 +17,18 @@ if (-not (Test-Path $cliProject)) {
 }
 
 $directory = [IO.Path]::GetFullPath($OutputDirectory)
+$destination = [IO.Path]::GetFullPath($DestinationDirectory)
 New-Item -ItemType Directory -Path $directory -Force | Out-Null
+New-Item -ItemType Directory -Path $destination -Force | Out-Null
+if ([string]::Equals([IO.Path]::GetPathRoot($directory), [IO.Path]::GetPathRoot($destination), [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Synthetic source images and recovery outputs must be placed on different drive roots for the destination-separation test."
+}
 $freeImage = Join-Path $directory "deleted-ntfs-free.img"
 $allocatedImage = Join-Path $directory "deleted-ntfs-allocated.img"
 $fragmentedImage = Join-Path $directory "deleted-ntfs-fragmented.img"
 $fragmentedAllocatedImage = Join-Path $directory "deleted-ntfs-fragmented-allocated.img"
-$fragmentedOutput = Join-Path $directory "Deleted-fragmented-recovered.bin"
-$output = Join-Path $directory "Deleted-recovered.bin"
+$fragmentedOutput = Join-Path $destination "Deleted-fragmented-recovered.bin"
+$output = Join-Path $destination "Deleted-recovered.bin"
 $manifestPath = "${output}.recovery.json"
 
 foreach ($path in @($freeImage, $allocatedImage, $fragmentedImage, $fragmentedAllocatedImage, $fragmentedOutput, "${fragmentedOutput}.recovery.json", $output, $manifestPath)) {
@@ -135,7 +141,7 @@ try {
     $sourceHashAfter = (Get-FileHash -LiteralPath $freeImage -Algorithm SHA256).Hash
     if ($sourceHashBefore -ne $sourceHashAfter) { throw "Source image changed during deleted-data export." }
 
-    $allocatedOutput = Join-Path $directory "Allocated-must-not-export.bin"
+    $allocatedOutput = Join-Path $destination "Allocated-must-not-export.bin"
     $allocated = Invoke-DiskRescueCli -Arguments @(
         "extract-deleted-ntfs-file", $allocatedImage,
         "--offset", "512", "--length", "65024", "--record", "1",
@@ -145,7 +151,7 @@ try {
         throw "The CLI failed to refuse currently allocated clusters."
     }
 
-    $fragmentedAllocatedOutput = Join-Path $directory "Fragmented-allocated-must-not-export.bin"
+    $fragmentedAllocatedOutput = Join-Path $destination "Fragmented-allocated-must-not-export.bin"
     $fragmentedAllocated = Invoke-DiskRescueCli -Arguments @(
         "extract-deleted-ntfs-file", $fragmentedAllocatedImage,
         "--offset", "512", "--length", "65024", "--record", "1",
@@ -158,7 +164,7 @@ try {
     }
 
     Write-Host "[5/6] Verifying byte ceiling, no-overwrite, and source-path protection..."
-    $limitedOutput = Join-Path $directory "Over-limit.bin"
+    $limitedOutput = Join-Path $destination "Over-limit.bin"
     $limited = Invoke-DiskRescueCli -Arguments @(
         "extract-deleted-ntfs-file", $freeImage,
         "--offset", "512", "--length", "65024", "--record", "1",
@@ -189,7 +195,7 @@ try {
         throw "Source image changed after source-path overwrite refusal."
     }
 
-    $manifestCollisionOutput = Join-Path $directory "Manifest-collision.bin"
+    $manifestCollisionOutput = Join-Path $destination "Manifest-collision.bin"
     [IO.File]::WriteAllText("${manifestCollisionOutput}.recovery.json", "preserve-existing-manifest")
     $manifestCollision = Invoke-DiskRescueCli -Arguments @(
         "extract-deleted-ntfs-file", $freeImage,
@@ -204,7 +210,7 @@ try {
     }
 
     Write-Host "[6/6] Checking temporary-file cleanup and final hashes..."
-    $partials = @(Get-ChildItem -LiteralPath $directory -Force -File | Where-Object { $_.Name.EndsWith(".partial", [StringComparison]::OrdinalIgnoreCase) })
+    $partials = @(Get-ChildItem -LiteralPath $destination -Force -File | Where-Object { $_.Name.EndsWith(".partial", [StringComparison]::OrdinalIgnoreCase) })
     if ($partials.Count -ne 0) { throw "Temporary partial output files remain after the test run." }
 
     # Expected negative CLI cases leave a non-zero native exit code; the harness itself passed.
