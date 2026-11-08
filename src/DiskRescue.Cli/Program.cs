@@ -548,13 +548,6 @@ static int RunNtfsExtract(string[] args)
             using (var verification = File.OpenRead(temporaryPath))
                 sha256 = Convert.ToHexString(SHA256.HashData(verification));
             cancellation.Token.ThrowIfCancellationRequested();
-            var publicationVolumeMap = WindowsPhysicalDiskVolumeMap.Enumerate();
-            var publicationDestinationAssessment = PhysicalImageDestinationSafety.AssessForImageFile(
-                fullImagePath, fullOutputPath, publicationVolumeMap, (long)maximumBytes.Value);
-            if (!publicationDestinationAssessment.CanUseAsSeparateDestination)
-                throw new IOException("Recovery destination failed its final physical-separation check: " +
-                    string.Join("; ", publicationDestinationAssessment.Blockers));
-
             File.Move(temporaryPath, fullOutputPath, overwrite: false);
             temporaryPath = null;
             Console.WriteLine();
@@ -818,6 +811,13 @@ static int RunNtfsDeletedExtract(string[] args)
             }
 
             cancellation.Token.ThrowIfCancellationRequested();
+            var publicationVolumeMap = WindowsPhysicalDiskVolumeMap.Enumerate();
+            var publicationDestinationAssessment = PhysicalImageDestinationSafety.AssessForImageFile(
+                fullImagePath, fullOutputPath, publicationVolumeMap, (long)maximumBytes.Value);
+            if (!publicationDestinationAssessment.CanUseAsSeparateDestination)
+                throw new IOException("Recovery destination failed its final physical-separation check: " +
+                    string.Join("; ", publicationDestinationAssessment.Blockers));
+
             File.Move(temporaryPath, fullOutputPath, overwrite: false);
             temporaryPath = null;
             outputPublished = true;
