@@ -745,6 +745,20 @@ static int RunNtfsDeletedExtract(string[] args)
                     preflightStatus = deletedAssessment.Status.ToString(),
                     clusterAllocation = deletedAssessment.ClusterAllocation?.Status.ToString() ?? "NotApplicableResidentStream"
                 },
+                dataStream = new
+                {
+                    isResident = deletedAssessment.IsResident,
+                    lengthBytes = deletedAssessment.Length,
+                    initializedSizeBytes = deletedAssessment.InitializedSize,
+                    clusterSizeBytes = boot.BootSector.ClusterSizeBytes,
+                    physicalRunCount = deletedAssessment.Runs.Count,
+                    physicalRuns = deletedAssessment.Runs.Select(run => new
+                    {
+                        startingVcn = run.StartingVcn,
+                        clusterCount = run.ClusterCount,
+                        startingLcn = run.StartingLcn
+                    })
+                },
                 export = new
                 {
                     fileName = Path.GetFileName(fullOutputPath),
