@@ -79,6 +79,7 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [x] Injected output-publication, manifest-publication, rollback, disk-full-write, and destination-permission failures are covered
 - [~] Use an exclusive per-export operation lock and exact GUID-scoped temporary names; a later invocation removes abandoned temporary artifacts only after acquiring the stale lock exclusively and validating its marker. Active, malformed, or inaccessible locks are preserved. Automated tests cover abandoned-operation cleanup, active-operation protection, malformed markers, and normal disposal.
 - [ ] Add a child-process termination test and validate recovery from termination at each publication boundary. A crash during the final two-file publication window can leave an output without its manifest; that orphan is preserved for explicit review, not automatically deleted.
+- [x] Treat CI runners without unique serial metadata or with virtualized/layered device descriptions as unsupported for the positive export E2E path; the production gate remains fail-closed, and the harness skips only this environment-dependent success path.
 - [x] Add deleted-image export destination-volume identity checks; source and destination physical disk mappings must be complete and non-overlapping before export and again before publication
 
 ## Phase 6 — Professional desktop experience
