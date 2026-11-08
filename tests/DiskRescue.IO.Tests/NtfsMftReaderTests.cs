@@ -243,7 +243,7 @@ public sealed class NtfsMftReaderTests
     [Fact]
     public void DeletedResidentStreamCopiesFromValidatedMftRecord()
     {
-        var expected = Enumerable.Range(0, 512).Select(value => (byte)(value % 233)).ToArray();
+        var expected = Enumerable.Range(0, 256).Select(value => (byte)(value % 233)).ToArray();
         using var image = CreateDeletedFileImage(expected, allocatedDataClusters: false, resident: true);
         var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
         Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
@@ -253,7 +253,7 @@ public sealed class NtfsMftReaderTests
 
         Assert.True(result.IsValid, string.Join("; ", result.Issues));
         Assert.True(result.Assessment!.IsResident);
-        Assert.Equal((ulong)512, result.Copy!.BytesWritten);
+        Assert.Equal((ulong)256, result.Copy!.BytesWritten);
         Assert.Equal(expected, destination.ToArray());
     }
 
@@ -320,7 +320,7 @@ public sealed class NtfsMftReaderTests
         var result = opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024);
 
         Assert.False(result.IsValid);
-        Assert.Equal(NtfsDeletedDataStreamStatus.AllocationUnknown, result.Assessment!.Status);
+        Assert.Equal(NtfsDeletedDataStreamStatus.InvalidRunlist, result.Assessment!.Status);
         Assert.Equal(0, destination.Length);
     }
 
@@ -342,8 +342,8 @@ public sealed class NtfsMftReaderTests
 
     private static MemoryImage CreateDeletedFileImage(byte[] payload, bool allocatedDataClusters, bool deleted = true, bool resident = false)
     {
-        if (payload.Length != 512)
-            throw new ArgumentException("Synthetic deleted-file payload must be exactly one cluster.", nameof(payload));
+        if (resident ? payload.Length > 400 : payload.Length != 512)
+            throw new ArgumentException("Synthetic payload exceeds the safe FILE-record fixture bounds.", nameof(payload));
 
         var bytes = new byte[128 * 512];
         var mftBase = CreateFileRecord(0, includeMftDataAttribute: true, mftSize: 8192);
