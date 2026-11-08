@@ -99,8 +99,18 @@ public sealed class DeletedRecoveryTemporaryFileLease : IDisposable
                         continue;
                 }
 
-                var outputRemoved = TryDelete(Path.Combine(directory, LockPrefix + token + ".output.partial"));
-                var manifestRemoved = TryDelete(Path.Combine(directory, LockPrefix + token + ".manifest.partial"));
+                var outputPath = Path.Combine(directory, LockPrefix + token + ".output.partial");
+                var manifestPath = Path.Combine(directory, LockPrefix + token + ".manifest.partial");
+                if (!File.Exists(outputPath) && File.Exists(manifestPath))
+                {
+                    // The output partial may already have been moved to its final
+                    // name immediately before an abrupt termination. Preserve the
+                    // remaining manifest and lock for explicit reconciliation.
+                    continue;
+                }
+
+                var outputRemoved = TryDelete(outputPath);
+                var manifestRemoved = TryDelete(manifestPath);
                 artifactsRemoved = outputRemoved && manifestRemoved;
             }
             catch (IOException)
