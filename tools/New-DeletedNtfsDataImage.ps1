@@ -71,6 +71,7 @@ function New-FileRecord([UInt32]$RecordNumber, [UInt16]$Flags, [string]$Kind, [U
         Write-U32 $record 56 0x80
         Write-U32 $record 60 72
         $record[64] = 1
+            Write-U16 $record 70 1
         Write-U64 $record 72 0
         Write-U64 $record 80 15
         Write-U16 $record 88 64
@@ -88,12 +89,14 @@ function New-FileRecord([UInt32]$RecordNumber, [UInt16]$Flags, [string]$Kind, [U
         if ($Fragmented) {
             # Base extent VCN 0 at LCN 30; continuation extent VCN 1 at LCN 34.
             Write-U32 $record 56 0x80; Write-U32 $record 60 72; $record[64] = 1
+            Write-U16 $record 70 1
             Write-U64 $record 72 0; Write-U64 $record 80 0; Write-U16 $record 88 64
             Write-U64 $record 96 1024; Write-U64 $record 104 1024; Write-U64 $record 112 1024
             $record[120] = 0x11; $record[121] = 1; $record[122] = 30; $record[123] = 0
         } else {
             # Existing single-extent fixture: two clusters at LCN 30..31.
             Write-U32 $record 56 0x80; Write-U32 $record 60 72; $record[64] = 1
+            Write-U16 $record 70 1
             Write-U64 $record 72 0; Write-U64 $record 80 1; Write-U16 $record 88 64
             Write-U64 $record 96 1024; Write-U64 $record 104 512; Write-U64 $record 112 512
             $record[120] = 0x11; $record[121] = 2; $record[122] = 30; $record[123] = 0
@@ -132,6 +135,7 @@ function New-FileRecord([UInt32]$RecordNumber, [UInt16]$Flags, [string]$Kind, [U
     elseif ($Kind -eq "DeletedContinuation") {
         # Deleted extension record 2 points back to base record 1, sequence 9.
         Write-U32 $record 56 0x80; Write-U32 $record 60 72; $record[64] = 1
+            Write-U16 $record 70 1
         Write-U64 $record 72 1; Write-U64 $record 80 1; Write-U16 $record 88 64
         Write-U64 $record 96 1024; Write-U64 $record 104 1024; Write-U64 $record 112 1024
         $record[120] = 0x11; $record[121] = 1; $record[122] = 34; $record[123] = 0
