@@ -89,6 +89,7 @@ public sealed partial class NtfsMftReader
                 attribute.MappingPairs is null ||
                 attribute.InitializedSize is not ulong initializedSize ||
                 attribute.RealSize is not ulong realSize ||
+                attribute.AllocatedSize is not ulong allocatedSize ||
                 initializedSize != assessment.InitializedSize ||
                 realSize != assessment.Length ||
                 initializedSize > realSize)
@@ -100,6 +101,10 @@ public sealed partial class NtfsMftReader
                 highestVcn == ulong.MaxValue || runlist.TotalClusters != highestVcn + 1 ||
                 !runlist.Runs.SequenceEqual(assessment.Runs))
                 return InvalidDeletedCopy("Non-resident deleted-stream runlist changed or failed revalidation.", assessment);
+
+            var mappedBytes = checked(runlist.TotalClusters * _boot.ClusterSizeBytes);
+            if (allocatedSize > mappedBytes || realSize > mappedBytes)
+                return InvalidDeletedCopy("Non-resident deleted-stream sizes exceed the revalidated runlist.", assessment);
 
             // The preflight has already checked every run against the current $Bitmap.
             // The existing reader enforces source and volume byte boundaries on every read.
