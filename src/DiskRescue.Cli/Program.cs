@@ -548,6 +548,13 @@ static int RunNtfsExtract(string[] args)
             using (var verification = File.OpenRead(temporaryPath))
                 sha256 = Convert.ToHexString(SHA256.HashData(verification));
             cancellation.Token.ThrowIfCancellationRequested();
+            var publicationVolumeMap = WindowsPhysicalDiskVolumeMap.Enumerate();
+            var publicationDestinationAssessment = PhysicalImageDestinationSafety.AssessForImageFile(
+                fullImagePath, fullOutputPath, publicationVolumeMap, (long)maximumBytes.Value);
+            if (!publicationDestinationAssessment.CanUseAsSeparateDestination)
+                throw new IOException("Recovery destination failed its final physical-separation check: " +
+                    string.Join("; ", publicationDestinationAssessment.Blockers));
+
             File.Move(temporaryPath, fullOutputPath, overwrite: false);
             temporaryPath = null;
             Console.WriteLine();
@@ -673,8 +680,20 @@ static int RunNtfsDeletedExtract(string[] args)
         if (File.Exists(manifestPath) || Directory.Exists(manifestPath))
             throw new IOException("Recovery manifest already exists; existing files are never overwritten.");
 
+        if (!OperatingSystem.IsWindows())
+            throw new IOException("Deleted-image export requires Windows physical-volume mapping to verify a separate destination disk.");
+        if (maximumBytes.Value > long.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(maximumBytes), "Maximum export size exceeds supported destination-capacity checks.");
+
         var sourceInfo = new FileInfo(fullImagePath);
         var sourceLastWriteTimeUtc = sourceInfo.LastWriteTimeUtc;
+        var initialVolumeMap = WindowsPhysicalDiskVolumeMap.Enumerate();
+        var initialDestinationAssessment = PhysicalImageDestinationSafety.AssessForImageFile(
+            fullImagePath, fullOutputPath, initialVolumeMap, (long)maximumBytes.Value);
+        if (!initialDestinationAssessment.CanUseAsSeparateDestination)
+            throw new IOException("Recovery destination is not verified as physically separate from the source image: " +
+                string.Join("; ", initialDestinationAssessment.Blockers));
+
         using var image = FileImageReader.Open(fullImagePath);
         var boot = NtfsBootSectorParser.Parse(image, volumeOffset.Value, volumeLength.Value);
         if (!boot.IsValid || boot.BootSector is null)
