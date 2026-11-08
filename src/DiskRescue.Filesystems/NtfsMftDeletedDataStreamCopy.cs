@@ -42,6 +42,29 @@ public sealed partial class NtfsMftReader
             return new(false, assessment, null,
                 new[] { $"Deleted stream length {assessment.Length} exceeds the caller's {maximumBytes}-byte export limit." });
 
+        // Revalidate the full deleted metadata chain for resident streams too. The
+        // resident branch does not need $Bitmap, but it still depends on the parent
+        // record identity and deleted-file state remaining valid at read time.
+        cancellationToken.ThrowIfCancellationRequested();
+        var refreshedPreflight = AssessDeletedDataStream(recordNumber, streamName, cancellationToken);
+        if (!refreshedPreflight.IsValid || refreshedPreflight.Assessment is null ||
+            !refreshedPreflight.Assessment.IsEligibleForBoundedRead)
+            return InvalidDeletedCopy("Deleted-stream metadata failed immediate pre-read revalidation: " +
+                string.Join("; ", refreshedPreflight.Issues.Concat(
+                    refreshedPreflight.Assessment?.Warnings ?? Array.Empty<string>())),
+                refreshedPreflight.Assessment ?? assessment);
+
+        var refreshedAssessment = refreshedPreflight.Assessment;
+        if (refreshedAssessment.Metadata.RecordNumber != assessment.Metadata.RecordNumber ||
+            refreshedAssessment.Metadata.SequenceNumber != assessment.Metadata.SequenceNumber ||
+            refreshedAssessment.Length != assessment.Length ||
+            refreshedAssessment.InitializedSize != assessment.InitializedSize ||
+            refreshedAssessment.IsResident != assessment.IsResident ||
+            !refreshedAssessment.Runs.SequenceEqual(assessment.Runs))
+            return InvalidDeletedCopy("Deleted stream identity, sizes, or extent map changed after initial preflight.",
+                refreshedAssessment);
+        assessment = refreshedAssessment;
+
         cancellationToken.ThrowIfCancellationRequested();
         var recordRead = ReadRecord(recordNumber);
         if (!recordRead.IsValid || recordRead.Record is null)
