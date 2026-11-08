@@ -693,7 +693,7 @@ static int RunNtfsDeletedExtract(string[] args)
             using (var destination = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write,
                 FileShare.None, 1024 * 1024, FileOptions.SequentialScan))
             {
-                var progress = new Progress<ulong>(bytes => Console.Write($"Deleted-data read: {bytes:N0} bytes"));
+                var progress = new Progress<ulong>(bytes => Console.Write($"\rDeleted-data read: {bytes:N0} bytes"));
                 copied = opened.Reader.CopyDeletedDataStreamTo(
                     recordNumber.Value, destination, maximumBytes.Value, streamName, cancellation.Token, progress);
                 if (!copied.IsValid || copied.Copy is null || !copied.Copy.IsValid)
