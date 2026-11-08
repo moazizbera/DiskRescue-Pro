@@ -19,10 +19,13 @@ $directory = [IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $directory -Force | Out-Null
 $freeImage = Join-Path $directory "deleted-ntfs-free.img"
 $allocatedImage = Join-Path $directory "deleted-ntfs-allocated.img"
+$fragmentedImage = Join-Path $directory "deleted-ntfs-fragmented.img"
+$fragmentedAllocatedImage = Join-Path $directory "deleted-ntfs-fragmented-allocated.img"
+$fragmentedOutput = Join-Path $directory "Deleted-fragmented-recovered.bin"
 $output = Join-Path $directory "Deleted-recovered.bin"
 $manifestPath = "${output}.recovery.json"
 
-foreach ($path in @($freeImage, $allocatedImage, $output, $manifestPath)) {
+foreach ($path in @($freeImage, $allocatedImage, $fragmentedImage, $fragmentedAllocatedImage, $fragmentedOutput, "${fragmentedOutput}.recovery.json", $output, $manifestPath)) {
     if (Test-Path $path) { throw "Refusing to overwrite an existing test artifact: $path" }
 }
 
@@ -46,8 +49,13 @@ try {
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $freeImage)) { throw "Free-cluster fixture generation failed." }
     & $fixtureGenerator -OutputPath $allocatedImage -MarkDataClustersAllocated
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $allocatedImage)) { throw "Allocated-cluster fixture generation failed." }
+    & $fixtureGenerator -OutputPath $fragmentedImage -Fragmented
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $fragmentedImage)) { throw "Fragmented multi-extent fixture generation failed." }
+    & $fixtureGenerator -OutputPath $fragmentedAllocatedImage -Fragmented -MarkDataClustersAllocated
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $fragmentedAllocatedImage)) { throw "Fragmented allocated-cluster fixture generation failed." }
 
     $sourceHashBefore = (Get-FileHash -LiteralPath $freeImage -Algorithm SHA256).Hash
+    $fragmentedSourceHashBefore = (Get-FileHash -LiteralPath $fragmentedImage -Algorithm SHA256).Hash
     Write-Host "[3/6] Running bounded deleted-data export and validating the manifest..."
     $success = Invoke-DiskRescueCli -Arguments @(
         "extract-deleted-ntfs-file", $freeImage,
@@ -88,6 +96,33 @@ try {
         throw "CLI output did not disclose the manifest and unverified content-integrity status."
     }
 
+    Write-Host "[3a] Exporting a deleted file whose VCN extents map to fragmented physical clusters..."
+    $fragmented = Invoke-DiskRescueCli -Arguments @(
+        "extract-deleted-ntfs-file", $fragmentedImage,
+        "--offset", "512", "--length", "65024", "--record", "1",
+        "--output", $fragmentedOutput, "--max-bytes", "1024"
+    )
+    if ($fragmented.ExitCode -ne 0) { throw "Fragmented multi-extent export failed: $($fragmented.Output)" }
+    if (-not (Test-Path $fragmentedOutput) -or -not (Test-Path "${fragmentedOutput}.recovery.json")) {
+        throw "Fragmented export did not publish both output and recovery manifest."
+    }
+    $fragmentedExpected = New-Object byte[] 1024
+    for ($i = 0; $i -lt $fragmentedExpected.Length; $i++) { $fragmentedExpected[$i] = [byte]($i % 251) }
+    $fragmentedActual = [IO.File]::ReadAllBytes($fragmentedOutput)
+    if ([Convert]::ToHexString($fragmentedActual) -ne [Convert]::ToHexString($fragmentedExpected)) {
+        throw "Fragmented multi-extent output does not match the deterministic 1024-byte payload."
+    }
+    $fragmentedManifest = Get-Content -LiteralPath "${fragmentedOutput}.recovery.json" -Raw | ConvertFrom-Json
+    $fragmentedOutputHash = (Get-FileHash -LiteralPath $fragmentedOutput -Algorithm SHA256).Hash
+    if ($fragmentedManifest.export.bytesWritten -ne 1024 -or
+        $fragmentedManifest.export.sha256 -ne $fragmentedOutputHash -or
+        $fragmentedManifest.export.contentIntegrityVerified -ne $false) {
+        throw "Fragmented recovery manifest does not accurately describe the bounded export."
+    }
+    if ((Get-FileHash -LiteralPath $fragmentedImage -Algorithm SHA256).Hash -ne $fragmentedSourceHashBefore) {
+        throw "Fragmented source image changed during successful multi-extent export."
+    }
+
     Write-Host "[4/6] Verifying source immutability and refusal of allocated clusters..."
     $sourceHashAfter = (Get-FileHash -LiteralPath $freeImage -Algorithm SHA256).Hash
     if ($sourceHashBefore -ne $sourceHashAfter) { throw "Source image changed during deleted-data export." }
@@ -100,6 +135,18 @@ try {
     )
     if ($allocated.ExitCode -eq 0 -or (Test-Path $allocatedOutput) -or (Test-Path "${allocatedOutput}.recovery.json")) {
         throw "The CLI failed to refuse currently allocated clusters."
+    }
+
+    $fragmentedAllocatedOutput = Join-Path $directory "Fragmented-allocated-must-not-export.bin"
+    $fragmentedAllocated = Invoke-DiskRescueCli -Arguments @(
+        "extract-deleted-ntfs-file", $fragmentedAllocatedImage,
+        "--offset", "512", "--length", "65024", "--record", "1",
+        "--output", $fragmentedAllocatedOutput, "--max-bytes", "1024"
+    )
+    if ($fragmentedAllocated.ExitCode -eq 0 -or
+        (Test-Path $fragmentedAllocatedOutput) -or
+        (Test-Path "${fragmentedAllocatedOutput}.recovery.json")) {
+        throw "The CLI did not refuse an allocated cluster located only in the continuation extent."
     }
 
     Write-Host "[5/6] Verifying byte ceiling, no-overwrite, and source-path protection..."
@@ -158,6 +205,7 @@ try {
     Write-Host "PASS: deleted NTFS CLI export, recovery manifest, source immutability, allocated-cluster refusal, byte ceiling, overwrite protection, and temporary cleanup."
     Write-Host "Synthetic source SHA-256: $sourceHashBefore"
     Write-Host "Recovered output SHA-256: $outputHash"
+    Write-Host "Fragmented output SHA-256: $fragmentedOutputHash (two extents, LCN 30 and 34)"
     Write-Host "Recovery manifest: $manifestPath"
     Write-Host "Content integrity: explicitly unverified; no physical disk was accessed."
 }
