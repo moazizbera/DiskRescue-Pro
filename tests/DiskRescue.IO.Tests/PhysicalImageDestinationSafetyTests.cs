@@ -83,4 +83,81 @@ public sealed class PhysicalImageDestinationSafetyTests
 
         Assert.Empty(issues);
     }
+
+    private static PhysicalDiskDescriptor PhysicalDisk(int number, string? serial = null, uint? busType = 17) =>
+        new(number, $@"\\.\PhysicalDrive{number}", 1024 * 1024, 512,
+            SerialNumber: serial ?? $"SERIAL-{number}", BusType: busType, RemovableMedia: false);
+
+    [Fact]
+    public void PhysicalIdentityCheckAcceptsDistinctIdentifiedNvmeDisks()
+    {
+        var inventory = new PhysicalDiskDiscoveryResult(
+            new[] { PhysicalDisk(0), PhysicalDisk(1) }, Array.Empty<string>());
+
+        var issues = PhysicalImageDestinationSafety.ValidatePhysicalDiskIdentities(
+            inventory, new[] { 0 }, new[] { 1 });
+
+        Assert.Empty(issues);
+    }
+
+    [Theory]
+    [InlineData(0u)]
+    [InlineData(8u)]
+    [InlineData(14u)]
+    [InlineData(15u)]
+    [InlineData(16u)]
+    public void PhysicalIdentityCheckRejectsUnknownOrLayeredStorage(uint busType)
+    {
+        var inventory = new PhysicalDiskDiscoveryResult(
+            new[] { PhysicalDisk(0, busType: busType), PhysicalDisk(1) }, Array.Empty<string>());
+
+        var issues = PhysicalImageDestinationSafety.ValidatePhysicalDiskIdentities(
+            inventory, new[] { 0 }, new[] { 1 });
+
+        Assert.Contains(issues, issue => issue.Contains("unknown, RAID, virtual", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void PhysicalIdentityCheckRejectsMissingSerialAndIncompleteInventory()
+    {
+        var missingSerial = new PhysicalDiskDiscoveryResult(
+            new[] { PhysicalDisk(0, serial: ""), PhysicalDisk(1) }, Array.Empty<string>());
+        Assert.Contains(
+            PhysicalImageDestinationSafety.ValidatePhysicalDiskIdentities(
+                missingSerial, new[] { 0 }, new[] { 1 }),
+            issue => issue.Contains("no reported serial", StringComparison.OrdinalIgnoreCase));
+
+        var incomplete = new PhysicalDiskDiscoveryResult(
+            new[] { PhysicalDisk(0), PhysicalDisk(1) }, new[] { "device enumeration incomplete" });
+        Assert.Contains(
+            PhysicalImageDestinationSafety.ValidatePhysicalDiskIdentities(
+                incomplete, new[] { 0 }, new[] { 1 }),
+            issue => issue.Contains("enumeration reported diagnostics", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void PhysicalIdentityCheckRejectsDuplicateSerialAcrossDifferentDisks()
+    {
+        var inventory = new PhysicalDiskDiscoveryResult(
+            new[] { PhysicalDisk(0, "DUPLICATE"), PhysicalDisk(1, "DUPLICATE") },
+            Array.Empty<string>());
+
+        var issues = PhysicalImageDestinationSafety.ValidatePhysicalDiskIdentities(
+            inventory, new[] { 0 }, new[] { 1 });
+
+        Assert.Contains(issues, issue => issue.Contains("serial identity is duplicated", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void PhysicalIdentityCheckRejectsMissingDiskDescriptors()
+    {
+        var inventory = new PhysicalDiskDiscoveryResult(
+            new[] { PhysicalDisk(0) }, Array.Empty<string>());
+
+        var issues = PhysicalImageDestinationSafety.ValidatePhysicalDiskIdentities(
+            inventory, new[] { 0 }, new[] { 1 });
+
+        Assert.Contains(issues, issue => issue.Contains("does not have exactly one", StringComparison.OrdinalIgnoreCase));
+    }
+
 }
