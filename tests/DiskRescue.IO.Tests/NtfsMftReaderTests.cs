@@ -236,6 +236,40 @@ public sealed class NtfsMftReaderTests
     }
 
     [Fact]
+    public void DeletedResidentStreamCopiesFromValidatedMftRecord()
+    {
+        var expected = Enumerable.Range(0, 512).Select(value => (byte)(value % 233)).ToArray();
+        using var image = CreateDeletedFileImage(expected, allocatedDataClusters: false, resident: true);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        using var destination = new MemoryStream();
+        var result = opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024);
+
+        Assert.True(result.IsValid, string.Join("; ", result.Issues));
+        Assert.True(result.Assessment!.IsResident);
+        Assert.Equal((ulong)512, result.Copy!.BytesWritten);
+        Assert.Equal(expected, destination.ToArray());
+    }
+
+    [Fact]
+    public void DeletedStreamCopyHonorsCancellationBeforeAnyReadOrWrite()
+    {
+        var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
+        using var image = CreateDeletedFileImage(payload, allocatedDataClusters: false);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+        using var destination = new MemoryStream();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() =>
+            opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024,
+                cancellationToken: cancellation.Token));
+        Assert.Equal(0, destination.Length);
+    }
+
+    [Fact]
     public void DeletedStreamCopyRefusesClustersMarkedAllocated()
     {
         var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
@@ -284,7 +318,7 @@ public sealed class NtfsMftReaderTests
         Assert.Equal(0, destination.Length);
     }
 
-    private static MemoryImage CreateDeletedFileImage(byte[] payload, bool allocatedDataClusters, bool deleted = true)
+    private static MemoryImage CreateDeletedFileImage(byte[] payload, bool allocatedDataClusters, bool deleted = true, bool resident = false)
     {
         if (payload.Length != 512)
             throw new ArgumentException("Synthetic deleted-file payload must be exactly one cluster.", nameof(payload));
@@ -304,7 +338,8 @@ public sealed class NtfsMftReaderTests
         mftBase.AsSpan(0, 1024).CopyTo(bytes.AsSpan(4 * 512, 1024));
 
         var file = CreateFileRecord(1, includeMftDataAttribute: false, includeFileName: true,
-            isInUse: !deleted, nonResidentDataLength: 512);
+            isInUse: !deleted, residentData: resident ? payload : null,
+            nonResidentDataLength: resident ? 0 : 512);
         file.AsSpan(0, 1024).CopyTo(bytes.AsSpan(6 * 512, 1024));
 
         var parent = CreateFileRecord(5, includeMftDataAttribute: false, isDirectory: true);
@@ -319,7 +354,8 @@ public sealed class NtfsMftReaderTests
         var bitmapRecord = CreateFileRecord(6, includeMftDataAttribute: false, residentData: bitmap);
         bitmapRecord.AsSpan(0, 1024).CopyTo(bytes.AsSpan(16 * 512, 1024));
 
-        payload.CopyTo(bytes.AsSpan(30 * 512, 512));
+        if (!resident)
+            payload.CopyTo(bytes.AsSpan(30 * 512, 512));
         return new MemoryImage(bytes);
     }
 
