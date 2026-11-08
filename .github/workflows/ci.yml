@@ -31,6 +31,8 @@ jobs:
           ./tools/New-DiskRescueTestImages.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiskRescue-TestImages"
           ./tools/New-NtfsMftPreviewImage.ps1 -OutputPath "$env:RUNNER_TEMP/DiskRescue-TestImages/ntfs-mft-preview.img"
           ./tools/New-LostNtfsPartitionImage.ps1 -OutputPath "$env:RUNNER_TEMP/DiskRescue-TestImages/lost-ntfs-partition.img"
+          ./tools/New-DeletedNtfsDataImage.ps1 -OutputPath "$env:RUNNER_TEMP/DiskRescue-TestImages/deleted-ntfs-free.img"
+          ./tools/New-DeletedNtfsDataImage.ps1 -OutputPath "$env:RUNNER_TEMP/DiskRescue-TestImages/deleted-ntfs-allocated.img" -MarkDataClustersAllocated
       - name: Smoke-test CLI against generated fixtures
         shell: pwsh
         run: |
@@ -82,6 +84,30 @@ jobs:
           $existingRecovery = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- extract-ntfs-file "$env:RUNNER_TEMP/DiskRescue-TestImages/ntfs-mft-preview.img" --offset 512 --length 65024 --record 1 --output $recoveredFile --max-bytes 1024 2>&1
           $recoveryExitCode = $LASTEXITCODE
           if ($recoveryExitCode -eq 0) { throw "NTFS extraction unexpectedly overwrote an existing output file." }
+          $global:LASTEXITCODE = 0
+          $deletedSource = "$env:RUNNER_TEMP/DiskRescue-TestImages/deleted-ntfs-free.img"
+          $deletedOutput = "$env:RUNNER_TEMP/DiskRescue-TestImages/Deleted-recovered.bin"
+          $deletedSourceHashBefore = (Get-FileHash -LiteralPath $deletedSource -Algorithm SHA256).Hash
+          $deletedCliOutput = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- extract-deleted-ntfs-file $deletedSource --offset 512 --length 65024 --record 1 --output $deletedOutput --max-bytes 1024 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "Deleted NTFS CLI extraction failed: $($deletedCliOutput -join ' ')" }
+          if (-not (Test-Path $deletedOutput)) { throw "Deleted NTFS CLI did not publish its output." }
+          $expectedDeleted = New-Object byte[] 512
+          for ($i = 0; $i -lt $expectedDeleted.Length; $i++) { $expectedDeleted[$i] = [byte]($i % 251) }
+          $actualDeleted = [IO.File]::ReadAllBytes($deletedOutput)
+          if ([Convert]::ToHexString($actualDeleted) -ne [Convert]::ToHexString($expectedDeleted)) { throw "Deleted NTFS CLI output did not match the synthetic payload." }
+          $deletedSourceHashAfter = (Get-FileHash -LiteralPath $deletedSource -Algorithm SHA256).Hash
+          if ($deletedSourceHashBefore -ne $deletedSourceHashAfter) { throw "Deleted NTFS CLI modified the source image." }
+          if (($deletedCliOutput -join " ") -notmatch "Content integrity verified: false") { throw "Deleted NTFS CLI did not clearly report content integrity as unverified." }
+          $allocatedOutput = "$env:RUNNER_TEMP/DiskRescue-TestImages/Deleted-allocated-must-not-export.bin"
+          $allocatedCliOutput = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- extract-deleted-ntfs-file "$env:RUNNER_TEMP/DiskRescue-TestImages/deleted-ntfs-allocated.img" --offset 512 --length 65024 --record 1 --output $allocatedOutput --max-bytes 1024 2>&1
+          if ($LASTEXITCODE -eq 0 -or (Test-Path $allocatedOutput)) { throw "Deleted NTFS CLI did not refuse allocated clusters." }
+          $global:LASTEXITCODE = 0
+          $limitedOutput = "$env:RUNNER_TEMP/DiskRescue-TestImages/Deleted-over-limit.bin"
+          $limitedCliOutput = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- extract-deleted-ntfs-file $deletedSource --offset 512 --length 65024 --record 1 --output $limitedOutput --max-bytes 128 2>&1
+          if ($LASTEXITCODE -eq 0 -or (Test-Path $limitedOutput)) { throw "Deleted NTFS CLI did not enforce the caller byte ceiling." }
+          $global:LASTEXITCODE = 0
+          $existingCliOutput = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- extract-deleted-ntfs-file $deletedSource --offset 512 --length 65024 --record 1 --output $deletedOutput --max-bytes 1024 2>&1
+          if ($LASTEXITCODE -eq 0) { throw "Deleted NTFS CLI unexpectedly overwrote an existing output." }
           $global:LASTEXITCODE = 0
       - name: Smoke-test one-command lost NTFS recovery harness
         shell: pwsh
