@@ -55,6 +55,10 @@ public static class NtfsDeletedDataStreamAssessor
             return Result(NtfsDeletedDataStreamStatus.MetadataRejected, metadata,
                 warnings: new[] { "Deleted metadata is not verified as an independent file; no data stream may be read." });
 
+        if (attributes.Any(attribute => attribute.Type == 0x20))
+            return Result(NtfsDeletedDataStreamStatus.UnsupportedStreamLayout, metadata,
+                warnings: new[] { "Deleted files with $ATTRIBUTE_LIST metadata require continuation-record validation, which this preflight does not yet implement." });
+
         var data = attributes.Where(attribute =>
             attribute.Type == DataAttributeType &&
             string.Equals(attribute.Name, streamName, StringComparison.Ordinal)).ToArray();
