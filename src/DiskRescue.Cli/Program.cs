@@ -656,6 +656,7 @@ static int RunNtfsDeletedExtract(string[] args)
     string? temporaryManifestPath = null;
     string? manifestPath = null;
     var outputPublished = false;
+    var manifestPublished = false;
     try
     {
         var fullImagePath = Path.GetFullPath(imagePath);
@@ -783,6 +784,7 @@ static int RunNtfsDeletedExtract(string[] args)
             {
                 File.Move(temporaryManifestPath, manifestPath, overwrite: false);
                 temporaryManifestPath = null;
+                manifestPublished = true;
             }
             catch
             {
@@ -835,7 +837,7 @@ static int RunNtfsDeletedExtract(string[] args)
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
-        if (!outputPublished && manifestPath is not null && File.Exists(manifestPath))
+        if (manifestPublished && !outputPublished && manifestPath is not null && File.Exists(manifestPath))
         {
             try { File.Delete(manifestPath); }
             catch (IOException) { }
