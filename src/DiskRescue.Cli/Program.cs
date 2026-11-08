@@ -24,6 +24,9 @@ static int Run(string[] args)
     if (string.Equals(args[0], "extract-ntfs-file", StringComparison.OrdinalIgnoreCase))
         return RunNtfsExtract(args);
 
+    if (string.Equals(args[0], "extract-deleted-ntfs-file", StringComparison.OrdinalIgnoreCase))
+        return RunNtfsDeletedExtract(args);
+
     if (string.Equals(args[0], "image-copy", StringComparison.OrdinalIgnoreCase))
         return RunImageCopy(args);
 
@@ -581,6 +584,172 @@ static int RunNtfsExtract(string[] args)
 }
 
 
+static int RunNtfsDeletedExtract(string[] args)
+{
+    if (args.Length < 2)
+    {
+        Console.Error.WriteLine("Usage: diskrescue extract-deleted-ntfs-file <image> --offset <bytes> --length <bytes> --record <number> --output <new-file> --max-bytes <bytes> [--stream-name <name>]");
+        return 2;
+    }
+
+    var imagePath = args[1];
+    long? volumeOffset = null;
+    long? volumeLength = null;
+    ulong? recordNumber = null;
+    ulong? maximumBytes = null;
+    string? outputPath = null;
+    var streamName = string.Empty;
+    var sectorSize = 512;
+
+    for (var i = 2; i < args.Length; i++)
+    {
+        if (i + 1 >= args.Length)
+        {
+            Console.Error.WriteLine($"Missing value for {args[i]}.");
+            return 2;
+        }
+
+        var option = args[i];
+        var value = args[++i];
+        switch (option)
+        {
+            case "--offset" when long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var offset):
+                volumeOffset = offset;
+                break;
+            case "--length" when long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var length):
+                volumeLength = length;
+                break;
+            case "--record" when ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedRecord):
+                recordNumber = parsedRecord;
+                break;
+            case "--max-bytes" when ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedMaximum):
+                maximumBytes = parsedMaximum;
+                break;
+            case "--output" when !string.IsNullOrWhiteSpace(value):
+                outputPath = value;
+                break;
+            case "--stream-name":
+                streamName = value;
+                break;
+            case "--sector-size" when int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedSectorSize):
+                sectorSize = parsedSectorSize;
+                break;
+            default:
+                Console.Error.WriteLine($"Unknown or invalid option: {option} {value}");
+                return 2;
+        }
+    }
+
+    if (volumeOffset is null || volumeLength is null || volumeOffset < 0 || volumeLength <= 0 ||
+        recordNumber is null || maximumBytes is null || outputPath is null)
+    {
+        Console.Error.WriteLine("Provide --offset, --length, --record, --output, and an explicit --max-bytes limit.");
+        return 2;
+    }
+    if (sectorSize is not (512 or 1024 or 2048 or 4096))
+    {
+        Console.Error.WriteLine("NTFS sector size must be 512, 1024, 2048, or 4096 bytes.");
+        return 2;
+    }
+
+    string? temporaryPath = null;
+    try
+    {
+        var fullImagePath = Path.GetFullPath(imagePath);
+        var fullOutputPath = Path.GetFullPath(outputPath);
+        if (string.Equals(fullImagePath, fullOutputPath, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Recovery output must not overwrite the source image.");
+
+        var destinationDirectory = Path.GetDirectoryName(fullOutputPath);
+        if (string.IsNullOrEmpty(destinationDirectory) || !Directory.Exists(destinationDirectory))
+            throw new DirectoryNotFoundException("Recovery output directory must already exist.");
+        if (File.Exists(fullOutputPath) || Directory.Exists(fullOutputPath))
+            throw new IOException("Recovery output already exists; existing files are never overwritten.");
+
+        using var image = FileImageReader.Open(fullImagePath);
+        var boot = NtfsBootSectorParser.Parse(image, volumeOffset.Value, volumeLength.Value);
+        if (!boot.IsValid || boot.BootSector is null)
+            throw new IOException("NTFS boot-sector validation failed: " + string.Join("; ", boot.Issues));
+        if (boot.BootSector.BytesPerSector != sectorSize)
+            throw new IOException($"Requested sector size {sectorSize} does not match NTFS BPB value {boot.BootSector.BytesPerSector}.");
+
+        var opened = NtfsMftReader.Open(image, volumeOffset.Value, volumeLength.Value, boot.BootSector);
+        if (!opened.IsValid || opened.Reader is null)
+            throw new IOException("NTFS MFT validation failed: " + string.Join("; ", opened.Issues));
+
+        var outputName = Path.GetFileName(fullOutputPath);
+        temporaryPath = Path.Combine(destinationDirectory, $".{outputName}.{Guid.NewGuid():N}.partial");
+        using var cancellation = new CancellationTokenSource();
+        ConsoleCancelEventHandler handler = (_, eventArgs) =>
+        {
+            eventArgs.Cancel = true;
+            cancellation.Cancel();
+        };
+        Console.CancelKeyPress += handler;
+        try
+        {
+            NtfsDeletedDataStreamCopyOperationResult copied;
+            ulong bytesWritten;
+            using (var destination = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write,
+                FileShare.None, 1024 * 1024, FileOptions.SequentialScan))
+            {
+                var progress = new Progress<ulong>(bytes => Console.Write($"Deleted-data read: {bytes:N0} bytes"));
+                copied = opened.Reader.CopyDeletedDataStreamTo(
+                    recordNumber.Value, destination, maximumBytes.Value, streamName, cancellation.Token, progress);
+                if (!copied.IsValid || copied.Copy is null || !copied.Copy.IsValid)
+                    throw new IOException("Deleted-stream recovery was refused or failed: " +
+                        string.Join("; ", copied.Issues.Concat(copied.Assessment?.Warnings ?? Array.Empty<string>())));
+                bytesWritten = copied.Copy.BytesWritten;
+                destination.Flush(true);
+            }
+
+            cancellation.Token.ThrowIfCancellationRequested();
+            string sha256;
+            using (var verification = File.OpenRead(temporaryPath))
+                sha256 = Convert.ToHexString(SHA256.HashData(verification));
+            cancellation.Token.ThrowIfCancellationRequested();
+            File.Move(temporaryPath, fullOutputPath, overwrite: false);
+            temporaryPath = null;
+
+            Console.WriteLine();
+            Console.WriteLine($"Recovered output: {fullOutputPath}");
+            Console.WriteLine($"Bytes written: {bytesWritten:N0}");
+            Console.WriteLine($"SHA-256 of exported bytes: {sha256}");
+            Console.WriteLine($"MFT record: {recordNumber.Value}");
+            Console.WriteLine($"Metadata assessment: {copied.Assessment!.Metadata.MetadataStatus}");
+            Console.WriteLine($"Cluster allocation: {copied.Assessment.ClusterAllocation?.Status.ToString() ?? "not applicable (resident stream)"}");
+            Console.WriteLine("Content integrity verified: false");
+            Console.WriteLine("The export hash identifies this output only; it is not an original-file integrity check.");
+            foreach (var warning in copied.Assessment.Warnings)
+                Console.WriteLine("WARNING: " + warning);
+            return 0;
+        }
+        finally
+        {
+            Console.CancelKeyPress -= handler;
+        }
+    }
+    catch (OperationCanceledException)
+    {
+        Console.Error.WriteLine("\nDeleted-file read cancelled; incomplete output was discarded when possible.");
+        return 130;
+    }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+    {
+        Console.Error.WriteLine($"Deleted-file read stopped safely: {exception.Message}");
+        return 1;
+    }
+    finally
+    {
+        if (temporaryPath is not null)
+        {
+            try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+}
+
 static int RunPhysicalDiskInventory(string[] args)
 {
     if (args.Length != 1)
@@ -723,6 +892,7 @@ static void PrintUsage()
     Console.WriteLine("  diskrescue discover-ntfs <image-file> [--sector-size <bytes>] [--max-scan-bytes <bytes>]");
     Console.WriteLine("  diskrescue scan-ntfs <image-file> --offset <bytes> --length <bytes> [--sector-size <bytes>] [--max-records <count>]");
     Console.WriteLine("  diskrescue extract-ntfs-file <image-file> --offset <bytes> --length <bytes> --record <number> --output <new-file> --max-bytes <bytes> [--stream-name <name>]");
+    Console.WriteLine("  diskrescue extract-deleted-ntfs-file <image-file> --offset <bytes> --length <bytes> --record <number> --output <new-file> --max-bytes <bytes> [--stream-name <name>]");
     Console.WriteLine();
     Console.WriteLine("Examples:");
     Console.WriteLine("  diskrescue inspect sample.img");
@@ -734,5 +904,6 @@ static void PrintUsage()
     Console.WriteLine("inspect, image-copy, discover-ntfs, scan-ntfs, and extract-ntfs-file operate on regular image files.");
     Console.WriteLine("list-physical-disks performs metadata-only Windows discovery. acquire-physical is experimental, guarded, and Windows-only.");
     Console.WriteLine("NTFS scan returns a bounded partial MFT and directory-tree preview, not file recovery.");
-    Console.WriteLine("extract-ntfs-file exports one validated resident or single-extent data stream to a new file; multi-extent, compressed, and encrypted streams are unsupported.");
+    Console.WriteLine("extract-ntfs-file exports one validated live data stream to a new file.");
+    Console.WriteLine("extract-deleted-ntfs-file requires deleted metadata and $Bitmap preflight; it exports only bounded, currently-free, supported streams and never claims content integrity.");
 }
