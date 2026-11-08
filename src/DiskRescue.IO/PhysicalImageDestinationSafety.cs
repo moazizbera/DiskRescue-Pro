@@ -298,6 +298,11 @@ public static class PhysicalImageDestinationSafety
             if (!disk.BusType.HasValue ||
                 disk.BusType.Value is 0 or 8 or 14 or 15 or 16)
                 issues.Add($"Physical disk {number} has an unknown, RAID, virtual, file-backed virtual, or Storage Spaces bus identity.");
+
+            var deviceDescription = $"{disk.Vendor} {disk.Model}";
+            if (new[] { "virtual", "storage spaces", "raid", "vmware", "hyper-v", "qemu", "virtualbox", "vbox" }
+                .Any(marker => deviceDescription.Contains(marker, StringComparison.OrdinalIgnoreCase)))
+                issues.Add($"Physical disk {number} reports a virtualized or layered device description.");
             relevant.Add(disk);
         }
 
