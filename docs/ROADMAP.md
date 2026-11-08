@@ -76,7 +76,8 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [~] Support cancellation and temporary-file cleanup; resumable extraction remains outstanding
 - [x] Export a JSON sidecar manifest with source identity metadata, volume boundaries, MFT identity, allocation evidence, output SHA-256, diagnostics, and explicit integrity/safety status
 - [x] Test synthetic deleted-export success, allocated-cluster refusal, byte ceilings, source immutability, existing-output/manifest collisions, and temporary-file cleanup
-- [~] Injected manifest-publication, output-publication, and rollback failures are covered; disk-full, permission-denied, and abrupt process-termination behavior remain to be tested
+- [x] Injected output-publication, manifest-publication, rollback, disk-full-write, and destination-permission failures are covered
+- [ ] Test abrupt process termination and define safe stale-temporary-file handling
 - [x] Add deleted-image export destination-volume identity checks; source and destination physical disk mappings must be complete and non-overlapping before export and again before publication
 
 ## Phase 6 — Professional desktop experience
