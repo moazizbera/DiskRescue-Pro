@@ -340,6 +340,58 @@ public sealed class NtfsMftReaderTests
         Assert.Equal(0, destination.Length);
     }
 
+    [Fact]
+    public void DeletedStreamCopyPropagatesDiskFullWriteFailureWithoutChangingSource()
+    {
+        var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
+        using var image = CreateDeletedFileImage(payload, allocatedDataClusters: false);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+        var before = new byte[512];
+        image.ReadExactlyAt(30 * 512, before);
+
+        using var destination = new FailingWriteStream(new IOException("injected disk full"));
+        Assert.Throws<IOException>(() =>
+            opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024));
+
+        var after = new byte[512];
+        image.ReadExactlyAt(30 * 512, after);
+        Assert.Equal(before, after);
+    }
+
+    [Fact]
+    public void DeletedStreamCopyPropagatesPermissionFailureWithoutChangingSource()
+    {
+        var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
+        using var image = CreateDeletedFileImage(payload, allocatedDataClusters: false);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+        var before = new byte[512];
+        image.ReadExactlyAt(30 * 512, before);
+
+        using var destination = new FailingWriteStream(new UnauthorizedAccessException("injected destination permission failure"));
+        Assert.Throws<UnauthorizedAccessException>(() =>
+            opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024));
+
+        var after = new byte[512];
+        image.ReadExactlyAt(30 * 512, after);
+        Assert.Equal(before, after);
+    }
+
+    private sealed class FailingWriteStream(Exception exception) : Stream
+    {
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw exception;
+    }
+
     private static MemoryImage CreateDeletedFileImage(byte[] payload, bool allocatedDataClusters, bool deleted = true, bool resident = false)
     {
         if (resident ? payload.Length > 400 : payload.Length != 512)
