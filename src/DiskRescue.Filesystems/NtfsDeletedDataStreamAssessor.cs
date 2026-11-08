@@ -87,15 +87,18 @@ public static class NtfsDeletedDataStreamAssessor
                 });
         }
 
-        if (volumeClusterCount == 0 || clusterSizeBytes == 0 || allocationMap is null ||
-            allocationMap.VolumeClusterCount != volumeClusterCount ||
+        if (volumeClusterCount == 0 || clusterSizeBytes == 0 ||
             attribute.LowestVcn != 0 || attribute.HighestVcn is not ulong highestVcn ||
             attribute.MappingPairs is null || attribute.RealSize is not ulong realSize ||
             attribute.InitializedSize is not ulong initializedSize ||
             attribute.AllocatedSize is not ulong allocatedSize ||
             initializedSize > realSize || realSize > allocatedSize)
             return Result(NtfsDeletedDataStreamStatus.UnsupportedStreamLayout, metadata,
-                warnings: new[] { "Non-resident stream geometry or matching volume allocation evidence is missing or inconsistent." });
+                warnings: new[] { "Non-resident stream geometry or size metadata is missing or inconsistent." });
+
+        if (allocationMap is null || allocationMap.VolumeClusterCount != volumeClusterCount)
+            return Result(NtfsDeletedDataStreamStatus.AllocationUnknown, metadata,
+                warnings: new[] { "A matching, validated volume allocation map is unavailable; do not read deleted content." });
 
         var parsedRuns = NtfsRunlistParser.Parse(attribute.MappingPairs, volumeClusterCount);
         if (!parsedRuns.IsValid || parsedRuns.Runs.Count == 0 ||
