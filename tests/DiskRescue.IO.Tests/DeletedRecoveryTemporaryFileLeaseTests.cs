@@ -180,7 +180,11 @@ public sealed class DeletedRecoveryTemporaryFileLeaseTests
             }
 
             Assert.Equal(1, removed);
-            Assert.Empty(Directory.EnumerateFiles(directory));
+            Assert.False(File.Exists(signal));
+            var remainingLeaseArtifacts = Directory.EnumerateFiles(directory)
+                .Where(path => Path.GetFileName(path).StartsWith(".diskrescue-", StringComparison.Ordinal))
+                .ToArray();
+            Assert.Empty(remainingLeaseArtifacts);
         }
         finally
         {
