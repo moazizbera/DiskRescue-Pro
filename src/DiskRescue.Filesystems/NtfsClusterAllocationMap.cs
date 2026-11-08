@@ -50,6 +50,7 @@ public sealed class NtfsClusterAllocationMap
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(reader);
+        cancellationToken.ThrowIfCancellationRequested();
         if (volumeClusterCount == 0)
             return Invalid("NTFS volume cluster count is zero.");
         if (maximumBitmapBytes == 0 || maximumBitmapBytes > int.MaxValue)
@@ -77,7 +78,7 @@ public sealed class NtfsClusterAllocationMap
         }
         catch (OperationCanceledException)
         {
-            return Invalid("NTFS $Bitmap read was cancelled; no allocation map was returned.");
+            throw;
         }
         catch (Exception exception) when (exception is IOException or OverflowException or ArgumentOutOfRangeException)
         {
