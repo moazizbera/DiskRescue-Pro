@@ -321,6 +321,22 @@ public sealed class DeletedRecoveryTemporaryFileLeaseTests
             Assert.False(File.Exists(manifestPath));
             Assert.True(File.Exists(pendingManifests[0]));
             Assert.True(File.Exists(operationLocks[0]));
+
+            var lockReleaseDeadline = Stopwatch.StartNew();
+            var lockReleased = false;
+            while (!lockReleased && lockReleaseDeadline.Elapsed < TimeSpan.FromSeconds(10))
+            {
+                try
+                {
+                    using var probe = new FileStream(operationLocks[0], FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                    lockReleased = true;
+                }
+                catch (IOException)
+                {
+                    Thread.Sleep(50);
+                }
+            }
+            Assert.True(lockReleased, "The killed child process retained its exclusive operation lock.");
         }
         finally
         {
