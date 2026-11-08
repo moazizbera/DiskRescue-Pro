@@ -96,6 +96,22 @@ public sealed class NtfsDeletedDataStreamAssessorTests
     }
 
     [Fact]
+    public void RejectsFilesRequiringAttributeListContinuation()
+    {
+        var map = NtfsClusterAllocationMap.Create(new byte[1], 8).Map!;
+        var attributeList = new NtfsAttribute(
+            0x20, 32, false, 2, 0, "", 0, 24,
+            null, null, null, null, null, null, null, Array.Empty<byte>());
+        var result = NtfsDeletedDataStreamAssessor.Assess(
+            Entry(), Record(), Name(), Parent(),
+            new[] { NonResidentData(), attributeList },
+            8, 512, map);
+
+        Assert.Equal(NtfsDeletedDataStreamStatus.UnsupportedStreamLayout, result.Status);
+        Assert.False(result.IsEligibleForBoundedRead);
+    }
+
+    [Fact]
     public void RejectsAmbiguousMultipleDataAttributes()
     {
         var result = NtfsDeletedDataStreamAssessor.Assess(
