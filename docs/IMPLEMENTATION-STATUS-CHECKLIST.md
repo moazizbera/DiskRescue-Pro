@@ -1,5 +1,44 @@
 # DiskRescue Pro — Implementation and Release Checklist
 
+# Current status update — 2026-11-09 (candidate comparison milestone)
+
+This snapshot supersedes conflicting historical status notes below.
+
+- Active branch: `feat/deleted-file-safety-assessment`
+- Candidate comparison code: `65ba6afdd8fa6d1d19a1fd3357e979b775ed19de`
+- Windows CI: [run 42581920342](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42581920342) — **passed on the exact candidate-comparison commit**.
+- The desktop comparison tab lists all validated NTFS/FAT32/exFAT findings with filesystem, status, byte offset, declared size, confidence, backup corroboration, and known-partition relationship. Selecting a row displays its evidence.
+- The pre-existing populated synthetic desktop screenshot and its CI verification remain complete.
+
+## Current checklist
+
+- [x] Read-only image inspection, MBR/GPT validation, and backup-GPT checks.
+- [x] NTFS lost-partition discovery and bounded metadata preview.
+- [x] FAT32/exFAT discovery and backup-region validation.
+- [x] Candidate overlap classification and evidence-based confidence.
+- [x] WPF discovery list, partition-map overlays, and findings integration.
+- [x] Populated synthetic WPF discovery screenshot using real Inspect/Discover handlers.
+- [x] Candidate comparison UI and selected-candidate evidence detail; Windows CI passed.
+- [x] Deleted-NTFS safety assessment, bounded export, manifest/hash and publication safeguards (automated coverage).
+- [x] Cancellation and temporary-file safeguards (automated coverage).
+- [ ] P0: Manual Windows desktop smoke test with disposable images, including candidate comparison and cancellation.
+- [ ] P0: Positive deleted-file export CLI publication on supported storage. CI correctly fails closed and skips this positive path when virtualized storage does not expose the physical identity metadata required by the production gate; unit tests cover safety rejection/publication logic.
+- [ ] P1: Advisory conflict-resolution guidance with explicit evidence and no automatic partition-table changes.
+- [ ] P1: File-entry search/filter/sort and metadata inspection.
+- [ ] P1: Accessible progress/cancellation/failure states and verified recovery destination/extraction queue.
+- [ ] P2: Signed installer, versioned release workflow, and broader manual Windows-version/usability testing.
+
+## Safety gates
+
+- Physical-device partition scanning/recovery remains disabled; physical acquisition is not validated on real hardware.
+- No source-media repair, formatting, initialization, repartitioning, or partition-table writes.
+- Use generated images and disposable VHDX only; never test against the original HDD.
+- Export hashing validates exported bytes only, not original-file integrity without a known original hash.
+- Recovery output must be on separate physical storage; use a hardware write blocker for irreplaceable/evidentiary media.
+
+---
+
+
 # Current status update — 2026-11-09
 
 This snapshot supersedes conflicting historical status notes below.
