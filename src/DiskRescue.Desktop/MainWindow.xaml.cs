@@ -701,9 +701,9 @@ public partial class MainWindow : Window
         int sectorSize, ulong recordNumber, ulong maximumBytes,
         CancellationToken cancellationToken, IProgress<ulong> progress)
     {
-        var fullImagePath = Path.GetFullPath(imagePath);
-        var fullOutputPath = Path.GetFullPath(outputPath);
-        var directory = Path.GetDirectoryName(fullOutputPath)
+        var fullImagePath = System.IO.Path.GetFullPath(imagePath);
+        var fullOutputPath = System.IO.Path.GetFullPath(outputPath);
+        var directory = System.IO.Path.GetDirectoryName(fullOutputPath)
             ?? throw new IOException("Output directory could not be resolved.");
         var manifestPath = fullOutputPath + ".recovery.json";
         if (string.Equals(fullImagePath, fullOutputPath, StringComparison.OrdinalIgnoreCase))
@@ -758,7 +758,7 @@ public partial class MainWindow : Window
             manifestVersion = 1,
             operation = "bounded-deleted-ntfs-data-stream-export",
             createdAtUtc = DateTimeOffset.UtcNow,
-            source = new { fileName = Path.GetFileName(fullImagePath), lengthBytes = image.Length,
+            source = new { fileName = System.IO.Path.GetFileName(fullImagePath), lengthBytes = image.Length,
                 lastWriteTimeUtc = sourceWriteTime, volumeOffsetBytes = volumeOffset,
                 volumeLengthBytes = volumeLength, logicalSectorSizeBytes = sectorSize },
             deletedFile = new { mftRecordNumber = recordNumber, metadataAssessment = assessment.Metadata.MetadataStatus.ToString(),
@@ -768,7 +768,7 @@ public partial class MainWindow : Window
                 initializedSizeBytes = assessment.InitializedSize, clusterSizeBytes = boot.BootSector.ClusterSizeBytes,
                 physicalRunCount = assessment.Runs.Count, physicalRuns = assessment.Runs.Select(run => new {
                     startingVcn = run.StartingVcn, clusterCount = run.ClusterCount, startingLcn = run.StartingLcn }) },
-            export = new { fileName = Path.GetFileName(fullOutputPath), fullPath = fullOutputPath,
+            export = new { fileName = System.IO.Path.GetFileName(fullOutputPath), fullPath = fullOutputPath,
                 bytesWritten, maximumBytes, sha256, contentIntegrityVerified = false },
             safety = new { sourceOpenedReadOnly = true, sourceWriteOperationsAvailable = false,
                 sourceContentHashCompared = false, contentIntegrityVerified = false, physicalDiskRecoveryValidated = false },
