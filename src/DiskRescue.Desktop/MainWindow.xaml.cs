@@ -1053,7 +1053,9 @@ public partial class MainWindow : Window
     }
 
     private sealed record InspectionResult(long Length, List<PartitionRow> Rows, string TableType, bool HasWarnings, string Findings, string Json);
-    private sealed record DeletedDesktopExportResult(string OutputPath, string ManifestPath, ulong BytesWritten, string Sha256);\n\n    private sealed record NtfsScanUiResult(NtfsBootSector BootSector, NtfsMftScanResult Scan, NtfsDirectoryTreeResult Tree, bool UsedMftContinuation, IReadOnlyList<string> ContinuationIssues);
+    private sealed record DeletedDesktopExportResult(string OutputPath, string ManifestPath, ulong BytesWritten, string Sha256);
+
+    private sealed record NtfsScanUiResult(NtfsBootSector BootSector, NtfsMftScanResult Scan, NtfsDirectoryTreeResult Tree, bool UsedMftContinuation, IReadOnlyList<string> ContinuationIssues);
     public sealed record NtfsEntryViewRow(
     string Name,
     string EntryType,
