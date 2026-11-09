@@ -57,4 +57,77 @@ public sealed class NtfsRunlistParserTests
         Assert.False(result.IsValid);
         Assert.Contains(result.Issues, x => x.Contains("terminator", StringComparison.OrdinalIgnoreCase));
     }
+    [Fact]
+    public void RejectsNonZeroBytesAfterTerminator()
+    {
+        byte[] mappingPairs = [0x11, 0x01, 0x01, 0x00, 0x7F];
+        var result = NtfsRunlistParser.Parse(mappingPairs, 100);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, x => x.Contains("after its terminator", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void RejectsLcnDeltaThatOverflowsSignedAccumulator()
+    {
+        // First run sets the signed LCN accumulator to Int64.MaxValue.
+        byte[] mappingPairs =
+        [
+            0x18, 0x01,
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F,
+            0x11, 0x01, 0x01,
+            0x00
+        ];
+
+        var result = NtfsRunlistParser.Parse(mappingPairs, ulong.MaxValue);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, x => x.Contains("LCN delta overflows", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void RejectsEightByteNegativeLcnDelta()
+    {
+        byte[] mappingPairs =
+        [
+            0x18, 0x01,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80,
+            0x00
+        ];
+
+        var result = NtfsRunlistParser.Parse(mappingPairs, ulong.MaxValue);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, x => x.Contains("negative LCN", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void RejectsZeroLengthRunEvenWhenOtherFieldsArePresent()
+    {
+        byte[] mappingPairs = [0x11, 0x00, 0x01, 0x00];
+
+        var result = NtfsRunlistParser.Parse(mappingPairs, 100);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, x => x.Contains("zero-length", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void AcceptsMaximumWidthPositiveLcnAndLengthFieldsWithinVolume()
+    {
+        // Eight-byte run length 1 and eight-byte signed LCN delta 1.
+        byte[] mappingPairs =
+        [
+            0x88, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00
+        ];
+
+        var result = NtfsRunlistParser.Parse(mappingPairs, 2);
+
+        Assert.True(result.IsValid, string.Join("; ", result.Issues));
+        Assert.Single(result.Runs);
+        Assert.Equal((ulong)1, result.Runs[0].StartingLcn);
+        Assert.Equal((ulong)1, result.TotalClusters);
+    }
+
 }
