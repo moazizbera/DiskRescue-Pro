@@ -457,6 +457,12 @@ public partial class MainWindow : Window
 
     private void NtfsEntriesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        CheckRecoveryDestinationButton.IsEnabled =
+            _lastImagePath is not null &&
+            PartitionsGrid.SelectedItem is PartitionRow selectedPartition &&
+            selectedPartition.Table != "SCAN" &&
+            NtfsEntriesGrid.SelectedItem is NtfsEntryViewRow selectedEntry &&
+            selectedEntry.EntryType == "File" && selectedEntry.IsDeleted;
         if (NtfsEntriesGrid.SelectedItem is not NtfsEntryViewRow row)
             return;
         NtfsEntryDetailsBox.Text = string.Join(Environment.NewLine, new[]
@@ -468,6 +474,83 @@ public partial class MainWindow : Window
             $"File attributes: {row.Attributes} · Deleted flag: {(row.IsDeleted ? "Yes" : "No")}",
             "Metadata comes from the scanned MFT filename entry; file content and original-byte integrity are not assessed."
         });
+    }
+
+    private void CheckRecoveryDestination_Click(object sender, RoutedEventArgs e)
+    {
+        if (_lastImagePath is null ||
+            PartitionsGrid.SelectedItem is not PartitionRow partition ||
+            NtfsEntriesGrid.SelectedItem is not NtfsEntryViewRow entry)
+        {
+            MessageBox.Show(this, "Select an inspected NTFS partition and a file entry first.", "Recovery preflight", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (partition.Table == "SCAN" || entry.EntryType != "File" || !entry.IsDeleted)
+        {
+            MessageBox.Show(this, "Preflight is limited to deleted file entries in a selected, existing NTFS partition. Lost-partition candidates and directories are not eligible.", "Recovery preflight", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (entry.SizeBytes > long.MaxValue)
+        {
+            MessageBox.Show(this, "The selected file size exceeds the supported destination-capacity check.", "Recovery preflight", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var safeName = string.Concat(entry.Name.Select(ch =>
+            Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch));
+        if (string.IsNullOrWhiteSpace(safeName) || safeName is "." or "..")
+            safeName = $"mft-record-{entry.RecordNumber}.bin";
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Choose a new recovery output path (preflight only)",
+            FileName = safeName,
+            Filter = "All files (*.*)|*.*",
+            AddExtension = false,
+            OverwritePrompt = false,
+            CheckPathExists = true
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            if (File.Exists(dialog.FileName) || Directory.Exists(dialog.FileName) ||
+                File.Exists(dialog.FileName + ".recovery.json") ||
+                Directory.Exists(dialog.FileName + ".recovery.json"))
+                throw new IOException("The output or recovery-manifest path already exists. Existing files are never overwritten.");
+
+            var map = WindowsPhysicalDiskVolumeMap.Enumerate();
+            var assessment = PhysicalImageDestinationSafety.AssessForImageFile(
+                _lastImagePath, dialog.FileName, map, checked((long)entry.SizeBytes));
+            var lines = new List<string>
+            {
+                $"Selected file: {entry.Name}",
+                $"MFT record: {entry.RecordNumber} · Sequence: {entry.SequenceNumber}",
+                $"Expected logical size: {entry.SizeBytes:N0} bytes",
+                $"Destination: {dialog.FileName}",
+                "",
+                assessment.CanUseAsSeparateDestination
+                    ? "DESTINATION PREFLIGHT PASSED"
+                    : "DESTINATION PREFLIGHT BLOCKED",
+                assessment.VolumeGuidPath is null ? "Destination volume: not verified" : "Destination volume: " + assessment.VolumeGuidPath,
+                assessment.DestinationDiskNumbers.Count == 0
+                    ? "Physical disk mapping: not verified"
+                    : "Destination physical disk(s): " + string.Join(", ", assessment.DestinationDiskNumbers)
+            };
+            lines.AddRange(assessment.Blockers.Select(issue => "BLOCKER: " + issue));
+            NtfsEntryDetailsBox.Text = string.Join(Environment.NewLine, lines);
+            StatusText.Text = assessment.CanUseAsSeparateDestination
+                ? "Destination preflight passed · no data exported; recovery is not yet available in the desktop"
+                : "Destination preflight blocked · no data exported";
+            if (!assessment.CanUseAsSeparateDestination)
+                MessageBox.Show(this, string.Join(Environment.NewLine, assessment.Blockers), "Destination blocked", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+        {
+            NtfsEntryDetailsBox.Text = "Destination preflight stopped safely.\\n\\n" + ex.Message;
+            StatusText.Text = "Destination preflight failed safely";
+            MessageBox.Show(this, ex.Message, "Destination preflight", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private static TreeViewItem CreateTreeItem(NtfsDirectoryNode node, int depth)
@@ -705,6 +788,8 @@ public partial class MainWindow : Window
         NtfsTreeView.Items.Clear();
         _allNtfsEntryRows.Clear();
         _ntfsEntryRows.Clear();
+        if (CheckRecoveryDestinationButton is not null)
+            CheckRecoveryDestinationButton.IsEnabled = false;
         if (NtfsEntrySearchBox is not null)
             NtfsEntrySearchBox.Text = string.Empty;
         if (NtfsEntryDetailsBox is not null)

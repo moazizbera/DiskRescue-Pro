@@ -35,6 +35,10 @@
 <TextBlock Text="NTFS MFT file entries" Foreground="{StaticResource Text}" FontSize="18" FontWeight="SemiBold"/>
 <TextBlock Text="Search and sort the bounded, read-only MFT preview. This view shows filename metadata only; it does not recover file contents." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,8"/>
 <TextBox x:Name="NtfsEntrySearchBox" ToolTip="Search file or directory names, record numbers, parent references, and attributes" TextChanged="NtfsEntrySearchBox_TextChanged" Height="32" Padding="8,5"/>
+<StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+<Button x:Name="CheckRecoveryDestinationButton" Content="Check recovery destination…" Click="CheckRecoveryDestination_Click" IsEnabled="False" HorizontalAlignment="Left"/>
+<TextBlock Text="Preflight only · no file data is written or recovered" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="11"/>
+</StackPanel>
 </StackPanel>
 <DataGrid x:Name="NtfsEntriesGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True" SelectionMode="Single" SelectionChanged="NtfsEntriesGrid_SelectionChanged">
 <DataGrid.Columns>
