@@ -19,7 +19,10 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [x] WPF image selection, partition overview, findings, and JSON export
 - [x] Generated MBR/GPT images and CLI smoke tests
 - [ ] Manual Windows desktop smoke test recorded against generated MBR/GPT images
-- [x] Bounded, chunked NTFS boot-sector discovery in image files with primary BPB validation, backup-sector corroboration, progress, cancellation, and candidate evidence\n- [x] Classify NTFS candidates against parsed MBR/GPT ranges as existing, overlapping, or lost; add lost candidates to the desktop partition list for bounded NTFS preview\n- [ ] FAT32 and exFAT lost-partition candidate discovery and confidence scoring\n- [x] Generated-image integration fixtures for lost NTFS candidate discovery, bounded preview, and CLI extraction; desktop interaction remains a separate manual gate
+- [x] Bounded, chunked NTFS boot-sector discovery in image files with primary BPB validation, backup-sector corroboration, progress, cancellation, and candidate evidence
+- [x] Classify NTFS candidates against parsed MBR/GPT ranges as existing, overlapping, or lost; add lost candidates to the desktop partition list for bounded NTFS preview
+- [ ] FAT32 and exFAT lost-partition candidate discovery and confidence scoring
+- [x] Generated-image integration fixtures for lost NTFS candidate discovery, bounded preview, and CLI extraction; desktop interaction remains a separate manual gate
 - [~] Experimental Windows physical-disk inventory and guarded image acquisition coordinator/CLI; WPF acquisition window is integrated; hardware validation remains a release gate
 
 ## Phase 2 — NTFS metadata preview
@@ -90,7 +93,8 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [x] Initial WPF dashboard and partition inspection
 - [x] NTFS partial tree preview
 - [x] Experimental physical-image acquisition window with read-only identity checks, destination preflight, explicit confirmation, progress, and cancellation (hardware validation remains a release gate)
-- [x] Guided NTFS lost-partition discovery with evidence/confidence panel, progress, cancellation, and selectable candidates (image files only)\n- [ ] Expand discovery UI to FAT32/exFAT and add deeper candidate comparison tools
+- [x] Guided NTFS lost-partition discovery with evidence/confidence panel, progress, cancellation, and selectable candidates (image files only)
+- [ ] Expand discovery UI to FAT32/exFAT and add deeper candidate comparison tools
 - [ ] Search, filter, sort, and metadata inspection for file entries
 - [ ] Accessible progress, cancellation, and clear failure states
 - [ ] Recovery destination verification and extraction queue
