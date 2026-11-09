@@ -241,9 +241,12 @@ public partial class MainWindow : Window
                 using var image = FileImageReader.Open(imagePath);
                 var ntfs = NtfsPartitionScanner.Scan(image, sectorSize, known,
                     maximumScanBytes: image.Length, cancellationToken: cancellation.Token, progress: progress);
-                cancellation.Token.ThrowIfCancellationRequested();
-                var fat = FatPartitionScanner.Scan(image, sectorSize, known,
-                    maximumScanBytes: image.Length, cancellationToken: cancellation.Token, progress: progress);
+                var fat = ntfs.WasCancelled
+                    ? new FatPartitionDiscoveryResult(Array.Empty<DiscoveredFatPartitionCandidate>(),
+                        0, image.Length, true,
+                        new[] { "FAT32/exFAT scan was not started because cancellation was requested during NTFS scanning." })
+                    : FatPartitionScanner.Scan(image, sectorSize, known,
+                        maximumScanBytes: image.Length, cancellationToken: cancellation.Token, progress: progress);
                 return (Ntfs: ntfs, Fat: fat);
             });
 
