@@ -212,7 +212,8 @@ public partial class MainWindow : Window
 
         var imagePath = ImagePathBox.Text;
         var sectorSize = int.Parse(((ComboBoxItem)SectorSizeBox.SelectedItem).Tag.ToString()!);
-        var known = _rows.Where(row => row.Table != "SCAN").Select(row => new KnownPartitionRange(row.Table, row.Index, row.ByteOffset, row.ByteLength)).ToArray();
+        var known = _rows.Where(row => row.Table != "SCAN")
+            .Select(row => new KnownPartitionRange(row.Table, row.Index, row.ByteOffset, row.ByteLength)).ToArray();
 
         using var cancellation = new CancellationTokenSource();
         _scanCancellation = cancellation;
@@ -226,7 +227,7 @@ public partial class MainWindow : Window
         ScanProgressBar.Value = 0;
         ScanProgressText.Text = "Starting scan…";
         Mouse.OverrideCursor = Cursors.Wait;
-        StatusText.Text = "Searching image for validated NTFS volumes · Read-only…";
+        StatusText.Text = "Searching image for validated NTFS, FAT32, and exFAT volumes · Read-only…";
 
         try
         {
@@ -235,21 +236,35 @@ public partial class MainWindow : Window
                 ScanProgressBar.Value = value.Percent;
                 ScanProgressText.Text = $"{value.Percent}% · {value.CandidatesValidated} candidates";
             });
-            var result = await Task.Run(() =>
+            var results = await Task.Run(() =>
             {
                 using var image = FileImageReader.Open(imagePath);
-                return NtfsPartitionScanner.Scan(image, sectorSize, known,
+                var ntfs = NtfsPartitionScanner.Scan(image, sectorSize, known,
                     maximumScanBytes: image.Length, cancellationToken: cancellation.Token, progress: progress);
+                cancellation.Token.ThrowIfCancellationRequested();
+                var fat = FatPartitionScanner.Scan(image, sectorSize, known,
+                    maximumScanBytes: image.Length, cancellationToken: cancellation.Token, progress: progress);
+                return (Ntfs: ntfs, Fat: fat);
             });
 
+            var ntfsResult = results.Ntfs;
+            var fatResult = results.Fat;
             for (var i = _rows.Count - 1; i >= 0; i--)
                 if (_rows[i].Table == "SCAN") _rows.RemoveAt(i);
 
             var nextIndex = 1;
-            foreach (var candidate in result.Candidates.Where(candidate => candidate.Status == "Lost partition candidate"))
+            foreach (var candidate in ntfsResult.Candidates.Where(candidate => candidate.Status == "Lost partition candidate"))
             {
                 _rows.Add(new PartitionRow(nextIndex++, "SCAN",
                     $"Lost NTFS · {candidate.Confidence}% confidence",
+                    (candidate.ByteOffset / sectorSize).ToString(),
+                    FormatBytes(candidate.ByteLength),
+                    candidate.ByteOffset, candidate.ByteLength));
+            }
+            foreach (var candidate in fatResult.Candidates.Where(candidate => candidate.Status == "Lost partition candidate"))
+            {
+                _rows.Add(new PartitionRow(nextIndex++, "SCAN",
+                    $"Lost {candidate.FileSystem} · {candidate.Confidence}% confidence",
                     (candidate.ByteOffset / sectorSize).ToString(),
                     FormatBytes(candidate.ByteLength),
                     candidate.ByteOffset, candidate.ByteLength));
@@ -259,36 +274,52 @@ public partial class MainWindow : Window
             _lastReport = JsonSerializer.Serialize(new
             {
                 inspection = reportDocument.RootElement.Clone(),
-                partitionDiscovery = result
+                partitionDiscovery = new { ntfs = ntfsResult, fat32ExFat = fatResult }
             }, new JsonSerializerOptions { WriteIndented = true });
             _lastReportPath = imagePath;
             ExportButton.IsEnabled = true;
 
             var notes = new List<string>
             {
-                "Read-only NTFS lost-partition discovery",
-                $"Bytes scanned: {result.BytesScanned:N0} / {result.TotalBytes:N0}",
-                $"Validated NTFS candidates: {result.Candidates.Count:N0}",
-                $"Lost candidates added to the partition list: {result.Candidates.Count(candidate => candidate.Status == "Lost partition candidate"):N0}",
-                $"Existing partition matches: {result.Candidates.Count(candidate => candidate.Status == "Existing partition"):N0}",
-                $"Candidates overlapping known partitions: {result.Candidates.Count(candidate => candidate.Status == "Overlaps known partition"):N0}",
-                $"Scan cancelled: {result.WasCancelled}",
+                "Read-only lost-partition discovery · NTFS, FAT32, and exFAT",
+                $"NTFS bytes scanned: {ntfsResult.BytesScanned:N0} / {ntfsResult.TotalBytes:N0}",
+                $"FAT32/exFAT bytes scanned: {fatResult.BytesScanned:N0} / {fatResult.TotalBytes:N0}",
+                $"Validated NTFS candidates: {ntfsResult.Candidates.Count:N0}",
+                $"Validated FAT32/exFAT candidates: {fatResult.Candidates.Count:N0}",
+                $"Lost candidates added to the partition list: {ntfsResult.Candidates.Count(candidate => candidate.Status == "Lost partition candidate") + fatResult.Candidates.Count(candidate => candidate.Status == "Lost partition candidate"):N0}",
+                $"Existing partition matches: {ntfsResult.Candidates.Count(candidate => candidate.Status == "Existing partition") + fatResult.Candidates.Count(candidate => candidate.Status == "Existing partition"):N0}",
+                $"Candidates overlapping known partitions: {ntfsResult.Candidates.Count(candidate => candidate.Status == "Overlaps known partition") + fatResult.Candidates.Count(candidate => candidate.Status == "Overlaps known partition"):N0}",
+                $"Scan cancelled: {ntfsResult.WasCancelled || fatResult.WasCancelled}",
                 "",
-                "A candidate is not a recovered partition. It is a validated NTFS boot-sector/geometry finding. No partition table changes or source writes are performed."
+                "A candidate is not a recovered partition. It is a validated filesystem boot-region/geometry finding. No partition table changes or source writes are performed."
             };
-            foreach (var candidate in result.Candidates)
+            foreach (var candidate in ntfsResult.Candidates)
             {
                 notes.Add("");
-                notes.Add($"{candidate.Status} · offset {candidate.ByteOffset:N0} · size {FormatBytes(candidate.ByteLength)} · confidence {candidate.Confidence}%");
+                notes.Add($"NTFS · {candidate.Status} · offset {candidate.ByteOffset:N0} · size {FormatBytes(candidate.ByteLength)} · confidence {candidate.Confidence}%");
                 notes.AddRange(candidate.Evidence.Select(evidence => "• " + evidence));
             }
-            notes.AddRange(result.Issues.Select(issue => "• " + issue));
+            foreach (var candidate in fatResult.Candidates)
+            {
+                notes.Add("");
+                notes.Add($"{candidate.FileSystem} · {candidate.Status} · offset {candidate.ByteOffset:N0} · size {FormatBytes(candidate.ByteLength)} · confidence {candidate.Confidence}%");
+                notes.AddRange(candidate.Evidence.Select(evidence => "• " + evidence));
+            }
+            notes.AddRange(ntfsResult.Issues.Select(issue => "• NTFS: " + issue));
+            notes.AddRange(fatResult.Issues.Select(issue => "• FAT32/exFAT: " + issue));
             FindingsBox.Text = string.Join(Environment.NewLine, notes);
             PartitionCountText.Text = _rows.Count.ToString();
             DrawPartitionMap();
-            StatusText.Text = result.WasCancelled
-                ? $"Partition search cancelled · {result.BytesScanned:N0} bytes scanned"
-                : $"Partition search complete · {result.Candidates.Count:N0} validated NTFS candidates";
+            var totalCandidates = ntfsResult.Candidates.Count + fatResult.Candidates.Count;
+            var wasCancelled = ntfsResult.WasCancelled || fatResult.WasCancelled;
+            StatusText.Text = wasCancelled
+                ? $"Partition search cancelled · {totalCandidates:N0} validated candidates"
+                : $"Partition search complete · {totalCandidates:N0} validated NTFS/FAT32/exFAT candidates";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText.Text = "Partition search cancelled safely";
+            ScanProgressText.Text = "Cancelled";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
         {
