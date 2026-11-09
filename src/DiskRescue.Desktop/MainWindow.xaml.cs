@@ -22,6 +22,9 @@ public partial class MainWindow : Window
     private string? _lastReport;
     private string? _lastReportPath;
     private string? _lastImagePath;
+    private string? _lastNtfsPreviewImagePath;
+    private long? _lastNtfsPreviewPartitionOffset;
+    private long? _lastNtfsPreviewPartitionLength;
     private CancellationTokenSource? _scanCancellation;
     private long _partitionMapLength;
 
@@ -123,7 +126,27 @@ public partial class MainWindow : Window
         }
     }
 
-    private void PartitionsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateNtfsButtonState();
+    private void PartitionsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (PartitionsGrid.SelectedItem is not PartitionRow selected || !IsCurrentNtfsPreview(selected))
+        {
+            _lastNtfsPreviewImagePath = null;
+            _lastNtfsPreviewPartitionOffset = null;
+            _lastNtfsPreviewPartitionLength = null;
+            _allNtfsEntryRows.Clear();
+            _ntfsEntryRows.Clear();
+            if (NtfsEntriesGrid is not null) NtfsEntriesGrid.SelectedItem = null;
+            if (NtfsEntryDetailsBox is not null)
+                NtfsEntryDetailsBox.Text = "Select a partition and run the NTFS preview before reviewing file entries.";
+        }
+        UpdateNtfsButtonState();
+    }
+
+    private bool IsCurrentNtfsPreview(PartitionRow? partition) =>
+        partition is not null && _lastNtfsPreviewImagePath is not null &&
+        string.Equals(_lastNtfsPreviewImagePath, _lastImagePath, StringComparison.OrdinalIgnoreCase) &&
+        _lastNtfsPreviewPartitionOffset == partition.ByteOffset &&
+        _lastNtfsPreviewPartitionLength == partition.ByteLength;
 
     private void CandidatesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -153,6 +176,9 @@ public partial class MainWindow : Window
         ScanNtfsButton.IsEnabled = _lastImagePath is not null &&
             PartitionsGrid.SelectedItem is PartitionRow row &&
             row.ByteOffset >= 0 && row.ByteLength > 0;
+        if (CheckRecoveryDestinationButton is not null)
+            CheckRecoveryDestinationButton.IsEnabled = IsCurrentNtfsPreview(PartitionsGrid.SelectedItem as PartitionRow) &&
+                NtfsEntriesGrid.SelectedItem is NtfsEntryViewRow entry && entry.EntryType == "File" && entry.IsDeleted;
     }
 
     private async void ScanNtfs_Click(object sender, RoutedEventArgs e)
@@ -162,6 +188,14 @@ public partial class MainWindow : Window
 
         var imagePath = _lastImagePath;
         ScanNtfsButton.IsEnabled = false;
+        _lastNtfsPreviewImagePath = null;
+        _lastNtfsPreviewPartitionOffset = null;
+        _lastNtfsPreviewPartitionLength = null;
+        _allNtfsEntryRows.Clear();
+        _ntfsEntryRows.Clear();
+        NtfsEntriesGrid.SelectedItem = null;
+        CheckRecoveryDestinationButton.IsEnabled = false;
+        NtfsEntryDetailsBox.Text = "Scanning selected partition; previous file-entry results have been cleared.";
         InspectButton.IsEnabled = false;
         BrowseButton.IsEnabled = false;
         Mouse.OverrideCursor = Cursors.Wait;
@@ -171,6 +205,9 @@ public partial class MainWindow : Window
         try
         {
             var result = await Task.Run(() => ScanNtfsPartition(imagePath, row.ByteOffset, row.ByteLength));
+            _lastNtfsPreviewImagePath = imagePath;
+            _lastNtfsPreviewPartitionOffset = row.ByteOffset;
+            _lastNtfsPreviewPartitionLength = row.ByteLength;
             _allNtfsEntryRows = result.Scan.Entries.Select(entry => new NtfsEntryViewRow(
                 entry.Name,
                 entry.IsDirectory ? "Directory" : "File",
@@ -457,12 +494,7 @@ public partial class MainWindow : Window
 
     private void NtfsEntriesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        CheckRecoveryDestinationButton.IsEnabled =
-            _lastImagePath is not null &&
-            PartitionsGrid.SelectedItem is PartitionRow selectedPartition &&
-            selectedPartition.Table != "SCAN" &&
-            NtfsEntriesGrid.SelectedItem is NtfsEntryViewRow selectedEntry &&
-            selectedEntry.EntryType == "File" && selectedEntry.IsDeleted;
+        UpdateNtfsButtonState();
         if (NtfsEntriesGrid.SelectedItem is not NtfsEntryViewRow row)
             return;
         NtfsEntryDetailsBox.Text = string.Join(Environment.NewLine, new[]
@@ -485,7 +517,7 @@ public partial class MainWindow : Window
             MessageBox.Show(this, "Select an inspected NTFS partition and a file entry first.", "Recovery preflight", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        if (partition.Table == "SCAN" || entry.EntryType != "File" || !entry.IsDeleted)
+        if (partition.Table == "SCAN" || entry.EntryType != "File" || !entry.IsDeleted || !IsCurrentNtfsPreview(partition))
         {
             MessageBox.Show(this, "Preflight is limited to deleted file entries in a selected, existing NTFS partition. Lost-partition candidates and directories are not eligible.", "Recovery preflight", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
@@ -784,6 +816,9 @@ public partial class MainWindow : Window
         _lastReport = null;
         _lastReportPath = null;
         _lastImagePath = null;
+        _lastNtfsPreviewImagePath = null;
+        _lastNtfsPreviewPartitionOffset = null;
+        _lastNtfsPreviewPartitionLength = null;
         PartitionsGrid.SelectedItem = null;
         NtfsTreeView.Items.Clear();
         _allNtfsEntryRows.Clear();
