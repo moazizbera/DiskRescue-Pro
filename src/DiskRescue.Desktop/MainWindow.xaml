@@ -40,7 +40,8 @@
 <TextBlock Text="Bounded export · separate physical destination required" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="11"/>
 </StackPanel>
 </StackPanel>
-<StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0"><ProgressBar x:Name="RecoveryProgressBar" Height="7" Minimum="0" Maximum="100" Value="0"/><TextBlock x:Name="RecoveryProgressText" Text="No recovery operation running." Foreground="{StaticResource Muted}" FontSize="11" Margin="0,4,0,0"/></StackPanel>\n<DataGrid x:Name="NtfsEntriesGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True" SelectionMode="Single" SelectionChanged="NtfsEntriesGrid_SelectionChanged">
+<StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0"><ProgressBar x:Name="RecoveryProgressBar" Height="7" Minimum="0" Maximum="100" Value="0"/><TextBlock x:Name="RecoveryProgressText" Text="No recovery operation running." Foreground="{StaticResource Muted}" FontSize="11" Margin="0,4,0,0"/></StackPanel>
+<DataGrid x:Name="NtfsEntriesGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True" SelectionMode="Single" SelectionChanged="NtfsEntriesGrid_SelectionChanged">
 <DataGrid.Columns>
 <DataGridTextColumn Header="NAME" Binding="{Binding Name}" Width="2*"/>
 <DataGridTextColumn Header="TYPE" Binding="{Binding EntryType}" Width="75"/>
