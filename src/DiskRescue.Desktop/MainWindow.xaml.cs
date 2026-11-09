@@ -138,7 +138,10 @@ public partial class MainWindow : Window
             $"Known-partition relationship: {candidate.PartitionRelation}",
             "",
             "Evidence:",
-            candidate.Evidence
+            candidate.Evidence,
+            "",
+            "Advisory (no source changes):",
+            candidate.Advisory
         });
     }
 
@@ -677,7 +680,20 @@ public partial class MainWindow : Window
     int Confidence,
     string BackupEvidence,
     string PartitionRelation,
-    string Evidence);
+    string Evidence)
+{
+    public string Advisory => Status switch
+    {
+        "Existing partition" =>
+            "The candidate aligns with a known partition. Retain the existing partition-table interpretation; this scan provides corroboration, not a reason to rewrite metadata.",
+        "Overlaps known partition" =>
+            "Do not classify this as lost or act on it independently. Compare the overlapping partition's declared bounds and filesystem metadata; overlapping evidence may indicate a false start, nested structure, or damaged geometry.",
+        _ when BackupEvidence == "Validated" && Confidence >= 95 =>
+            "Strong filesystem and backup-region corroboration. Preserve the candidate for manual review and compare its exact bounds with independent partition-table evidence before any separate recovery plan.",
+        _ =>
+            "Primary filesystem geometry was validated, but independent backup corroboration is absent or incomplete. Treat the location and size as provisional; seek additional independent evidence before planning recovery."
+    };
+}
 
 public sealed record PartitionRow(int Index, string Table, string Name, string StartLba, string Size, long ByteOffset, long ByteLength);
 }
