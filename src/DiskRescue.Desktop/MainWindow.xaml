@@ -30,6 +30,24 @@
 </DataGrid>
 <TextBox x:Name="CandidateEvidenceBox" DockPanel.Dock="Bottom" Height="115" Margin="0,10,0,0" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" BorderThickness="0" Background="#0C1726" Padding="10" Text="Select a candidate to inspect its validation evidence."/>
 </DockPanel></TabItem>
+<TabItem Header="File entries"><DockPanel>
+<StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+<TextBlock Text="NTFS MFT file entries" Foreground="{StaticResource Text}" FontSize="18" FontWeight="SemiBold"/>
+<TextBlock Text="Search and sort the bounded, read-only MFT preview. This view shows filename metadata only; it does not recover file contents." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,8"/>
+<TextBox x:Name="NtfsEntrySearchBox" ToolTip="Search file or directory names, record numbers, parent references, and attributes" TextChanged="NtfsEntrySearchBox_TextChanged" Height="32" Padding="8,5"/>
+</StackPanel>
+<DataGrid x:Name="NtfsEntriesGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True" SelectionMode="Single" SelectionChanged="NtfsEntriesGrid_SelectionChanged">
+<DataGrid.Columns>
+<DataGridTextColumn Header="NAME" Binding="{Binding Name}" Width="2*"/>
+<DataGridTextColumn Header="TYPE" Binding="{Binding EntryType}" Width="75"/>
+<DataGridTextColumn Header="RECORD" Binding="{Binding RecordNumber}" Width="85"/>
+<DataGridTextColumn Header="PARENT" Binding="{Binding ParentReference}" Width="95"/>
+<DataGridTextColumn Header="SIZE (BYTES)" Binding="{Binding SizeBytes}" Width="110"/>
+<DataGridTextColumn Header="ATTRIBUTES" Binding="{Binding Attributes}" Width="*"/>
+</DataGrid.Columns>
+</DataGrid>
+<TextBox x:Name="NtfsEntryDetailsBox" DockPanel.Dock="Bottom" Height="105" Margin="0,10,0,0" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" BorderThickness="0" Background="#0C1726" Padding="10" Text="Run an NTFS preview, then select an entry to inspect its metadata."/>
+</DockPanel></TabItem>
 <TabItem Header="NTFS file preview"><DockPanel><StackPanel DockPanel.Dock="Top" Margin="0,0,0,12"><TextBlock Text="Read-only NTFS preview" Foreground="{StaticResource Text}" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="Scans a bounded number of MFT records from the selected partition. This is not file recovery." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,10"/><Button x:Name="ScanNtfsButton" Content="Scan selected partition" Click="ScanNtfs_Click" IsEnabled="False" HorizontalAlignment="Left"/></StackPanel><TreeView x:Name="NtfsTreeView" Background="#0C1726" Foreground="{StaticResource Text}" BorderThickness="0"/></DockPanel></TabItem>
 </TabControl></Border>
 <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="12" Padding="18"><DockPanel><StackPanel DockPanel.Dock="Top" Margin="0,0,0,12"><TextBlock Text="Inspection findings" Foreground="{StaticResource Text}" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="Validation notes and limitations" Foreground="{StaticResource Muted}" Margin="0,4,0,0"/></StackPanel><TextBox x:Name="FindingsBox" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" BorderThickness="0" Background="#0C1726" Padding="14" Text="No inspection has been run. Select a regular disk-image file to begin."/></DockPanel></Border></Grid>
