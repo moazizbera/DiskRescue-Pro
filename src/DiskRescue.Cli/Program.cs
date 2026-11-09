@@ -18,6 +18,9 @@ static int Run(string[] args)
     if (string.Equals(args[0], "discover-ntfs", StringComparison.OrdinalIgnoreCase))
         return RunNtfsDiscovery(args);
 
+    if (string.Equals(args[0], "discover-fat", StringComparison.OrdinalIgnoreCase))
+        return RunFatDiscovery(args);
+
     if (string.Equals(args[0], "scan-ntfs", StringComparison.OrdinalIgnoreCase))
         return RunNtfsScan(args);
 
@@ -272,6 +275,104 @@ static int RunNtfsDiscovery(string[] args)
     catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
     {
         Console.Error.WriteLine($"NTFS partition discovery stopped safely: {exception.Message}");
+        return 1;
+    }
+}
+
+static int RunFatDiscovery(string[] args)
+{
+    if (args.Length < 2)
+    {
+        Console.Error.WriteLine("Usage: diskrescue discover-fat <image-file> [--sector-size <bytes>] [--max-scan-bytes <bytes>]");
+        return 2;
+    }
+
+    var sectorSize = 512;
+    long? maximumScanBytes = null;
+    for (var i = 2; i < args.Length; i++)
+    {
+        if (i + 1 >= args.Length)
+        {
+            Console.Error.WriteLine($"Missing value for {args[i]}.");
+            return 2;
+        }
+
+        var option = args[i];
+        var value = args[++i];
+        switch (option)
+        {
+            case "--sector-size" when int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedSectorSize):
+                sectorSize = parsedSectorSize;
+                break;
+            case "--max-scan-bytes" when long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedMaximum):
+                maximumScanBytes = parsedMaximum;
+                break;
+            default:
+                Console.Error.WriteLine($"Unknown or invalid option: {option} {value}");
+                return 2;
+        }
+    }
+
+    if (sectorSize is not (512 or 1024 or 2048 or 4096) ||
+        (maximumScanBytes.HasValue && maximumScanBytes.Value <= 0))
+    {
+        Console.Error.WriteLine("Sector size must be 512, 1024, 2048, or 4096; scan limit must be positive.");
+        return 2;
+    }
+
+    try
+    {
+        using var image = FileImageReader.Open(args[1]);
+        var mbr = MbrParser.Parse(image, sectorSize);
+        var gpt = GptParser.ParsePrimaryAndBackup(image, checked((uint)sectorSize));
+        var known = new List<KnownPartitionRange>();
+        for (var i = 0; i < mbr.Partitions.Count; i++)
+            known.Add(new("MBR", i + 1, mbr.Partitions[i].ByteOffset, mbr.Partitions[i].ByteLength));
+
+        var selectedGpt = gpt.Primary.HeaderValid ? gpt.Primary : gpt.Backup;
+        for (var i = 0; i < selectedGpt.Partitions.Count; i++)
+            known.Add(new("GPT", i + 1, selectedGpt.Partitions[i].ByteOffset, selectedGpt.Partitions[i].ByteLength));
+
+        var result = FatPartitionScanner.Scan(image, sectorSize, known,
+            maximumScanBytes ?? image.Length);
+        var report = new
+        {
+            product = "DiskRescue Pro",
+            reportVersion = 1,
+            mode = "read-only-fat32-exfat-partition-discovery",
+            source = new { fileName = Path.GetFileName(args[1]), lengthBytes = image.Length, logicalSectorSizeBytes = sectorSize },
+            safety = new
+            {
+                sourceOpenedReadOnly = true,
+                physicalDevicesSupported = false,
+                sourceWriteOperationsAvailable = false,
+                partitionTableChangesAvailable = false,
+                fileRecoveryAvailable = false
+            },
+            partitionDiscovery = new
+            {
+                candidates = result.Candidates.Select(candidate => new
+                {
+                    fileSystem = candidate.FileSystem,
+                    byteOffset = candidate.ByteOffset,
+                    byteLength = candidate.ByteLength,
+                    status = candidate.Status,
+                    backupBootRegionValid = candidate.BackupBootRegionValid,
+                    confidence = candidate.Confidence,
+                    evidence = candidate.Evidence
+                }),
+                bytesScanned = result.BytesScanned,
+                totalBytes = result.TotalBytes,
+                wasCancelled = result.WasCancelled,
+                issues = result.Issues
+            }
+        };
+        Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+        return result.WasCancelled ? 130 : 0;
+    }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+    {
+        Console.Error.WriteLine($"FAT32/exFAT partition discovery stopped safely: {exception.Message}");
         return 1;
     }
 }
@@ -1032,6 +1133,7 @@ static void PrintUsage()
     Console.WriteLine("  diskrescue list-physical-disks");
     Console.WriteLine("  diskrescue acquire-physical <disk-number> <exact-serial> <new-destination-image>");
     Console.WriteLine("  diskrescue discover-ntfs <image-file> [--sector-size <bytes>] [--max-scan-bytes <bytes>]");
+    Console.WriteLine("  diskrescue discover-fat <image-file> [--sector-size <bytes>] [--max-scan-bytes <bytes>]");
     Console.WriteLine("  diskrescue scan-ntfs <image-file> --offset <bytes> --length <bytes> [--sector-size <bytes>] [--max-records <count>]");
     Console.WriteLine("  diskrescue extract-ntfs-file <image-file> --offset <bytes> --length <bytes> --record <number> --output <new-file> --max-bytes <bytes> [--stream-name <name>]");
     Console.WriteLine("  diskrescue extract-deleted-ntfs-file <image-file> --offset <bytes> --length <bytes> --record <number> --output <new-file> --max-bytes <bytes> [--stream-name <name>]");
@@ -1040,12 +1142,14 @@ static void PrintUsage()
     Console.WriteLine("Examples:");
     Console.WriteLine("  diskrescue inspect sample.img");
     Console.WriteLine("  diskrescue discover-ntfs lost-partition.img");
+    Console.WriteLine("  diskrescue discover-fat lost-fat-partition.img");
     Console.WriteLine("  diskrescue inspect sample-4kn.img --sector-size 4096");
     Console.WriteLine("  diskrescue scan-ntfs sample.img --offset 1048576 --length 1073741824 --max-records 5000");
     Console.WriteLine();
     Console.WriteLine("image-copy copies a regular image file to a new destination and prints SHA-256.");
-    Console.WriteLine("inspect, image-copy, discover-ntfs, scan-ntfs, and extract-ntfs-file operate on regular image files.");
+    Console.WriteLine("inspect, image-copy, discover-ntfs, discover-fat, scan-ntfs, and extract-ntfs-file operate on regular image files.");
     Console.WriteLine("list-physical-disks performs metadata-only Windows discovery. acquire-physical is experimental, guarded, and Windows-only.");
+    Console.WriteLine("discover-fat performs bounded read-only FAT32/exFAT candidate discovery; it does not repair or recover files.");
     Console.WriteLine("NTFS scan returns a bounded partial MFT and directory-tree preview, not file recovery.");
     Console.WriteLine("extract-ntfs-file exports one validated live data stream to a new file.");
     Console.WriteLine("extract-deleted-ntfs-file requires deleted metadata and $Bitmap preflight; it exports only bounded, currently-free, supported streams and never claims content integrity.");
