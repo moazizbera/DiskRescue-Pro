@@ -178,9 +178,12 @@ public partial class MainWindow : Window
         ScanNtfsButton.IsEnabled = _lastImagePath is not null &&
             PartitionsGrid.SelectedItem is PartitionRow row &&
             row.ByteOffset >= 0 && row.ByteLength > 0;
+        var eligibleDeletedFile = IsCurrentNtfsPreview(PartitionsGrid.SelectedItem as PartitionRow) &&
+            NtfsEntriesGrid.SelectedItem is NtfsEntryViewRow entry && entry.EntryType == "File" && entry.IsDeleted;
         if (CheckRecoveryDestinationButton is not null)
-            CheckRecoveryDestinationButton.IsEnabled = IsCurrentNtfsPreview(PartitionsGrid.SelectedItem as PartitionRow) &&
-                NtfsEntriesGrid.SelectedItem is NtfsEntryViewRow entry && entry.EntryType == "File" && entry.IsDeleted;
+            CheckRecoveryDestinationButton.IsEnabled = eligibleDeletedFile;
+        if (RecoverDeletedFileButton is not null)
+            RecoverDeletedFileButton.IsEnabled = eligibleDeletedFile && _recoveryCancellation is null;
     }
 
     private async void ScanNtfs_Click(object sender, RoutedEventArgs e)
