@@ -265,3 +265,12 @@ These items are additive to the existing implementation checklist. They do not a
 - [ ] Manual Windows smoke test with the seven existing synthetic images; verify partition selection, lost-candidate evidence, NTFS file-entry search, tree preview, cancellation, and JSON export.
 - [ ] Compare all seven fixture SHA-256 hashes before and after the manual run.
 - [ ] No physical HDD testing is authorized by completion of these UX items.
+
+
+## CI diagnosis — 2026-11-09 (latest UX commit)
+
+- Commit `8b068d92bec0221952e476245fc74743992dfd93` triggered [workflow run #42671717046](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42671717046), which concluded `failure`.
+- GitHub's run-jobs endpoint returned zero jobs; the commit check-runs endpoint also returned zero check runs. No build/test step or diagnostic log was exposed, so this is not evidence of a XAML compilation or test failure.
+- The workflow file blob is identical on this commit and the previously passing commit `dceeacb75a2f5ee7ef908de79b8654ace4831cb7`.
+- GitHub rejected the API request to re-run this run (HTTP 403: workflow run cannot be retried).
+- A fresh CI run is required before marking the UX validation gate complete. Keep PR #10 in draft; do not merge until the exact latest commit passes.
