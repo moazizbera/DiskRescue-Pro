@@ -703,6 +703,12 @@ public partial class MainWindow : Window
         _lastImagePath = null;
         PartitionsGrid.SelectedItem = null;
         NtfsTreeView.Items.Clear();
+        _allNtfsEntryRows.Clear();
+        _ntfsEntryRows.Clear();
+        if (NtfsEntrySearchBox is not null)
+            NtfsEntrySearchBox.Text = string.Empty;
+        if (NtfsEntryDetailsBox is not null)
+            NtfsEntryDetailsBox.Text = "Run an NTFS preview, then select an entry to inspect its metadata.";
         ScanNtfsButton.IsEnabled = false;
         ImageSizeText.Text = "—";
         PartitionCountText.Text = "—";
