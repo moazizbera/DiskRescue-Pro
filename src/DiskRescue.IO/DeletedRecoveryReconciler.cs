@@ -85,14 +85,14 @@ public static class DeletedRecoveryReconciler
             throw new IOException("Expected final output is missing; pending evidence was preserved.");
 
         RejectReparsePoint(outputPath, "recovered output");
-        using (var output = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read))
-        {
-            if ((ulong)output.Length != bytesWritten)
-                throw new IOException("Recovered output length does not match the pending manifest; evidence was preserved.");
-            var actualHash = SHA256.HashData(output);
-            if (!CryptographicOperations.FixedTimeEquals(actualHash, expectedHash))
-                throw new IOException("Recovered output SHA-256 does not match the pending manifest; evidence was preserved.");
-        }
+        // Keep the verified output open without write/delete sharing until the
+        // manifest move completes, preventing replacement during finalization.
+        using var output = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        if ((ulong)output.Length != bytesWritten)
+            throw new IOException("Recovered output length does not match the pending manifest; evidence was preserved.");
+        var actualHash = SHA256.HashData(output);
+        if (!CryptographicOperations.FixedTimeEquals(actualHash, expectedHash))
+            throw new IOException("Recovered output SHA-256 does not match the pending manifest; evidence was preserved.");
 
         // Recheck the no-overwrite condition immediately before publication.
         if (File.Exists(finalManifestPath) || Directory.Exists(finalManifestPath))
