@@ -50,8 +50,8 @@ public static class DeletedRecoveryReconciler
         if (manifestInfo.Length is <= 0 or > MaximumManifestBytes)
             throw new IOException("Pending manifest size is outside the supported 1-byte to 1-MiB range.");
 
-        using var manifestStream = new FileStream(pendingPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        using var document = JsonDocument.Parse(manifestStream, new JsonDocumentOptions { MaxDepth = 32 });
+        var manifestBytes = File.ReadAllBytes(pendingPath);
+        using var document = JsonDocument.Parse(manifestBytes, new JsonDocumentOptions { MaxDepth = 32 });
         var root = document.RootElement;
         if (root.ValueKind != JsonValueKind.Object ||
             !root.TryGetProperty("manifestVersion", out var version) || version.GetInt32() != 1 ||
