@@ -70,7 +70,6 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -85,8 +84,8 @@
                     <Button Grid.Column="1" x:Name="InspectButton" Content="Inspect image"
                             Click="Inspect_Click" Padding="16,7" Margin="12,0,0,0"
                             MinHeight="32"/>
-                    <Button Grid.Column="3" x:Name="DiscoverButton" Content="Find lost partitions"
-                            Click="Discover_Click" Padding="15,7" MinHeight="32"
+                    <Button Grid.Column="2" x:Name="DiscoverButton" Content="Find lost partitions"
+                            Click="Discover_Click" Padding="15,7" Margin="8,0,0,0" MinHeight="32"
                             Background="#8A5526" Foreground="#FFF1DF"/>
                 </Grid>
             </Grid>
@@ -304,6 +303,15 @@
                                    FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0"/>
                         <TextBlock Text="Validation results, warnings, and limitations"
                                    Foreground="{StaticResource Muted}" FontSize="11" Margin="0,3,0,0"/>
+                        <Border Background="#2D2222" BorderBrush="#8E4545" BorderThickness="1"
+                                CornerRadius="6" Padding="9" Margin="0,9,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="⚠" Foreground="#F07878" FontWeight="Bold"
+                                           FontSize="14" Margin="0,0,8,0" VerticalAlignment="Top"/>
+                                <TextBlock Text="Image inspection is read-only. Physical partition scanning, repair, and recovery are disabled."
+                                           Foreground="#F0DADA" FontSize="10" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                     <TextBox x:Name="FindingsBox" IsReadOnly="True" TextWrapping="Wrap"
                              AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
