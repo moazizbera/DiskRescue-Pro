@@ -22,7 +22,8 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [x] Bounded, chunked NTFS boot-sector discovery in image files with primary BPB validation, backup-sector corroboration, progress, cancellation, and candidate evidence
 - [x] Classify NTFS candidates against parsed MBR/GPT ranges as existing, overlapping, or lost; add lost candidates to the desktop partition list for bounded NTFS preview
 - [x] Bounded FAT32/exFAT candidate scanning in regular image files, primary/backup validation, MBR/GPT overlap classification, evidence-based confidence, and synthetic regression coverage (CLI: `discover-fat`)
-- [ ] Integrate FAT32/exFAT candidates into the WPF discovery workflow and candidate comparison UI
+- [x] Integrate FAT32/exFAT candidates into the WPF discovery workflow, findings panel, and partition candidate list (automated build/test; manual interactive validation remains open)
+- [ ] Add deeper candidate comparison and conflict-resolution UI
 - [x] Generated-image integration fixtures for lost NTFS candidate discovery, bounded preview, and CLI extraction; desktop interaction remains a separate manual gate
 - [~] Experimental Windows physical-disk inventory and guarded image acquisition coordinator/CLI; WPF acquisition window is integrated; hardware validation remains a release gate
 
@@ -54,13 +55,13 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 
 ## Phase 3 — Lost-partition discovery
 
-- [ ] Bounded filesystem-signature search over image ranges
-- [ ] Candidate generation for NTFS, FAT32, and exFAT
-- [ ] Independent boot-sector and backup-boot-sector validation
-- [ ] Candidate overlap and conflict analysis
-- [ ] Evidence-based confidence explanations (never silent repair)
+- [x] Bounded filesystem-signature search over regular image-file ranges for NTFS, FAT32, and exFAT
+- [x] Candidate generation for NTFS, FAT32, and exFAT
+- [x] Independent boot-sector and backup-boot-sector validation where supported by each filesystem
+- [x] Candidate overlap and conflict analysis against parsed MBR/GPT ranges
+- [x] Evidence-based confidence explanations (never silent repair)
 - [x] Conservative FAT32 BPB and exFAT main/backup boot-region validators with bounded geometry checks and synthetic regression tests
-- [ ] FAT32 and exFAT lost-partition candidate scanning, overlap classification, and confidence scoring
+- [x] FAT32 and exFAT lost-partition candidate scanning, overlap classification, and confidence scoring
 
 ## Phase 4 — Read-only file-content mapping
 
@@ -126,8 +127,8 @@ The current feature branch includes a guarded all-or-nothing physical image acqu
 
 ## Current validation baseline
 
-The feature branch `feat/deleted-file-safety-assessment` is preserved at commit `c89382745a2e5625b255f8aed3c0b2ec5b48ff51`. Pull request #9 was closed without merging; closing the PR did not delete the branch.
+The feature branch `feat/deleted-file-safety-assessment` is preserved; latest implementation and CI changes are being validated on the branch. Pull request #9 was closed without merging; closing the PR did not delete the branch.
 
-The exact branch head passed Windows CI in push run [42575588779](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42575588779): 307 tests passed, 0 failed, and 1 environment-dependent read-only VHDX test was skipped. Release build completed with 0 warnings and 0 errors. The run also validated generated MBR/GPT/NTFS fixtures, bounded FAT32/exFAT candidate parser and scanner tests, CLI smoke tests, lost-NTFS discovery/preview/extraction, deleted-NTFS export and manifest E2E, the lost-NTFS recovery harness, WPF build, Windows x64 desktop/CLI publishing, and actual WPF dashboard screenshot capture.
+The exact scanner/CLI branch head passed Windows CI in push run [42575588779](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42575588779): 307 tests passed, 0 failed, and 1 environment-dependent read-only VHDX test was skipped. Release build completed with 0 warnings and 0 errors. The run validated generated MBR/GPT/NTFS fixtures, FAT32/exFAT parser and scanner tests, deleted-NTFS export and manifest E2E, the lost-NTFS recovery harness, WPF build, Windows x64 desktop/CLI publishing, and actual WPF dashboard screenshot capture. The subsequent WPF integration and cancellation fix passed CI in [run 42575869198](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42575869198).
 
-The screenshot artifact is an actual Windows WPF application capture in its initial empty state; it is not evidence of a populated partition map, FAT32/exFAT WPF integration, or successful interactive desktop workflow. Manual Windows desktop interaction against generated disposable MBR/GPT/NTFS images remains outstanding. The environment-dependent VHDX test skip and all physical-hardware validation gates remain explicit; no physical HDD recovery is validated.
+The WPF integration now displays lost FAT32/exFAT candidates alongside NTFS candidates and includes filesystem evidence in the findings panel. The screenshot artifact from earlier runs is an actual Windows WPF application capture in its initial empty state; it is not evidence of a populated partition map or successful interactive desktop workflow. Explicit FAT32/exFAT CLI end-to-end fixtures and smoke assertions have now been added to CI; that new workflow run is pending. Manual Windows desktop interaction against generated disposable MBR/GPT/NTFS images remains outstanding. The environment-dependent VHDX test skip and all physical-hardware validation gates remain explicit; no physical HDD recovery is validated.
