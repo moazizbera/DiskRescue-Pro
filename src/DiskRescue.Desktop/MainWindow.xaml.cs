@@ -16,6 +16,7 @@ namespace DiskRescue.Desktop;
 public partial class MainWindow : Window
 {
     private readonly ObservableCollection<PartitionRow> _rows = new();
+    private readonly ObservableCollection<CandidateComparisonRow> _candidateRows = new();
     private string? _lastReport;
     private string? _lastReportPath;
     private string? _lastImagePath;
@@ -26,6 +27,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         PartitionsGrid.ItemsSource = _rows;
+        CandidatesGrid.ItemsSource = _candidateRows;
         ScanNtfsButton.IsEnabled = false;
     }
 
@@ -119,6 +121,26 @@ public partial class MainWindow : Window
     }
 
     private void PartitionsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateNtfsButtonState();
+
+    private void CandidatesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CandidatesGrid.SelectedItem is not CandidateComparisonRow candidate)
+        {
+            CandidateEvidenceBox.Text = "Select a candidate to inspect its validation evidence.";
+            return;
+        }
+
+        CandidateEvidenceBox.Text = string.Join(Environment.NewLine, new[]
+        {
+            $"{candidate.FileSystem} · {candidate.Status}",
+            $"Byte offset: {candidate.Offset} · Declared size: {candidate.Size}",
+            $"Confidence: {candidate.Confidence}% · Backup corroboration: {candidate.BackupEvidence}",
+            $"Known-partition relationship: {candidate.PartitionRelation}",
+            "",
+            "Evidence:",
+            candidate.Evidence
+        });
+    }
 
     private void UpdateNtfsButtonState()
     {
@@ -256,22 +278,40 @@ public partial class MainWindow : Window
                 if (_rows[i].Table == "SCAN") _rows.RemoveAt(i);
 
             var nextIndex = 1;
-            foreach (var candidate in ntfsResult.Candidates.Where(candidate => candidate.Status == "Lost partition candidate"))
+            _candidateRows.Clear();
+            foreach (var candidate in ntfsResult.Candidates)
             {
-                _rows.Add(new PartitionRow(nextIndex++, "SCAN",
-                    $"Lost NTFS · {candidate.Confidence}% confidence",
-                    (candidate.ByteOffset / sectorSize).ToString(),
-                    FormatBytes(candidate.ByteLength),
-                    candidate.ByteOffset, candidate.ByteLength));
+                _candidateRows.Add(new CandidateComparisonRow(
+                    "NTFS", candidate.Status, candidate.ByteOffset.ToString("N0"),
+                    FormatBytes(candidate.ByteLength), candidate.Confidence,
+                    candidate.BackupBootSectorValid ? "Validated" : "Not validated",
+                    candidate.MatchingPartition ?? (candidate.Status == "Overlaps known partition" ? "Overlaps known partition" : "None"),
+                    string.Join(Environment.NewLine, candidate.Evidence)));
+                if (candidate.Status == "Lost partition candidate")
+                    _rows.Add(new PartitionRow(nextIndex++, "SCAN",
+                        $"Lost NTFS · {candidate.Confidence}% confidence",
+                        (candidate.ByteOffset / sectorSize).ToString(),
+                        FormatBytes(candidate.ByteLength),
+                        candidate.ByteOffset, candidate.ByteLength));
             }
-            foreach (var candidate in fatResult.Candidates.Where(candidate => candidate.Status == "Lost partition candidate"))
+            foreach (var candidate in fatResult.Candidates)
             {
-                _rows.Add(new PartitionRow(nextIndex++, "SCAN",
-                    $"Lost {candidate.FileSystem} · {candidate.Confidence}% confidence",
-                    (candidate.ByteOffset / sectorSize).ToString(),
-                    FormatBytes(candidate.ByteLength),
-                    candidate.ByteOffset, candidate.ByteLength));
+                _candidateRows.Add(new CandidateComparisonRow(
+                    candidate.FileSystem, candidate.Status, candidate.ByteOffset.ToString("N0"),
+                    FormatBytes(candidate.ByteLength), candidate.Confidence,
+                    candidate.BackupBootRegionValid ? "Validated" : "Not validated",
+                    candidate.MatchingPartition ?? (candidate.Status == "Overlaps known partition" ? "Overlaps known partition" : "None"),
+                    string.Join(Environment.NewLine, candidate.Evidence)));
+                if (candidate.Status == "Lost partition candidate")
+                    _rows.Add(new PartitionRow(nextIndex++, "SCAN",
+                        $"Lost {candidate.FileSystem} · {candidate.Confidence}% confidence",
+                        (candidate.ByteOffset / sectorSize).ToString(),
+                        FormatBytes(candidate.ByteLength),
+                        candidate.ByteOffset, candidate.ByteLength));
             }
+            CandidateEvidenceBox.Text = _candidateRows.Count == 0
+                ? "No validated candidates were found."
+                : $"Select one of {_candidateRows.Count} validated candidates to inspect its evidence.";
 
             using var reportDocument = JsonDocument.Parse(_lastReport ?? "{}");
             _lastReport = JsonSerializer.Serialize(new
@@ -629,5 +669,15 @@ public partial class MainWindow : Window
 
     private sealed record InspectionResult(long Length, List<PartitionRow> Rows, string TableType, bool HasWarnings, string Findings, string Json);
     private sealed record NtfsScanUiResult(NtfsBootSector BootSector, NtfsMftScanResult Scan, NtfsDirectoryTreeResult Tree, bool UsedMftContinuation, IReadOnlyList<string> ContinuationIssues);
-    public sealed record PartitionRow(int Index, string Table, string Name, string StartLba, string Size, long ByteOffset, long ByteLength);
+    public sealed record CandidateComparisonRow(
+    string FileSystem,
+    string Status,
+    string Offset,
+    string Size,
+    int Confidence,
+    string BackupEvidence,
+    string PartitionRelation,
+    string Evidence);
+
+public sealed record PartitionRow(int Index, string Table, string Name, string StartLba, string Size, long ByteOffset, long ByteLength);
 }
