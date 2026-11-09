@@ -36,11 +36,11 @@
 <TextBlock Text="Search and sort the bounded, read-only MFT preview. This view shows filename metadata only; it does not recover file contents." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,8"/>
 <TextBox x:Name="NtfsEntrySearchBox" ToolTip="Search file or directory names, record numbers, parent references, and attributes" TextChanged="NtfsEntrySearchBox_TextChanged" Height="32" Padding="8,5"/>
 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-<Button x:Name="CheckRecoveryDestinationButton" Content="Check recovery destination…" Click="CheckRecoveryDestination_Click" IsEnabled="False" HorizontalAlignment="Left"/>
-<TextBlock Text="Preflight only · no file data is written or recovered" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="11"/>
+<Button x:Name="CheckRecoveryDestinationButton" Content="Check recovery destination…" Click="CheckRecoveryDestination_Click" IsEnabled="False" HorizontalAlignment="Left"/><Button x:Name="RecoverDeletedFileButton" Content="Recover selected file…" Click="RecoverDeletedFile_Click" IsEnabled="False" Margin="8,0,0,0" HorizontalAlignment="Left"/><Button x:Name="CancelRecoveryButton" Content="Cancel export" Click="CancelRecovery_Click" IsEnabled="False" Margin="8,0,0,0" HorizontalAlignment="Left"/>
+<TextBlock Text="Bounded export · separate physical destination required" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="11"/>
 </StackPanel>
 </StackPanel>
-<DataGrid x:Name="NtfsEntriesGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True" SelectionMode="Single" SelectionChanged="NtfsEntriesGrid_SelectionChanged">
+<StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0"><ProgressBar x:Name="RecoveryProgressBar" Height="7" Minimum="0" Maximum="100" Value="0"/><TextBlock x:Name="RecoveryProgressText" Text="No recovery operation running." Foreground="{StaticResource Muted}" FontSize="11" Margin="0,4,0,0"/></StackPanel>\n<DataGrid x:Name="NtfsEntriesGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True" SelectionMode="Single" SelectionChanged="NtfsEntriesGrid_SelectionChanged">
 <DataGrid.Columns>
 <DataGridTextColumn Header="NAME" Binding="{Binding Name}" Width="2*"/>
 <DataGridTextColumn Header="TYPE" Binding="{Binding EntryType}" Width="75"/>
