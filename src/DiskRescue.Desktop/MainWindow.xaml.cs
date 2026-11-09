@@ -32,6 +32,18 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        // Keep the window inside the usable desktop work area on small displays,
+        // remote sessions, and high-DPI laptops while preserving normal Windows
+        // title-bar dragging and edge/corner resizing.
+        var workArea = SystemParameters.WorkArea;
+        MinWidth = Math.Min(900, workArea.Width);
+        MinHeight = Math.Min(640, workArea.Height);
+        MaxWidth = workArea.Width;
+        MaxHeight = workArea.Height;
+        Width = Math.Min(1440, workArea.Width * 0.94);
+        Height = Math.Min(900, workArea.Height * 0.92);
+        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+
         InitializeComponent();
         PartitionsGrid.ItemsSource = _rows;
         CandidatesGrid.ItemsSource = _candidateRows;
