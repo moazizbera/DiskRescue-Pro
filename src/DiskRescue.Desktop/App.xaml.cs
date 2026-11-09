@@ -8,6 +8,18 @@ namespace DiskRescue.Desktop;
 
 public partial class App : Application
 {
+    static App()
+    {
+        var diagnosticPath = Environment.GetEnvironmentVariable("DISKRESCUE_CAPTURE_UI_SCREENSHOT");
+        if (string.IsNullOrWhiteSpace(diagnosticPath))
+            return;
+
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            try { File.WriteAllText(diagnosticPath + ".error.txt", args.ExceptionObject?.ToString() ?? "Unknown unhandled exception"); } catch { }
+        };
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         var diagnosticPath = Environment.GetEnvironmentVariable("DISKRESCUE_CAPTURE_UI_SCREENSHOT");
