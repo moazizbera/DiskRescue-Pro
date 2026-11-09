@@ -10,6 +10,20 @@ public partial class App : Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
+        var diagnosticPath = Environment.GetEnvironmentVariable("DISKRESCUE_CAPTURE_UI_SCREENSHOT");
+        if (!string.IsNullOrWhiteSpace(diagnosticPath))
+        {
+            DispatcherUnhandledException += (_, args) =>
+            {
+                try { File.WriteAllText(diagnosticPath + ".error.txt", args.Exception.ToString()); } catch { }
+                args.Handled = false;
+            };
+            AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+            {
+                try { File.WriteAllText(diagnosticPath + ".error.txt", args.ExceptionObject?.ToString() ?? "Unknown unhandled exception"); } catch { }
+            };
+        }
+
         base.OnStartup(e);
 
         var screenshotPath = Environment.GetEnvironmentVariable("DISKRESCUE_CAPTURE_UI_SCREENSHOT");
