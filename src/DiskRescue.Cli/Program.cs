@@ -27,6 +27,9 @@ static int Run(string[] args)
     if (string.Equals(args[0], "extract-deleted-ntfs-file", StringComparison.OrdinalIgnoreCase))
         return RunNtfsDeletedExtract(args);
 
+    if (string.Equals(args[0], "reconcile-deleted-ntfs-export", StringComparison.OrdinalIgnoreCase))
+        return RunDeletedExportReconciliation(args);
+
     if (string.Equals(args[0], "image-copy", StringComparison.OrdinalIgnoreCase))
         return RunImageCopy(args);
 
@@ -866,6 +869,29 @@ static int RunNtfsDeletedExtract(string[] args)
     }
 }
 
+static int RunDeletedExportReconciliation(string[] args)
+{
+    if (args.Length != 2)
+    {
+        Console.Error.WriteLine("Usage: diskrescue reconcile-deleted-ntfs-export <pending-manifest.partial>");
+        return 2;
+    }
+
+    try
+    {
+        var finalManifest = DeletedRecoveryReconciler.FinalizePendingManifest(args[1]);
+        Console.WriteLine("Interrupted deleted-file export finalized after verifying the output length and SHA-256.");
+        Console.WriteLine($"Recovery manifest: {finalManifest}");
+        Console.WriteLine("The SHA-256 verifies the exported bytes against the pending manifest only; original content integrity remains unverified.");
+        return 0;
+    }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException or System.Text.Json.JsonException or InvalidOperationException)
+    {
+        Console.Error.WriteLine($"Reconciliation stopped safely; pending evidence was preserved when possible: {exception.Message}");
+        return 1;
+    }
+}
+
 static int RunPhysicalDiskInventory(string[] args)
 {
     if (args.Length != 1)
@@ -1009,6 +1035,7 @@ static void PrintUsage()
     Console.WriteLine("  diskrescue scan-ntfs <image-file> --offset <bytes> --length <bytes> [--sector-size <bytes>] [--max-records <count>]");
     Console.WriteLine("  diskrescue extract-ntfs-file <image-file> --offset <bytes> --length <bytes> --record <number> --output <new-file> --max-bytes <bytes> [--stream-name <name>]");
     Console.WriteLine("  diskrescue extract-deleted-ntfs-file <image-file> --offset <bytes> --length <bytes> --record <number> --output <new-file> --max-bytes <bytes> [--stream-name <name>]");
+    Console.WriteLine("  diskrescue reconcile-deleted-ntfs-export <pending-manifest.partial>");
     Console.WriteLine();
     Console.WriteLine("Examples:");
     Console.WriteLine("  diskrescue inspect sample.img");
@@ -1022,4 +1049,5 @@ static void PrintUsage()
     Console.WriteLine("NTFS scan returns a bounded partial MFT and directory-tree preview, not file recovery.");
     Console.WriteLine("extract-ntfs-file exports one validated live data stream to a new file.");
     Console.WriteLine("extract-deleted-ntfs-file requires deleted metadata and $Bitmap preflight; it exports only bounded, currently-free, supported streams and never claims content integrity.");
+    Console.WriteLine("reconcile-deleted-ntfs-export finalizes an interrupted export only after matching the pending manifest, output length, and exported-byte SHA-256; it never overwrites existing files.");
 }
