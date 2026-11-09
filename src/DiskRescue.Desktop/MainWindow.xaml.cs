@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
+using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -26,6 +27,7 @@ public partial class MainWindow : Window
     private long? _lastNtfsPreviewPartitionOffset;
     private long? _lastNtfsPreviewPartitionLength;
     private CancellationTokenSource? _scanCancellation;
+    private CancellationTokenSource? _recoveryCancellation;
     private long _partitionMapLength;
 
     public MainWindow()
@@ -585,6 +587,205 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void RecoverDeletedFile_Click(object sender, RoutedEventArgs e)
+    {
+        if (_lastImagePath is null ||
+            PartitionsGrid.SelectedItem is not PartitionRow partition ||
+            NtfsEntriesGrid.SelectedItem is not NtfsEntryViewRow entry ||
+            !IsCurrentNtfsPreview(partition) || partition.Table == "SCAN" ||
+            entry.EntryType != "File" || !entry.IsDeleted)
+        {
+            MessageBox.Show(this, "Select a deleted file from the current NTFS preview first.", "Recovery", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (!OperatingSystem.IsWindows())
+        {
+            MessageBox.Show(this, "Deleted-image export requires Windows physical-volume mapping.", "Recovery unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (entry.SizeBytes == 0 || entry.SizeBytes > long.MaxValue)
+        {
+            MessageBox.Show(this, "The selected entry has no usable bounded size for export.", "Recovery", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var safeName = string.Concat(entry.Name.Select(ch =>
+            System.IO.Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch));
+        if (string.IsNullOrWhiteSpace(safeName) || safeName is "." or "..")
+            safeName = $"mft-record-{entry.RecordNumber}.bin";
+        var dialog = new SaveFileDialog
+        {
+            Title = "Recover deleted file to a separate physical disk",
+            FileName = safeName,
+            Filter = "All files (*.*)|*.*",
+            AddExtension = false,
+            OverwritePrompt = false,
+            CheckPathExists = true
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        var imagePath = _lastImagePath;
+        var outputPath = dialog.FileName;
+        var manifestPath = outputPath + ".recovery.json";
+        var maximumBytes = entry.SizeBytes;
+        var sectorSize = int.Parse(((ComboBoxItem)SectorSizeBox.SelectedItem).Tag.ToString()!);
+        try
+        {
+            if (File.Exists(outputPath) || Directory.Exists(outputPath) ||
+                File.Exists(manifestPath) || Directory.Exists(manifestPath))
+                throw new IOException("Output or recovery manifest already exists. Existing files are never overwritten.");
+            var preflight = PhysicalImageDestinationSafety.AssessForImageFile(
+                imagePath, outputPath, WindowsPhysicalDiskVolumeMap.Enumerate(), checked((long)maximumBytes));
+            if (!preflight.CanUseAsSeparateDestination)
+                throw new IOException("Destination is not verified as physically separate: " + string.Join("; ", preflight.Blockers));
+
+            var confirm = MessageBox.Show(this,
+                $"Export deleted MFT record {entry.RecordNumber} ({entry.Name})?\n\nMaximum bytes: {maximumBytes:N0}\nDestination: {outputPath}\n\nThe output hash is not proof of original content integrity.",
+                "Confirm bounded deleted-file export", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.OK) return;
+
+            _recoveryCancellation = new CancellationTokenSource();
+            CancelRecoveryButton.IsEnabled = true;
+            RecoverDeletedFileButton.IsEnabled = false;
+            CheckRecoveryDestinationButton.IsEnabled = false;
+            RecoveryProgressBar.Value = 0;
+            RecoveryProgressText.Text = "Starting bounded export…";
+            StatusText.Text = "Recovering deleted NTFS stream to verified separate storage…";
+            var progress = new Progress<ulong>(bytes =>
+            {
+                RecoveryProgressBar.Value = maximumBytes == 0 ? 0 :
+                    Math.Min(100, bytes * 100d / maximumBytes);
+                RecoveryProgressText.Text = $"{bytes:N0} / {maximumBytes:N0} bytes";
+            });
+            var result = await Task.Run(() => ExportDeletedFile(
+                imagePath, outputPath, partition.ByteOffset, partition.ByteLength,
+                sectorSize, entry.RecordNumber, maximumBytes, _recoveryCancellation.Token, progress));
+            NtfsEntryDetailsBox.Text = $"Export complete\nOutput: {result.OutputPath}\nManifest: {result.ManifestPath}\nBytes: {result.BytesWritten:N0}\nSHA-256: {result.Sha256}\nContent integrity verified: No";
+            RecoveryProgressBar.Value = 100;
+            RecoveryProgressText.Text = $"Completed · {result.BytesWritten:N0} bytes";
+            StatusText.Text = "Deleted-file export completed · content integrity is not verified";
+            MessageBox.Show(this, $"Export completed.\n\n{result.OutputPath}\n\nSHA-256: {result.Sha256}\n\nThis hash identifies exported bytes only.", "Recovery complete", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException)
+        {
+            RecoveryProgressText.Text = "Cancelled · temporary output discarded";
+            StatusText.Text = "Deleted-file export cancelled safely";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+        {
+            RecoveryProgressText.Text = "Failed safely";
+            StatusText.Text = "Deleted-file export failed safely";
+            MessageBox.Show(this, ex.Message, "Recovery stopped safely", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _recoveryCancellation?.Dispose();
+            _recoveryCancellation = null;
+            CancelRecoveryButton.IsEnabled = false;
+            RecoverDeletedFileButton.IsEnabled = true;
+            UpdateNtfsButtonState();
+        }
+    }
+
+    private void CancelRecovery_Click(object sender, RoutedEventArgs e)
+    {
+        _recoveryCancellation?.Cancel();
+        RecoveryProgressText.Text = "Cancellation requested…";
+    }
+
+    private static DeletedDesktopExportResult ExportDeletedFile(
+        string imagePath, string outputPath, long volumeOffset, long volumeLength,
+        int sectorSize, ulong recordNumber, ulong maximumBytes,
+        CancellationToken cancellationToken, IProgress<ulong> progress)
+    {
+        var fullImagePath = Path.GetFullPath(imagePath);
+        var fullOutputPath = Path.GetFullPath(outputPath);
+        var directory = Path.GetDirectoryName(fullOutputPath)
+            ?? throw new IOException("Output directory could not be resolved.");
+        var manifestPath = fullOutputPath + ".recovery.json";
+        if (string.Equals(fullImagePath, fullOutputPath, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("Output cannot overwrite the source image.");
+        if (!Directory.Exists(directory) || File.Exists(fullOutputPath) ||
+            Directory.Exists(fullOutputPath) || File.Exists(manifestPath) || Directory.Exists(manifestPath))
+            throw new IOException("Destination directory must exist and output/manifest paths must be new.");
+
+        var sourceInfo = new FileInfo(fullImagePath);
+        var sourceWriteTime = sourceInfo.LastWriteTimeUtc;
+        var initialAssessment = PhysicalImageDestinationSafety.AssessForImageFile(
+            fullImagePath, fullOutputPath, WindowsPhysicalDiskVolumeMap.Enumerate(), checked((long)maximumBytes));
+        if (!initialAssessment.CanUseAsSeparateDestination)
+            throw new IOException("Initial destination safety check failed: " + string.Join("; ", initialAssessment.Blockers));
+
+        using var image = FileImageReader.Open(fullImagePath);
+        var boot = NtfsBootSectorParser.Parse(image, volumeOffset, volumeLength);
+        if (!boot.IsValid || boot.BootSector is null || boot.BootSector.BytesPerSector != sectorSize)
+            throw new IOException("NTFS boot-sector validation failed or sector size changed: " + string.Join("; ", boot.Issues));
+        var opened = NtfsMftReader.Open(image, volumeOffset, volumeLength, boot.BootSector);
+        if (!opened.IsValid || opened.Reader is null)
+            throw new IOException("NTFS MFT validation failed: " + string.Join("; ", opened.Issues));
+
+        using var lease = DeletedRecoveryTemporaryFileLease.Create(directory);
+        NtfsDeletedDataStreamCopyOperationResult copied;
+        ulong bytesWritten;
+        using (var destination = new FileStream(lease.OutputPath, FileMode.CreateNew, FileAccess.Write,
+            FileShare.None, 1024 * 1024, FileOptions.SequentialScan))
+        {
+            copied = opened.Reader.CopyDeletedDataStreamTo(
+                recordNumber, destination, maximumBytes, string.Empty, cancellationToken, progress);
+            if (!copied.IsValid || copied.Copy is null || !copied.Copy.IsValid)
+                throw new IOException("Deleted-stream recovery was refused or failed: " +
+                    string.Join("; ", copied.Issues.Concat(copied.Assessment?.Warnings ?? Array.Empty<string>())));
+            bytesWritten = copied.Copy.BytesWritten;
+            destination.Flush(true);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        string sha256;
+        using (var verify = File.OpenRead(lease.OutputPath))
+            sha256 = Convert.ToHexString(SHA256.HashData(verify));
+        cancellationToken.ThrowIfCancellationRequested();
+
+        sourceInfo.Refresh();
+        if (sourceInfo.Length != image.Length || sourceInfo.LastWriteTimeUtc != sourceWriteTime)
+            throw new IOException("Source image changed during export; refusing publication.");
+
+        var assessment = copied.Assessment!;
+        var manifest = new
+        {
+            product = "DiskRescue Pro",
+            manifestVersion = 1,
+            operation = "bounded-deleted-ntfs-data-stream-export",
+            createdAtUtc = DateTimeOffset.UtcNow,
+            source = new { fileName = Path.GetFileName(fullImagePath), lengthBytes = image.Length,
+                lastWriteTimeUtc = sourceWriteTime, volumeOffsetBytes = volumeOffset,
+                volumeLengthBytes = volumeLength, logicalSectorSizeBytes = sectorSize },
+            deletedFile = new { mftRecordNumber = recordNumber, metadataAssessment = assessment.Metadata.MetadataStatus.ToString(),
+                preflightStatus = assessment.Status.ToString(),
+                clusterAllocation = assessment.ClusterAllocation?.Status.ToString() ?? "NotApplicableResidentStream" },
+            dataStream = new { isResident = assessment.IsResident, lengthBytes = assessment.Length,
+                initializedSizeBytes = assessment.InitializedSize, clusterSizeBytes = boot.BootSector.ClusterSizeBytes,
+                physicalRunCount = assessment.Runs.Count, physicalRuns = assessment.Runs.Select(run => new {
+                    startingVcn = run.StartingVcn, clusterCount = run.ClusterCount, startingLcn = run.StartingLcn }) },
+            export = new { fileName = Path.GetFileName(fullOutputPath), fullPath = fullOutputPath,
+                bytesWritten, maximumBytes, sha256, contentIntegrityVerified = false },
+            safety = new { sourceOpenedReadOnly = true, sourceWriteOperationsAvailable = false,
+                sourceContentHashCompared = false, contentIntegrityVerified = false, physicalDiskRecoveryValidated = false },
+            warnings = assessment.Warnings
+        };
+        using (var manifestStream = new FileStream(lease.ManifestPath, FileMode.CreateNew,
+            FileAccess.Write, FileShare.None, 16 * 1024, FileOptions.SequentialScan))
+        {
+            JsonSerializer.Serialize(manifestStream, manifest, new JsonSerializerOptions { WriteIndented = true });
+            manifestStream.Flush(true);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        var finalAssessment = PhysicalImageDestinationSafety.AssessForImageFile(
+            fullImagePath, fullOutputPath, WindowsPhysicalDiskVolumeMap.Enumerate(), checked((long)maximumBytes));
+        if (!finalAssessment.CanUseAsSeparateDestination)
+            throw new IOException("Final destination safety check failed: " + string.Join("; ", finalAssessment.Blockers));
+        DeletedRecoveryOutputPublisher.PublishPair(lease.OutputPath, fullOutputPath, lease.ManifestPath, manifestPath);
+        return new(fullOutputPath, manifestPath, bytesWritten, sha256);
+    }
+
     private static TreeViewItem CreateTreeItem(NtfsDirectoryNode node, int depth)
     {
         var label = node.IsDirectory
@@ -849,7 +1050,7 @@ public partial class MainWindow : Window
     }
 
     private sealed record InspectionResult(long Length, List<PartitionRow> Rows, string TableType, bool HasWarnings, string Findings, string Json);
-    private sealed record NtfsScanUiResult(NtfsBootSector BootSector, NtfsMftScanResult Scan, NtfsDirectoryTreeResult Tree, bool UsedMftContinuation, IReadOnlyList<string> ContinuationIssues);
+    private sealed record DeletedDesktopExportResult(string OutputPath, string ManifestPath, ulong BytesWritten, string Sha256);\n\n    private sealed record NtfsScanUiResult(NtfsBootSector BootSector, NtfsMftScanResult Scan, NtfsDirectoryTreeResult Tree, bool UsedMftContinuation, IReadOnlyList<string> ContinuationIssues);
     public sealed record NtfsEntryViewRow(
     string Name,
     string EntryType,
