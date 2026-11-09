@@ -3,42 +3,73 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using System.Runtime.ExceptionServices;
 
 namespace DiskRescue.Desktop;
 
 public partial class App : Application
 {
+    private static string? CaptureDiagnosticPath =>
+        Environment.GetEnvironmentVariable("DISKRESCUE_CAPTURE_UI_SCREENSHOT");
+
     static App()
     {
-        var diagnosticPath = Environment.GetEnvironmentVariable("DISKRESCUE_CAPTURE_UI_SCREENSHOT");
-        if (string.IsNullOrWhiteSpace(diagnosticPath))
+        // Install diagnostics before WPF creates the Application instance. First-chance
+        // logging catches XAML/resource failures that may occur before OnStartup.
+        if (string.IsNullOrWhiteSpace(CaptureDiagnosticPath))
             return;
+
+        AppDomain.CurrentDomain.FirstChanceException += (_, args) =>
+        {
+            try
+            {
+                File.AppendAllText(CaptureDiagnosticPath + ".trace.txt",
+                    $"FIRST-CHANCE {DateTimeOffset.UtcNow:O}{Environment.NewLine}{args.Exception}{Environment.NewLine}---{Environment.NewLine}");
+            }
+            catch { }
+        };
 
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
-            try { File.WriteAllText(diagnosticPath + ".error.txt", args.ExceptionObject?.ToString() ?? "Unknown unhandled exception"); } catch { }
+            try
+            {
+                File.AppendAllText(CaptureDiagnosticPath + ".error.txt",
+                    $"UNHANDLED {DateTimeOffset.UtcNow:O}{Environment.NewLine}{args.ExceptionObject}{Environment.NewLine}");
+            }
+            catch { }
+        };
+
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            try
+            {
+                File.AppendAllText(CaptureDiagnosticPath + ".trace.txt",
+                    $"PROCESS EXIT {DateTimeOffset.UtcNow:O}{Environment.NewLine}");
+            }
+            catch { }
         };
     }
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        var diagnosticPath = Environment.GetEnvironmentVariable("DISKRESCUE_CAPTURE_UI_SCREENSHOT");
+        var diagnosticPath = CaptureDiagnosticPath;
         if (!string.IsNullOrWhiteSpace(diagnosticPath))
         {
             DispatcherUnhandledException += (_, args) =>
             {
-                try { File.WriteAllText(diagnosticPath + ".error.txt", args.Exception.ToString()); } catch { }
+                try
+                {
+                    File.AppendAllText(diagnosticPath + ".error.txt",
+                        $"DISPATCHER UNHANDLED {DateTimeOffset.UtcNow:O}{Environment.NewLine}{args.Exception}{Environment.NewLine}");
+                }
+                catch { }
                 args.Handled = false;
-            };
-            AppDomain.CurrentDomain.UnhandledException += (_, args) =>
-            {
-                try { File.WriteAllText(diagnosticPath + ".error.txt", args.ExceptionObject?.ToString() ?? "Unknown unhandled exception"); } catch { }
             };
         }
 
         base.OnStartup(e);
 
-        var screenshotPath = Environment.GetEnvironmentVariable("DISKRESCUE_CAPTURE_UI_SCREENSHOT");
+        var screenshotPath = CaptureDiagnosticPath;
         if (string.IsNullOrWhiteSpace(screenshotPath))
             return;
 
