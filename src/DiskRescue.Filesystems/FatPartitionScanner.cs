@@ -81,6 +81,10 @@ public static class FatPartitionScanner
                     continue;
 
                 var absoluteOffset = checked(scanned + localOffset);
+                if (candidates.Any(candidate =>
+                    absoluteOffset >= candidate.ByteOffset &&
+                    absoluteOffset < candidate.ByteOffset + candidate.ByteLength))
+                    continue;
                 var remaining = source.Length - absoluteOffset;
                 if (remaining < 512) continue;
 
