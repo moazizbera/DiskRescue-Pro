@@ -17,6 +17,8 @@ public partial class MainWindow : Window
 {
     private readonly ObservableCollection<PartitionRow> _rows = new();
     private readonly ObservableCollection<CandidateComparisonRow> _candidateRows = new();
+    private readonly ObservableCollection<NtfsEntryViewRow> _ntfsEntryRows = new();
+    private List<NtfsEntryViewRow> _allNtfsEntryRows = new();
     private string? _lastReport;
     private string? _lastReportPath;
     private string? _lastImagePath;
@@ -28,6 +30,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         PartitionsGrid.ItemsSource = _rows;
         CandidatesGrid.ItemsSource = _candidateRows;
+        NtfsEntriesGrid.ItemsSource = _ntfsEntryRows;
         ScanNtfsButton.IsEnabled = false;
     }
 
@@ -168,6 +171,19 @@ public partial class MainWindow : Window
         try
         {
             var result = await Task.Run(() => ScanNtfsPartition(imagePath, row.ByteOffset, row.ByteLength));
+            _allNtfsEntryRows = result.Scan.Entries.Select(entry => new NtfsEntryViewRow(
+                entry.Name,
+                entry.IsDirectory ? "Directory" : "File",
+                entry.RecordNumber,
+                $"{entry.ParentRecordNumber}:{entry.ParentSequenceNumber}",
+                entry.RealSize,
+                $"0x{entry.FileAttributes:X8}",
+                entry.SequenceNumber,
+                entry.Namespace,
+                entry.AllocatedSize,
+                entry.IsDeleted)).ToList();
+            ApplyNtfsEntryFilter();
+
             foreach (var root in result.Tree.Roots)
                 NtfsTreeView.Items.Add(CreateTreeItem(root, 0));
 
@@ -416,6 +432,42 @@ public partial class MainWindow : Window
         return new NtfsScanUiResult(boot.BootSector, scan, tree,
             continuation.IsValid && continuation.Extended,
             continuation.Issues);
+    }
+
+    private void NtfsEntrySearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyNtfsEntryFilter();
+
+    private void ApplyNtfsEntryFilter()
+    {
+        if (NtfsEntriesGrid is null) return;
+        var query = NtfsEntrySearchBox.Text.Trim();
+        var filtered = string.IsNullOrEmpty(query)
+            ? _allNtfsEntryRows
+            : _allNtfsEntryRows.Where(row =>
+                row.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                row.RecordNumber.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                row.ParentReference.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                row.Attributes.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                row.EntryType.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        _ntfsEntryRows.Clear();
+        foreach (var row in filtered)
+            _ntfsEntryRows.Add(row);
+        NtfsEntryDetailsBox.Text = $"{_ntfsEntryRows.Count:N0} of {_allNtfsEntryRows.Count:N0} bounded MFT entries shown. Select a row for metadata.";
+    }
+
+    private void NtfsEntriesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (NtfsEntriesGrid.SelectedItem is not NtfsEntryViewRow row)
+            return;
+        NtfsEntryDetailsBox.Text = string.Join(Environment.NewLine, new[]
+        {
+            row.Name,
+            $"Type: {row.EntryType} · MFT record: {row.RecordNumber} · Sequence: {row.SequenceNumber}",
+            $"Parent reference: {row.ParentReference} · Filename namespace: {row.Namespace}",
+            $"Real size: {row.SizeBytes:N0} bytes · Allocated size: {row.AllocatedSize:N0} bytes",
+            $"File attributes: {row.Attributes} · Deleted flag: {(row.IsDeleted ? "Yes" : "No")}",
+            "Metadata comes from the scanned MFT filename entry; file content and original-byte integrity are not assessed."
+        });
     }
 
     private static TreeViewItem CreateTreeItem(NtfsDirectoryNode node, int depth)
@@ -672,7 +724,19 @@ public partial class MainWindow : Window
 
     private sealed record InspectionResult(long Length, List<PartitionRow> Rows, string TableType, bool HasWarnings, string Findings, string Json);
     private sealed record NtfsScanUiResult(NtfsBootSector BootSector, NtfsMftScanResult Scan, NtfsDirectoryTreeResult Tree, bool UsedMftContinuation, IReadOnlyList<string> ContinuationIssues);
-    public sealed record CandidateComparisonRow(
+    public sealed record NtfsEntryViewRow(
+    string Name,
+    string EntryType,
+    ulong RecordNumber,
+    string ParentReference,
+    ulong SizeBytes,
+    string Attributes,
+    ushort SequenceNumber,
+    byte Namespace,
+    ulong AllocatedSize,
+    bool IsDeleted);
+
+public sealed record CandidateComparisonRow(
     string FileSystem,
     string Status,
     string Offset,
