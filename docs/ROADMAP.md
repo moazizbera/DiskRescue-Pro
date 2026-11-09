@@ -21,7 +21,8 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [ ] Manual Windows desktop smoke test recorded against generated MBR/GPT images
 - [x] Bounded, chunked NTFS boot-sector discovery in image files with primary BPB validation, backup-sector corroboration, progress, cancellation, and candidate evidence
 - [x] Classify NTFS candidates against parsed MBR/GPT ranges as existing, overlapping, or lost; add lost candidates to the desktop partition list for bounded NTFS preview
-- [ ] FAT32 and exFAT lost-partition candidate discovery and confidence scoring
+- [x] Bounded FAT32/exFAT candidate scanning in regular image files, primary/backup validation, MBR/GPT overlap classification, evidence-based confidence, and synthetic regression coverage (CLI: `discover-fat`)
+- [ ] Integrate FAT32/exFAT candidates into the WPF discovery workflow and candidate comparison UI
 - [x] Generated-image integration fixtures for lost NTFS candidate discovery, bounded preview, and CLI extraction; desktop interaction remains a separate manual gate
 - [~] Experimental Windows physical-disk inventory and guarded image acquisition coordinator/CLI; WPF acquisition window is integrated; hardware validation remains a release gate
 
@@ -95,7 +96,7 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [x] NTFS partial tree preview
 - [x] Experimental physical-image acquisition window with read-only identity checks, destination preflight, explicit confirmation, progress, and cancellation (hardware validation remains a release gate)
 - [x] Guided NTFS lost-partition discovery with evidence/confidence panel, progress, cancellation, and selectable candidates (image files only)
-- [ ] Expand discovery UI to FAT32/exFAT and add deeper candidate comparison tools
+- [ ] Expand the WPF discovery UI to display FAT32/exFAT candidates and add deeper candidate comparison tools
 - [ ] Search, filter, sort, and metadata inspection for file entries
 - [ ] Accessible progress, cancellation, and clear failure states
 - [ ] Recovery destination verification and extraction queue
@@ -125,8 +126,8 @@ The current feature branch includes a guarded all-or-nothing physical image acqu
 
 ## Current validation baseline
 
-The feature branch `feat/deleted-file-safety-assessment` is preserved at commit `9a4ef8412cc0a8a5100b36784a088231cd28a8ad`. Pull request #9 was closed without merging; closing the PR did not delete the branch.
+The feature branch `feat/deleted-file-safety-assessment` is preserved at commit `c89382745a2e5625b255f8aed3c0b2ec5b48ff51`. Pull request #9 was closed without merging; closing the PR did not delete the branch.
 
-The exact branch head passed Windows CI in push run [42573567885](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42573567885) and PR run [42573574604](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42573574604): 298 tests passed, 0 failed, and 1 environment-dependent read-only VHDX test was skipped. Release build completed with 0 warnings and 0 errors. The runs also validated generated MBR/GPT/NTFS fixtures, lost-NTFS discovery/preview/extraction smoke tests, deleted-NTFS export and manifest E2E, WPF build, Windows x64 desktop/CLI publishing, and actual WPF dashboard screenshot capture.
+The exact branch head passed Windows CI in push run [42575588779](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42575588779): 307 tests passed, 0 failed, and 1 environment-dependent read-only VHDX test was skipped. Release build completed with 0 warnings and 0 errors. The run also validated generated MBR/GPT/NTFS fixtures, bounded FAT32/exFAT candidate parser and scanner tests, CLI smoke tests, lost-NTFS discovery/preview/extraction, deleted-NTFS export and manifest E2E, the lost-NTFS recovery harness, WPF build, Windows x64 desktop/CLI publishing, and actual WPF dashboard screenshot capture.
 
-The screenshot artifact is an actual Windows WPF application capture in its initial empty state; it is not evidence of a populated partition map or successful interactive desktop workflow. Manual Windows desktop interaction against generated disposable MBR/GPT/NTFS images remains outstanding. The environment-dependent VHDX test skip and all physical-hardware validation gates remain explicit; no physical HDD recovery is validated.
+The screenshot artifact is an actual Windows WPF application capture in its initial empty state; it is not evidence of a populated partition map, FAT32/exFAT WPF integration, or successful interactive desktop workflow. Manual Windows desktop interaction against generated disposable MBR/GPT/NTFS images remains outstanding. The environment-dependent VHDX test skip and all physical-hardware validation gates remain explicit; no physical HDD recovery is validated.
