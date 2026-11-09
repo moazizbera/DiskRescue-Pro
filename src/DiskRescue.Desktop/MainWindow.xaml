@@ -25,6 +25,7 @@
 <DataGridTextColumn Header="CONF." Binding="{Binding Confidence}" Width="65"/>
 <DataGridTextColumn Header="BACKUP" Binding="{Binding BackupEvidence}" Width="90"/>
 <DataGridTextColumn Header="OVERLAP / MATCH" Binding="{Binding PartitionRelation}" Width="*"/>
+<DataGridTextColumn Header="REVIEW GUIDANCE" Binding="{Binding Advisory}" Width="2*"/>
 </DataGrid.Columns>
 </DataGrid>
 <TextBox x:Name="CandidateEvidenceBox" DockPanel.Dock="Bottom" Height="115" Margin="0,10,0,0" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" BorderThickness="0" Background="#0C1726" Padding="10" Text="Select a candidate to inspect its validation evidence."/>
