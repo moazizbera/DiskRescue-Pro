@@ -17,7 +17,8 @@ public partial class App : Application
             return;
 
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+        var discoveryImagePath = Environment.GetEnvironmentVariable("DISKRESCUE_DISCOVERY_SCREENSHOT_IMAGE");
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(async () =>
         {
             try
             {
