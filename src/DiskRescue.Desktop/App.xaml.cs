@@ -28,6 +28,14 @@ public partial class App : Application
                     window.Show();
                 window.WindowState = WindowState.Normal;
                 window.Activate();
+
+                if (!string.IsNullOrWhiteSpace(discoveryImagePath))
+                {
+                    if (window is not MainWindow mainWindow)
+                        throw new InvalidOperationException("Discovery screenshot requires the DiskRescue main window.");
+                    await mainWindow.CaptureDiscoveryScenarioAsync(discoveryImagePath);
+                }
+
                 window.UpdateLayout();
 
                 var dpi = VisualTreeHelper.GetDpi(window);
