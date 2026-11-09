@@ -58,7 +58,8 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [ ] Independent boot-sector and backup-boot-sector validation
 - [ ] Candidate overlap and conflict analysis
 - [ ] Evidence-based confidence explanations (never silent repair)
-- [ ] FAT32 and exFAT metadata parsers with generated regression fixtures
+- [x] Conservative FAT32 BPB and exFAT main/backup boot-region validators with bounded geometry checks and synthetic regression tests
+- [ ] FAT32 and exFAT lost-partition candidate scanning, overlap classification, and confidence scoring
 
 ## Phase 4 — Read-only file-content mapping
 
