@@ -5,7 +5,7 @@
 This snapshot supersedes conflicting historical status notes below.
 
 - Active branch: `feat/deleted-file-safety-assessment`
-- Candidate comparison code: `65ba6afdd8fa6d1d19a1fd3357e979b775ed19de`
+- Candidate comparison code: `65ba6afdd8fa6d1d19a1fd3357e979b775ed19de` (CI passed). Latest advisory-guidance code: `21b758178e005497606b3ac2f064a15838d8ba57` (CI pending).
 - Windows CI: [run 42581920342](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42581920342) — **passed on the exact candidate-comparison commit**.
 - The desktop comparison tab lists all validated NTFS/FAT32/exFAT findings with filesystem, status, byte offset, declared size, confidence, backup corroboration, and known-partition relationship. Selecting a row displays its evidence.
 - The pre-existing populated synthetic desktop screenshot and its CI verification remain complete.
@@ -23,7 +23,7 @@ This snapshot supersedes conflicting historical status notes below.
 - [x] Cancellation and temporary-file safeguards (automated coverage).
 - [ ] P0: Manual Windows desktop smoke test with disposable images, including candidate comparison and cancellation.
 - [ ] P0: Positive deleted-file export CLI publication on supported storage. CI correctly fails closed and skips this positive path when virtualized storage does not expose the physical identity metadata required by the production gate; unit tests cover safety rejection/publication logic.
-- [ ] P1: Advisory conflict-resolution guidance with explicit evidence and no automatic partition-table changes.
+- [x] P1: Conservative candidate review guidance implemented (existing / overlapping / backup-corroborated / provisional cases); no automatic partition-table changes. Windows CI verification pending for this latest change.
 - [ ] P1: File-entry search/filter/sort and metadata inspection.
 - [ ] P1: Accessible progress/cancellation/failure states and verified recovery destination/extraction queue.
 - [ ] P2: Signed installer, versioned release workflow, and broader manual Windows-version/usability testing.
