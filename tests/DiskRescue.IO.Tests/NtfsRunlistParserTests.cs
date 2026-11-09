@@ -57,6 +57,7 @@ public sealed class NtfsRunlistParserTests
         Assert.False(result.IsValid);
         Assert.Contains(result.Issues, x => x.Contains("terminator", StringComparison.OrdinalIgnoreCase));
     }
+
     [Fact]
     public void RejectsNonZeroBytesAfterTerminator()
     {
@@ -115,11 +116,12 @@ public sealed class NtfsRunlistParserTests
     [Fact]
     public void AcceptsMaximumWidthPositiveLcnAndLengthFieldsWithinVolume()
     {
-        // Eight-byte run length 1 and eight-byte signed LCN delta 1.
+        // Header 0x88 means an eight-byte run length and an eight-byte signed LCN delta.
+        // Each field below is exactly eight bytes; the final byte is the zero terminator.
         byte[] mappingPairs =
         [
             0x88,
-            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00
         ];
@@ -131,5 +133,4 @@ public sealed class NtfsRunlistParserTests
         Assert.Equal((ulong)1, result.Runs[0].StartingLcn);
         Assert.Equal((ulong)1, result.TotalClusters);
     }
-
 }
