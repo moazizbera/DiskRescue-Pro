@@ -497,7 +497,7 @@ public partial class MainWindow : Window
         }
 
         var safeName = string.Concat(entry.Name.Select(ch =>
-            Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch));
+            System.IO.Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch));
         if (string.IsNullOrWhiteSpace(safeName) || safeName is "." or "..")
             safeName = $"mft-record-{entry.RecordNumber}.bin";
 
