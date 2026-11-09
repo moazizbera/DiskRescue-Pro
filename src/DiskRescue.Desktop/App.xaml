@@ -5,13 +5,11 @@
   <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
   <Setter Property="UseLayoutRounding" Value="True"/>
 </Style>
-<Style TargetType="{x:Type Button}">
-  <Setter Property="MinHeight" Value="34"/>
-  <Setter Property="FontSize" Value="12"/>
-</Style>
 <SolidColorBrush x:Key="Canvas" Color="#0B1220"/><SolidColorBrush x:Key="Panel" Color="#111D2E"/><SolidColorBrush x:Key="Text" Color="#E8F0FA"/><SolidColorBrush x:Key="Muted" Color="#91A4BA"/><SolidColorBrush x:Key="Accent" Color="#31C5D8"/><SolidColorBrush x:Key="Warn" Color="#F2A65A"/>
 
 <Style TargetType="Button">
+  <Setter Property="MinHeight" Value="34"/>
+  <Setter Property="FontSize" Value="12"/>
   <Setter Property="Foreground" Value="#06131D"/>
   <Setter Property="Background" Value="{StaticResource Accent}"/>
   <Setter Property="BorderThickness" Value="0"/>
