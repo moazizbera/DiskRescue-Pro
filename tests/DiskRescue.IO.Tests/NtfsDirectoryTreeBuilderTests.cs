@@ -80,6 +80,26 @@ public sealed class NtfsDirectoryTreeBuilderTests
 
 
     [Fact]
+    public void ExcludesDeletedEntriesFromConfirmedDirectoryHierarchy()
+    {
+        var entries = new[]
+        {
+            Entry(5, 7, 5, 7, "Root", true),
+            Entry(21, 6, 5, 7, "Deleted.txt", false, 128) with { IsDeleted = true },
+            Entry(22, 2, 5, 7, "Live.txt", false, 256)
+        };
+
+        var result = NtfsDirectoryTreeBuilder.Build(entries);
+
+        Assert.True(result.IsValid);
+        var root = Assert.Single(result.Roots);
+        var live = Assert.Single(root.Children);
+        Assert.Equal("Live.txt", live.Name);
+        Assert.Empty(result.Orphans);
+        Assert.Contains(result.Issues, issue => issue.Contains("Excluded 1 deleted", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void PreservesDistinctHardLinkNamesForSameFileRecord()
     {
         var entries = new[]

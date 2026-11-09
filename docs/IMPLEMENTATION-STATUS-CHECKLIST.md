@@ -1,5 +1,86 @@
 # DiskRescue Pro — Implementation and Release Checklist
 
+# Current status update — 2026-11-09 (file-entry search CI verified)
+
+This snapshot supersedes conflicting historical status notes below.
+
+- Active branch: `feat/deleted-file-safety-assessment`
+- Current branch head at this update: `f3a580dfca0f96b4ee4efce87eef61c269a89fdc`.
+- File-entry search/reset implementation: `bde473821a8517eb59fa6c4ab105dc1f93e421e6`; Windows CI [run 42583133945](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42583133945) — **passed**.
+- Checklist documentation commit: `f3a580dfca0f96b4ee4efce87eef61c269a89fdc`; Windows CI [run 42583146423](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42583146423) — **passed**.
+- Candidate comparison UI: `65ba6afdd8fa6d1d19a1fd3357e979b775ed19de`; Windows CI [run 42581920342](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42581920342) — **passed**.
+- Advisory candidate-review guidance commits `c5c3b15152e1b883ac4577cc8413241ae40ca8cd` and `21b758178e005497606b3ac2f064a15838d8ba57` — previously verified CI passed.
+- File-entry tab supports filename, MFT record, parent reference, attributes and type filters; sortable metadata columns; selected-entry details; and clearing stale state when the source image changes.
+- Latest verified CI job on the file-entry implementation completed successfully. This run includes Release build/tests, generated-image fixtures, CLI smoke/recovery harnesses, WPF build/publish and artifact stages.
+- Recovery destination foundation already includes fail-closed physical-volume separation checks, free-space/filesystem capacity checks, physical disk identity checks, and no-overwrite paired output/manifest publication. The desktop destination/extraction workflow and positive export on supported physical storage remain unverified.
+
+## Current checklist
+
+- [x] Read-only image inspection, MBR/GPT validation, and backup-GPT checks.
+- [x] NTFS lost-partition discovery and bounded metadata preview.
+- [x] FAT32/exFAT discovery and backup-region validation.
+- [x] Candidate overlap classification and evidence-based confidence.
+- [x] WPF discovery list, partition-map overlays, and findings integration.
+- [x] Populated synthetic WPF discovery screenshot using real Inspect/Discover handlers.
+- [x] Candidate comparison UI and selected-candidate evidence detail; Windows CI passed.
+- [x] Deleted-NTFS safety assessment, bounded export, manifest/hash and publication safeguards (automated coverage).
+- [x] Cancellation and temporary-file safeguards (automated coverage).
+- [x] Conservative candidate review guidance; Windows CI passed; no automatic partition-table changes.
+- [x] NTFS MFT file-entry search, filter, sortable columns, selected-entry metadata details, and reset-state handling; Windows CI passed.
+- [ ] P0: Manual Windows desktop smoke test with disposable images, including candidate comparison, file-entry search, and cancellation.
+- [ ] P0: Positive deleted-file export CLI publication on supported storage. CI correctly fails closed and skips this positive path when virtualized storage does not expose the physical identity metadata required by the production gate; unit tests cover safeguards.
+- [ ] P1: Desktop recovery destination verification and extraction queue, including accessible progress/cancellation/failure states.
+- [ ] P2: Signed installer, versioned release workflow, and broader manual Windows-version/usability testing.
+
+## Safety gates
+
+- Physical-device partition scanning/recovery remains disabled; physical acquisition is not validated on real hardware.
+- No source-media repair, formatting, initialization, repartitioning, or partition-table writes.
+- Use generated images and disposable VHDX only; never test against the original HDD.
+- Export hashing validates exported bytes only, not original-file integrity without a known original hash.
+- Recovery output must be on separate physical storage; use a hardware write blocker for irreplaceable/evidentiary media.
+
+
+# Current status update — 2026-11-09
+
+This snapshot supersedes conflicting historical status notes below.
+
+- Active branch: `feat/deleted-file-safety-assessment`
+- Verified commit: `192945bd66694bdb1e51d4e415949ed16689271c`
+- Windows CI: [run 42580801742](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42580801742) — passed on this exact commit.
+- Tests: 307 passed, 0 failed, 1 skipped (308 total).
+- Release solution build and WPF build: 0 warnings, 0 errors.
+- CI generated a disposable FAT32 image, ran the real WPF Inspect and Find lost partitions handlers, and captured a populated screenshot. The screenshot shows one lost FAT32 candidate in the partition list and map. Artifact: `DiskRescue-Pro-Desktop-Screenshot`.
+- Windows x64 desktop and CLI previews and test results were uploaded.
+
+## Current checklist
+
+- [x] Read-only image inspection, MBR/GPT validation, and backup-GPT checks.
+- [x] NTFS lost-partition discovery and bounded metadata preview.
+- [x] FAT32/exFAT discovery and backup-region validation.
+- [x] Candidate overlap classification and confidence/evidence reporting.
+- [x] WPF discovery list, map overlays, and findings integration.
+- [x] Deleted-NTFS safety assessment, bounded export, manifest/hash and publication safeguards (automated coverage).
+- [x] Cancellation and temporary-file safeguards.
+- [x] Populated synthetic WPF discovery screenshot, captured and visually inspected.
+- [ ] P0: Manual Windows desktop smoke test using disposable images.
+- [ ] P0: Positive deleted-file export CLI publication on supported storage. CI correctly fails closed and skips this path because its virtualized destination does not expose the physical identity metadata required by the production gate; unit coverage remains green.
+- [ ] P1: Candidate comparison and conflict-resolution UI.
+- [ ] P1: File-entry search, filtering, sorting, and metadata inspection.
+- [ ] P1: Accessible progress/cancellation/failure states and verified recovery destination/extraction queue.
+- [ ] P2: Signed installer, versioned release workflow, and broader manual usability/Windows-version testing.
+
+## Safety gates
+
+- Physical-device partition scanning/recovery remains disabled; physical acquisition is not validated on real hardware.
+- No source-media repair, formatting, initialization, repartitioning, or partition-table writes.
+- Use generated images and disposable VHDX only; never test against the original HDD.
+- Export hashing validates exported bytes only, not original-file integrity without a known original hash.
+- Recovery output must be on separate physical storage; use a hardware write blocker for irreplaceable/evidentiary media.
+
+---
+
+
 Status snapshot: 2026-11-06 (Phase 2 continuation-discovery branch). This document distinguishes merged baseline evidence from the current feature branch. A green check on an older SHA is not validation of a later worktree.
 
 The attribute-list foundation was merged into `main` by PR #2 at `6008e2edd6b034c3d7835e69388fbf6fed576fdf`. The new branch `feat/ntfs-mft-continuation-discovery` adds an initial in-memory MFT extent-map assembler and synthetic tests. This feature branch is not yet merged or independently CI-validated.

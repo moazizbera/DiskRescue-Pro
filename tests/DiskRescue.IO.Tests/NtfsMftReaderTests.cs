@@ -214,6 +214,240 @@ public sealed class NtfsMftReaderTests
         Assert.Contains(opened.Issues, x => x.Contains("record 0", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void DeletedStreamCopyRequiresPreflightAndCopiesOnlyBitmapFreeClusters()
+    {
+        var expected = Enumerable.Range(0, 512).Select(value => (byte)(value % 251)).ToArray();
+        using var image = CreateDeletedFileImage(expected, allocatedDataClusters: false);
+        var sourceBefore = new byte[512];
+        image.ReadExactlyAt(30 * 512, sourceBefore);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        using var destination = new MemoryStream();
+        var result = opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024);
+
+        Assert.True(result.IsValid, string.Join("; ", result.Issues));
+        var sourceAfter = new byte[512];
+        image.ReadExactlyAt(30 * 512, sourceAfter);
+        Assert.Equal(sourceBefore, sourceAfter);
+        Assert.NotNull(result.Assessment);
+        Assert.Equal(NtfsDeletedDataStreamStatus.ReadyForBoundedRead, result.Assessment!.Status);
+        Assert.NotNull(result.Copy);
+        Assert.Equal((ulong)512, result.Copy!.BytesWritten);
+        Assert.Equal(expected, destination.ToArray());
+        Assert.DoesNotContain(result.Assessment.Warnings, warning =>
+            warning.Contains("integrity verified", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void DeletedResidentStreamCopiesFromValidatedMftRecord()
+    {
+        var expected = Enumerable.Range(0, 256).Select(value => (byte)(value % 233)).ToArray();
+        using var image = CreateDeletedFileImage(expected, allocatedDataClusters: false, resident: true);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        using var destination = new MemoryStream();
+        var result = opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024);
+
+        Assert.True(result.IsValid, string.Join("; ", result.Issues));
+        Assert.True(result.Assessment!.IsResident);
+        Assert.Equal((ulong)256, result.Copy!.BytesWritten);
+        Assert.Equal(expected, destination.ToArray());
+    }
+
+    [Fact]
+    public void DeletedStreamCopyHonorsCancellationBeforeAnyReadOrWrite()
+    {
+        var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
+        using var image = CreateDeletedFileImage(payload, allocatedDataClusters: false);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+        using var destination = new MemoryStream();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() =>
+            opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024,
+                cancellationToken: cancellation.Token));
+        Assert.Equal(0, destination.Length);
+    }
+
+    [Fact]
+    public void ClusterAllocationBitmapReadPropagatesCancellation()
+    {
+        var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
+        using var image = CreateDeletedFileImage(payload, allocatedDataClusters: false);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() =>
+            NtfsClusterAllocationMap.Read(opened.Reader!, 128, cancellationToken: cancellation.Token));
+    }
+
+    [Fact]
+    public void DeletedStreamCopyRefusesClustersMarkedAllocated()
+    {
+        var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
+        using var image = CreateDeletedFileImage(payload, allocatedDataClusters: true);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        using var destination = new MemoryStream();
+        var result = opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024);
+
+        Assert.False(result.IsValid);
+        Assert.Equal(NtfsDeletedDataStreamStatus.ClustersAllocated, result.Assessment!.Status);
+        Assert.Null(result.Copy);
+        Assert.Equal(0, destination.Length);
+    }
+
+    [Fact]
+    public void DeletedStreamCopyEnforcesMaximumBytesBeforeWriting()
+    {
+        var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
+        using var image = CreateDeletedFileImage(payload, allocatedDataClusters: false);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        using var destination = new MemoryStream();
+        var result = opened.Reader!.CopyDeletedDataStreamTo(1, destination, 128);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, issue => issue.Contains("export limit", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(0, destination.Length);
+    }
+
+    [Fact]
+    public void DeletedStreamCopyRefusesRunlistBeyondSuppliedVolumeBoundary()
+    {
+        var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
+        using var image = CreateDeletedFileImage(payload, allocatedDataClusters: false);
+        const long truncatedVolumeLength = 31 * 512;
+        var opened = NtfsMftReader.Open(image, 0, truncatedVolumeLength, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        using var destination = new MemoryStream();
+        var result = opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024);
+
+        Assert.False(result.IsValid);
+        Assert.Equal(NtfsDeletedDataStreamStatus.InvalidRunlist, result.Assessment!.Status);
+        Assert.Equal(0, destination.Length);
+    }
+
+    [Fact]
+    public void DeletedStreamCopyRejectsActiveMftRecord()
+    {
+        var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
+        using var image = CreateDeletedFileImage(payload, allocatedDataClusters: false, deleted: false);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        using var destination = new MemoryStream();
+        var result = opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024);
+
+        Assert.False(result.IsValid);
+        Assert.Equal(NtfsDeletedDataStreamStatus.MetadataRejected, result.Assessment!.Status);
+        Assert.Equal(0, destination.Length);
+    }
+
+    [Fact]
+    public void DeletedStreamCopyPropagatesDiskFullWriteFailureWithoutChangingSource()
+    {
+        var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
+        using var image = CreateDeletedFileImage(payload, allocatedDataClusters: false);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+        var before = new byte[512];
+        image.ReadExactlyAt(30 * 512, before);
+
+        using var destination = new FailingWriteStream(new IOException("injected disk full"));
+        Assert.Throws<IOException>(() =>
+            opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024));
+
+        var after = new byte[512];
+        image.ReadExactlyAt(30 * 512, after);
+        Assert.Equal(before, after);
+    }
+
+    [Fact]
+    public void DeletedStreamCopyPropagatesPermissionFailureWithoutChangingSource()
+    {
+        var payload = Enumerable.Range(0, 512).Select(value => (byte)value).ToArray();
+        using var image = CreateDeletedFileImage(payload, allocatedDataClusters: false);
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+        var before = new byte[512];
+        image.ReadExactlyAt(30 * 512, before);
+
+        using var destination = new FailingWriteStream(new UnauthorizedAccessException("injected destination permission failure"));
+        Assert.Throws<UnauthorizedAccessException>(() =>
+            opened.Reader!.CopyDeletedDataStreamTo(1, destination, 1024));
+
+        var after = new byte[512];
+        image.ReadExactlyAt(30 * 512, after);
+        Assert.Equal(before, after);
+    }
+
+    private sealed class FailingWriteStream(Exception exception) : Stream
+    {
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw exception;
+    }
+
+    private static MemoryImage CreateDeletedFileImage(byte[] payload, bool allocatedDataClusters, bool deleted = true, bool resident = false)
+    {
+        if (resident ? payload.Length > 400 : payload.Length != 512)
+            throw new ArgumentException("Synthetic payload exceeds the safe FILE-record fixture bounds.", nameof(payload));
+
+        var bytes = new byte[128 * 512];
+        var mftBase = CreateFileRecord(0, includeMftDataAttribute: true, mftSize: 8192);
+        // Replace the initial $MFT map with one contiguous 16-cluster extent at LCN 4.
+        BinaryPrimitives.WriteUInt64LittleEndian(mftBase.AsSpan(80, 8), 15);
+        BinaryPrimitives.WriteUInt64LittleEndian(mftBase.AsSpan(96, 8), 8192);
+        BinaryPrimitives.WriteUInt64LittleEndian(mftBase.AsSpan(104, 8), 8192);
+        BinaryPrimitives.WriteUInt64LittleEndian(mftBase.AsSpan(112, 8), 8192);
+        mftBase[120] = 0x11;
+        mftBase[121] = 16;
+        mftBase[122] = 4;
+        mftBase[123] = 0;
+        mftBase.AsSpan(124, 4).Clear();
+        mftBase.AsSpan(0, 1024).CopyTo(bytes.AsSpan(4 * 512, 1024));
+
+        var file = CreateFileRecord(1, includeMftDataAttribute: false, includeFileName: true,
+            isInUse: !deleted, residentData: resident ? payload : null,
+            nonResidentDataLength: resident ? 0 : 512);
+        file.AsSpan(0, 1024).CopyTo(bytes.AsSpan(6 * 512, 1024));
+
+        var parent = CreateFileRecord(5, includeMftDataAttribute: false, isDirectory: true);
+        parent.AsSpan(0, 1024).CopyTo(bytes.AsSpan(14 * 512, 1024));
+
+        var bitmap = new byte[16];
+        if (allocatedDataClusters)
+        {
+            // LCNs 30 and 31 are represented by bits 6 and 7 in bitmap byte 3.
+            bitmap[3] = 0b1100_0000;
+        }
+        var bitmapRecord = CreateFileRecord(6, includeMftDataAttribute: false, residentData: bitmap);
+        bitmapRecord.AsSpan(0, 1024).CopyTo(bytes.AsSpan(16 * 512, 1024));
+
+        if (!resident)
+            payload.CopyTo(bytes.AsSpan(30 * 512, 512));
+        return new MemoryImage(bytes);
+    }
+
     private static NtfsBootSector CreateBootSector() =>
         new(512, 1, 512, 128, 4, 8, 1024, 1024, 123, 2048, 4096);
 
