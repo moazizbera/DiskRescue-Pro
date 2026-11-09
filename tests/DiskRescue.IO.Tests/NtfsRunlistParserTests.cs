@@ -124,7 +124,7 @@ public sealed class NtfsRunlistParserTests
             0x00
         ];
 
-        var result = NtfsRunlistParser.Parse(mappingPairs, 2);
+        var result = NtfsRunlistParser.Parse(mappingPairs, ulong.MaxValue);
 
         Assert.True(result.IsValid, string.Join("; ", result.Issues));
         Assert.Single(result.Runs);
