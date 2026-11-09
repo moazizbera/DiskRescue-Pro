@@ -116,6 +116,14 @@ The command supports resident streams and non-resident multi-extent streams only
 
 A successful export also creates a sidecar `<output-file>.recovery.json` manifest. It records source path/name/length and timestamps, volume boundaries and sector size, deleted MFT record and stream, metadata and allocation assessments, stream length and initialized size, cluster size, the validated physical run map (VCN/LCN ranges), exported byte count and SHA-256, safety flags, and warnings. The manifest explicitly says the export hash is not an original-file hash and that content integrity and physical-device recovery are unverified. The CLI refuses to overwrite an existing output or manifest and removes the output if it cannot publish the matching manifest.
 
+If Windows terminates the process after the recovered output is published but before its manifest is finalized, the operation lock and pending manifest are preserved. Finalize only after inspecting the artifacts:
+
+```powershell
+dotnet run --project src/DiskRescue.Cli -- reconcile-deleted-ntfs-export "D:\\Recovered\\.diskrescue-<operation-id>.manifest.partial"
+```
+
+The command requires the matching exclusive operation lock, validates the manifest schema and output path, checks the output byte length, and recomputes SHA-256 before moving the pending manifest to its final sidecar name. A mismatch, missing output, invalid lock, or existing final manifest stops without deleting or overwriting evidence. The hash proves only that the output matches the pending manifest; it does not prove original-file integrity. This command finalizes publication metadata; it does not resume NTFS reading or reconstruct missing output bytes.
+
 Run the complete disposable end-to-end checklist locally:
 
 ```powershell
