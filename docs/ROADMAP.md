@@ -38,8 +38,10 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [x] Parse resident `$ATTRIBUTE_LIST` values from validated attributes; reject non-resident list streams as unsupported
 - [x] Match parsed entries against supplied validated records by record sequence, base reference, type, ordinal UTF-16 name, attribute ID, and lowest VCN
 - [x] Return structured diagnostics for stale, mismatched, duplicate, ambiguous, malformed, and unsupported references
-- [ ] Read referenced records outside the initial validated MFT extent
-- [ ] Assemble additional MFT extents with exact VCN continuity and cycle/resource limits
+- [ ] Read referenced records outside the initial validated MFT extent through a safely bootstrapped validated mapping
+- [x] Add in-memory MFT extent-map assembly for caller-validated attributes with exact VCN continuity, runlist-length checks, and volume bounds
+- [ ] Integrate assembled extent maps into MFT record reads
+- [ ] Resolve resident and non-resident `$ATTRIBUTE_LIST` entries recursively with cycle/resource limits
 - [x] Add synthetic-record tests for mismatched, duplicate, ambiguous, malformed, stale, and limit-exceeding references
 - [ ] Add generated-image integration fixtures for multi-record continuation and extent assembly
 - [ ] Parse `$INDEX_ROOT` and `$INDEX_ALLOCATION`

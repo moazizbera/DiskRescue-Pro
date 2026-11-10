@@ -50,6 +50,7 @@ The project structure is intentionally incremental. Do not add empty abstraction
 - Matches parsed list entries against caller-supplied, already validated FILE records. It validates record number and sequence, base-file reference, and exact attribute type/name/ID/lowest-VCN identity, and returns structured diagnostics for rejected or ambiguous entries.
 - Bounds list parsing to 16 MiB and 65,536 entries; matching is bounded to 4,096 records, 16 MiB of candidate record bytes, 4,096 parsed attributes, and 1,000,000 attribute comparisons per operation.
 - The matcher performs no disk reads and does not discover or fetch referenced records. Current MFT reader can read references only if they fall within the initial validated MFT extent.
+- `NtfsMftExtentMap` is an in-memory validator/assembler for already-decoded unnamed `$MFT::$DATA` extent attributes. It orders extents by lowest VCN, requires a VCN-0 base extent, validates attribute identity, runlist lengths, volume bounds, and exact no-gap/no-overlap continuity, rejects sparse MFT runs, and rejects physical cluster overlap between logical runs. It caps input at 4,096 extents, 1,000,000 decoded runs, and 16 MiB aggregate mapping-pairs bytes. It does not read or authenticate continuation records, resolve `$ATTRIBUTE_LIST`, or change the reader's active mapping; callers must first establish record identity through independently validated input.
 
 ### CLI and desktop
 - CLI emits structured JSON for image partition inspection and bounded NTFS metadata preview.
