@@ -27,6 +27,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\New-DiskRescueTestImages.p
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\New-NtfsMftPreviewImage.ps1 -OutputPath (Join-Path $fixtures "ntfs-mft-preview.img")
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\New-LostNtfsPartitionImage.ps1 -OutputPath (Join-Path $fixtures "lost-ntfs-partition.img")
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\New-FatPartitionImages.ps1 -OutputDirectory $fixtures
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\New-DeletedNtfsDataImage.ps1 -OutputPath (Join-Path $fixtures "deleted-ntfs-data.img")
 Get-ChildItem $fixtures -File | Get-FileHash -Algorithm SHA256 | Export-Csv (Join-Path $fixtures "source-hashes-before.csv") -NoTypeInformation
 ```
 
@@ -53,12 +54,7 @@ Get-ChildItem $fixtures -File | Get-FileHash -Algorithm SHA256 | Export-Csv (Joi
 
 This section is optional and requires a dedicated, disposable secondary physical disk for a positive export. Never use the source disk, an irreplaceable disk, or a virtual VHDX as the destination. The production policy intentionally rejects virtual/ambiguous destination devices.
 
-Generate the synthetic deleted-NTFS image:
-
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\New-DeletedNtfsDataImage.ps1 -OutputPath (Join-Path $fixtures "deleted-ntfs-data.img")
-Get-FileHash (Join-Path $fixtures "deleted-ntfs-data.img") -Algorithm SHA256
-```
+Use the `deleted-ntfs-data.img` fixture generated in the initial setup block, before the source-hash baseline was captured.
 
 | ID | Check | Expected result | Result / notes |
 |---|---|---|---|
