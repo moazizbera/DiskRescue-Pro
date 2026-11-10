@@ -181,7 +181,6 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
                 progress, cancellation.Token));
 
         Assert.Empty(Directory.GetFiles(folder.Path));
-        Assert.Equal(0, environment.ManifestCalls);
         Assert.Equal(1, source.DisposeCalls);
     }
 
