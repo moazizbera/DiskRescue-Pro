@@ -30,6 +30,18 @@ public sealed class PhysicalDiskImageAcquisitionTests
     }
 
     [Fact]
+    public void PhysicalDiskReadAndCoordinatorTypesAreNotExposedAsPublicApi()
+    {
+        var exportedTypes = typeof(PhysicalDiskImageAcquisition).Assembly.GetExportedTypes();
+
+        Assert.DoesNotContain(typeof(WindowsPhysicalDiskReader), exportedTypes);
+        Assert.DoesNotContain(typeof(PhysicalDiskOpenedSource), exportedTypes);
+        Assert.DoesNotContain(typeof(IPhysicalDiskAcquisitionEnvironment), exportedTypes);
+        Assert.DoesNotContain(typeof(WindowsPhysicalDiskAcquisitionEnvironment), exportedTypes);
+        Assert.DoesNotContain(typeof(PhysicalDiskAcquisitionCoordinator), exportedTypes);
+    }
+
+    [Fact]
     public void AssessmentAllowsVerifiedNonBootSourceWithSeparateVolumeMap()
     {
         var assessment = PhysicalDiskImageAcquisition.Assess(
