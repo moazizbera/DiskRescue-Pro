@@ -55,13 +55,14 @@ public sealed class PhysicalAcquisitionDestinationSessionContractTests
     public async Task SessionPublishesNoReplaceAndPreservesExistingTarget()
     {
         await using var session = new FakeDestinationSession();
+        session.SeedExisting("existing.img");
         var first = await session.CreateNewFileAsync("first.partial");
         await first.WriteAsync(new byte[] { 1, 2, 3 });
 
         await session.PublishNoReplaceAsync(first, "capture.img");
 
         Assert.True(session.IsPublished("capture.img"));
-        Assert.Throws<IOException>(() => session.SeedExisting("existing.img"));
+        Assert.True(session.Exists("existing.img"));
         var second = await session.CreateNewFileAsync("second.partial");
         await Assert.ThrowsAsync<IOException>(async () =>
             await session.PublishNoReplaceAsync(second, "capture.img"));
@@ -107,6 +108,7 @@ public sealed class PhysicalAcquisitionDestinationSessionContractTests
         private readonly HashSet<string> _createdNames = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _publishedNames = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<Stream> _deleted = new();
+        private readonly HashSet<Stream> _publishedFiles = new();
         private bool _disposed;
 
         public PhysicalDestinationDirectoryIdentity DirectoryIdentity { get; } =
@@ -158,6 +160,7 @@ public sealed class PhysicalAcquisitionDestinationSessionContractTests
                 throw new IOException("The destination entry already exists.");
 
             _publishedNames.Add(finalLeafName);
+            _publishedFiles.Add(file);
             return ValueTask.CompletedTask;
         }
 
@@ -165,13 +168,14 @@ public sealed class PhysicalAcquisitionDestinationSessionContractTests
         {
             EnsureOwned(file);
             cancellationToken.ThrowIfCancellationRequested();
-            if (_publishedNames.Contains(_owned[file]))
+            if (_publishedFiles.Contains(file))
                 throw new InvalidOperationException("A published file cannot be deleted as an unpublished temporary.");
             _deleted.Add(file);
             return ValueTask.CompletedTask;
         }
 
         public bool IsPublished(string name) => _publishedNames.Contains(name);
+        public bool Exists(string name) => _createdNames.Contains(name);
         public bool WasDeleted(Stream stream) => _deleted.Contains(stream);
 
         public void SeedExisting(string name)
