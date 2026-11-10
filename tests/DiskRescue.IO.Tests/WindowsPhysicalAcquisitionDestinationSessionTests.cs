@@ -15,8 +15,8 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
         try
         {
             await using var session = WindowsPhysicalAcquisitionDestinationSession.Open(directory);
-            Assert.True(session.VolumeGuidPath.StartsWith(@"\\?\Volume{", StringComparison.OrdinalIgnoreCase));
-            Assert.True(session.VolumeGuidPath.EndsWith('\\'));
+            Assert.StartsWith(@"\\?\Volume{", session.VolumeGuidPath, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith("\\", session.VolumeGuidPath);
             var guidStart = session.VolumeGuidPath.IndexOf('{') + 1;
             var guidEnd = session.VolumeGuidPath.IndexOf('}');
             Assert.True(Guid.TryParse(session.VolumeGuidPath.AsSpan(guidStart, guidEnd - guidStart), out _));
