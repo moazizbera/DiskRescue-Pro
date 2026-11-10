@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 using Microsoft.Win32.SafeHandles;
 
 namespace DiskRescue.IO;
@@ -43,6 +44,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
     private WindowsPhysicalAcquisitionDestinationSession(SafeFileHandle directoryHandle)
     {
         _directoryHandle = directoryHandle;
+        VolumeGuidPath = QueryVolumeGuidPath(directoryHandle);
         DirectoryIdentity = QueryIdentity(directoryHandle);
         if (string.IsNullOrWhiteSpace(DirectoryIdentity.VolumeIdentity) ||
             (DirectoryIdentity.FileIdHigh == 0 && DirectoryIdentity.FileIdLow == 0))
@@ -53,6 +55,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
     }
 
     public PhysicalDestinationDirectoryIdentity DirectoryIdentity { get; }
+    public string VolumeGuidPath { get; }
 
     /// <summary>
     /// Opens a local drive-letter directory without following any reparse-point
@@ -396,6 +399,40 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         }
     }
 
+    private static string QueryVolumeGuidPath(SafeFileHandle handle)
+    {
+        const uint VolumeNameGuid = 0x00000001;
+        var buffer = new StringBuilder(512);
+        var required = GetFinalPathNameByHandleW(
+            handle, buffer, checked((uint)buffer.Capacity), VolumeNameGuid);
+        if (required == 0)
+            ThrowLastWin32IOException("Could not resolve the pinned destination volume GUID");
+        if (required >= buffer.Capacity)
+        {
+            buffer = new StringBuilder(checked((int)required + 1));
+            required = GetFinalPathNameByHandleW(
+                handle, buffer, checked((uint)buffer.Capacity), VolumeNameGuid);
+            if (required == 0 || required >= buffer.Capacity)
+                ThrowLastWin32IOException("Could not read the complete pinned destination volume path");
+        }
+
+        var finalPath = buffer.ToString();
+        const string VolumePrefix = @"\\?\Volume{";
+        if (!finalPath.StartsWith(VolumePrefix, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("The pinned destination handle did not resolve to a volume-GUID path.");
+
+        var closingBrace = finalPath.IndexOf('}');
+        if (closingBrace <= VolumePrefix.Length ||
+            closingBrace + 1 >= finalPath.Length ||
+            finalPath[closingBrace + 1] != '\\' ||
+            !Guid.TryParse(finalPath.AsSpan(VolumePrefix.Length, closingBrace - VolumePrefix.Length), out _))
+        {
+            throw new IOException("Windows returned a malformed volume-GUID path for the pinned destination handle.");
+        }
+
+        return finalPath[..(closingBrace + 2)];
+    }
+
     private static PhysicalDestinationDirectoryIdentity QueryIdentity(SafeFileHandle handle)
     {
         var info = QueryFileIdInfo(handle);
@@ -510,6 +547,10 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "GetDriveTypeW")]
     private static extern uint GetDriveTypeW(string rootPathName);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "GetFinalPathNameByHandleW")]
+    private static extern uint GetFinalPathNameByHandleW(
+        SafeFileHandle file, StringBuilder filePath, uint filePathLength, uint flags);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetFileInformationByHandleEx(
