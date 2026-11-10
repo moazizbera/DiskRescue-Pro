@@ -6,9 +6,18 @@ namespace DiskRescue.IO.Tests;
 
 public sealed class PhysicalDiskAcquisitionCoordinatorTests
 {
+    private const string DestinationVolumeGuid =
+        @"\\?\Volume{00000000-0000-0000-0000-000000000007}\";
+    private const string SourceVolumeGuid =
+        @"\\?\Volume{00000000-0000-0000-0000-000000000002}\";
+
     private static PhysicalDiskDescriptor Descriptor() =>
         new(2, @"\\.\PhysicalDrive2", 128 * 1024, 512,
             "Example", "Test Disk", "COORDINATOR-002", 3, false);
+
+    private static PhysicalDiskDescriptor DestinationDescriptor() =>
+        new(7, @"\\.\PhysicalDrive7", 128 * 1024, 512,
+            "Example", "Destination Disk", "COORDINATOR-007", 3, false);
 
     [Fact]
     public async Task SecondPreflightFailurePreventsSourceOpen()
@@ -119,6 +128,28 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
     }
 
     [Fact]
+    public async Task PinnedDestinationVolumeMismatchAbortsBeforeFirstSourceRead()
+    {
+        using var folder = new TemporaryFolder();
+        var source = new MemorySource(new byte[128 * 1024]);
+        var environment = new FakeEnvironment
+        {
+            Source = source,
+            PinnedVolumeGuidPath = SourceVolumeGuid
+        };
+
+        var error = await Assert.ThrowsAsync<IOException>(() =>
+            PhysicalDiskAcquisitionCoordinator.AcquireAsync(
+                Descriptor(), folder.File("redirected-destination.img"), environment));
+
+        Assert.Contains("Pinned destination volume", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, environment.DestinationSessionOpenCalls);
+        Assert.Equal(0, source.ReadAttempts);
+        Assert.Equal(1, source.DisposeCalls);
+        Assert.Empty(Directory.GetFiles(folder.Path));
+    }
+
+    [Fact]
     public async Task SourceReadFailureAbortsAndDoesNotPublishImageOrManifest()
     {
         using var folder = new TemporaryFolder();
@@ -190,9 +221,9 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         Assert.True(File.Exists(imagePath));
         Assert.Equal(bytes, await File.ReadAllBytesAsync(imagePath));
         Assert.Equal(expectedSha256, result.Image.Sha256);
-        Assert.Equal(expectedSha256, environment.ManifestSha256);
         Assert.Equal(imagePath + ".diskrescue.json", result.ManifestPath);
-        Assert.Equal(1, environment.ManifestCalls);
+        var manifestText = await File.ReadAllTextAsync(result.ManifestPath);
+        Assert.Contains(expectedSha256, manifestText, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, source.DisposeCalls);
     }
 
@@ -213,11 +244,13 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
             PhysicalDiskAcquisitionCoordinator.AcquireAsync(
                 Descriptor(), imagePath, environment));
 
-        Assert.Contains("synthetic manifest storage failure", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "synthetic manifest storage failure",
+            error.InnerException?.Message ?? error.ToString(),
+            StringComparison.OrdinalIgnoreCase);
         Assert.True(File.Exists(imagePath));
         Assert.Equal(bytes, await File.ReadAllBytesAsync(imagePath));
-        Assert.Equal(Convert.ToHexString(SHA256.HashData(bytes)), environment.ManifestSha256);
-        Assert.Equal(1, environment.ManifestCalls);
+        Assert.False(File.Exists(imagePath + ".diskrescue.json"));
         Assert.Equal(1, source.DisposeCalls);
     }
 
@@ -239,7 +272,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
     }
 
     private static PhysicalDiskDiscoveryResult Inventory(PhysicalDiskDescriptor? descriptor = null) =>
-        new(new[] { descriptor ?? Descriptor() }, Array.Empty<string>());
+        new(new[] { descriptor ?? Descriptor(), DestinationDescriptor() }, Array.Empty<string>());
 
     private sealed class FakeEnvironment : IPhysicalDiskAcquisitionEnvironment
     {
@@ -250,10 +283,10 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         public PhysicalDiskDescriptor? OpenedDescriptor { get; init; }
         public MemorySource? Source { get; init; }
         public Exception? ManifestException { get; init; }
+        public string? PinnedVolumeGuidPath { get; init; }
         public int InventoryCalls { get; private set; }
         public int OpenCalls { get; private set; }
-        public int ManifestCalls { get; private set; }
-        public string? ManifestSha256 { get; private set; }
+        public int DestinationSessionOpenCalls { get; private set; }
 
         public void EnsureSupportedPlatform() { }
 
@@ -264,7 +297,11 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         }
 
         public PhysicalVolumeMappingResult EnumerateVolumes() =>
-            new(true, new Dictionary<int, IReadOnlyList<string>>(), Array.Empty<string>());
+            new(true, new Dictionary<int, IReadOnlyList<string>>
+            {
+                [2] = new[] { SourceVolumeGuid },
+                [7] = new[] { DestinationVolumeGuid }
+            }, Array.Empty<string>());
 
         public WindowsBootDeviceMappingResult EnumerateBootDevices(PhysicalVolumeMappingResult volumeMap) =>
             new(true, new HashSet<int>(), Array.Empty<string>());
@@ -275,7 +312,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         {
             DestinationAssessmentCalls++;
             return DestinationAssessmentFactory?.Invoke(DestinationAssessmentCalls) ??
-                DestinationAssessment ?? new(true, @"\\?\Volume{test-destination}\",
+                DestinationAssessment ?? new(true, DestinationVolumeGuid,
                     new[] { 7 }, Array.Empty<string>());
         }
 
@@ -286,12 +323,120 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
             return new PhysicalDiskOpenedSource(source, OpenedDescriptor ?? descriptor);
         }
 
-        public Task PublishManifestAsync(string manifestPath, object manifest, string imagePath, string sha256)
+        public IPhysicalAcquisitionDestinationSession OpenDestinationSession(string destinationDirectoryPath)
         {
-            ManifestCalls++;
-            ManifestSha256 = sha256;
-            return ManifestException is null ? Task.CompletedTask : Task.FromException(ManifestException);
+            DestinationSessionOpenCalls++;
+            return new FakeDestinationSession(
+                destinationDirectoryPath,
+                ManifestException,
+                PinnedVolumeGuidPath ?? DestinationVolumeGuid);
         }
+    }
+
+    private sealed class FakeDestinationSession : IPhysicalAcquisitionDestinationSession
+    {
+        private readonly string _directory;
+        private readonly Exception? _manifestException;
+        private readonly Dictionary<Stream, string> _paths = new(ReferenceEqualityComparer.Instance);
+        private readonly HashSet<Stream> _published = new(ReferenceEqualityComparer.Instance);
+        private readonly HashSet<Stream> _deleted = new(ReferenceEqualityComparer.Instance);
+        private bool _disposed;
+
+        public FakeDestinationSession(string directory, Exception? manifestException, string volumeGuidPath)
+        {
+            _directory = directory;
+            _manifestException = manifestException;
+            VolumeGuidPath = volumeGuidPath;
+            DirectoryIdentity = new PhysicalDestinationDirectoryIdentity("WINVOL:COORDINATOR", 0, 2);
+        }
+
+        public PhysicalDestinationDirectoryIdentity DirectoryIdentity { get; }
+        public string VolumeGuidPath { get; }
+
+        public ValueTask<Stream> CreateNewFileAsync(string leafName, CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+            cancellationToken.ThrowIfCancellationRequested();
+            PhysicalDestinationLeafName.Validate(leafName, nameof(leafName));
+            var path = Path.Combine(_directory, leafName);
+            if (File.Exists(path) || Directory.Exists(path))
+                throw new IOException("Destination entry already exists.");
+            var stream = new FileStream(
+                path, FileMode.CreateNew, FileAccess.ReadWrite,
+                FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.None);
+            _paths.Add(stream, path);
+            return ValueTask.FromResult<Stream>(stream);
+        }
+
+        public ValueTask<PhysicalDestinationFileIdentity> GetFileIdentityAsync(
+            Stream file, CancellationToken cancellationToken = default)
+        {
+            EnsureOwned(file);
+            cancellationToken.ThrowIfCancellationRequested();
+            var fileId = (ulong)_paths.Keys.ToList().IndexOf(file) + 1;
+            return ValueTask.FromResult(new PhysicalDestinationFileIdentity(
+                DirectoryIdentity.VolumeIdentity, 0, fileId));
+        }
+
+        public ValueTask FlushToDiskAsync(Stream file, CancellationToken cancellationToken = default)
+        {
+            EnsureOwned(file);
+            cancellationToken.ThrowIfCancellationRequested();
+            ((FileStream)file).Flush(flushToDisk: true);
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask PublishNoReplaceAsync(
+            Stream file, string finalLeafName, CancellationToken cancellationToken = default)
+        {
+            EnsureOwned(file);
+            cancellationToken.ThrowIfCancellationRequested();
+            PhysicalDestinationLeafName.Validate(finalLeafName, nameof(finalLeafName));
+            var target = Path.Combine(_directory, finalLeafName);
+            if (File.Exists(target) || Directory.Exists(target))
+                throw new IOException("Destination entry already exists.");
+            if (_manifestException is not null &&
+                finalLeafName.EndsWith(".diskrescue.json", StringComparison.OrdinalIgnoreCase))
+                throw _manifestException;
+
+            File.Move(_paths[file], target, overwrite: false);
+            _paths[file] = target;
+            _published.Add(file);
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask DeleteUnpublishedAsync(Stream file, CancellationToken cancellationToken = default)
+        {
+            EnsureOwned(file);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_published.Contains(file))
+                throw new InvalidOperationException("Published file cannot be deleted as an unpublished temporary.");
+            if (File.Exists(_paths[file]))
+                File.Delete(_paths[file]);
+            _deleted.Add(file);
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            if (_disposed)
+                return ValueTask.CompletedTask;
+            _disposed = true;
+            foreach (var stream in _paths.Keys)
+                stream.Dispose();
+            _paths.Clear();
+            return ValueTask.CompletedTask;
+        }
+
+        private void EnsureOwned(Stream file)
+        {
+            ThrowIfDisposed();
+            ArgumentNullException.ThrowIfNull(file);
+            if (!_paths.ContainsKey(file) || _deleted.Contains(file) || !file.CanRead)
+                throw new ArgumentException("Stream is not an active file owned by this test session.", nameof(file));
+        }
+
+        private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
     }
 
     private sealed class MemorySource(byte[] data, bool failOnRead = false) : IReadOnlyRandomAccessSource
