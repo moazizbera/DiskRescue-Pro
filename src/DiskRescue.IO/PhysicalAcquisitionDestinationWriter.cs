@@ -64,6 +64,8 @@ internal static class PhysicalAcquisitionDestinationWriter
         {
             throw new IOException("The destination session did not provide a verifiable directory identity.");
         }
+        if (string.IsNullOrWhiteSpace(session.VolumeGuidPath))
+            throw new IOException("The destination session did not provide the volume-GUID root resolved from its pinned handle.");
 
         PhysicalDestinationLeafName.Validate(imageTemporaryLeaf, nameof(imageTemporaryLeaf));
         PhysicalDestinationLeafName.Validate(imageFinalLeaf, nameof(imageFinalLeaf));
