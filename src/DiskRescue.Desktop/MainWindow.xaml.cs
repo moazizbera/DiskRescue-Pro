@@ -735,7 +735,7 @@ public partial class MainWindow : Window
                     activeQueueIndex = -1;
                 }
                 catch (OperationCanceledException) { throw; }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+                catch (Exception ex)
                 {
                     failed++;
                     failures.Add($"{item.Entry.Name} (record {item.Entry.RecordNumber}): {ex.Message}");
