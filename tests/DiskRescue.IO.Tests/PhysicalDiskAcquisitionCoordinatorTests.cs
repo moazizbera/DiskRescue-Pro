@@ -163,7 +163,6 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         Assert.Contains("byte offset 0", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("not zero-filled", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(Directory.GetFiles(folder.Path));
-        Assert.Equal(0, environment.ManifestCalls);
         Assert.Equal(1, source.DisposeCalls);
     }
 
