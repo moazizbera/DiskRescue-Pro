@@ -127,6 +127,47 @@ public sealed class PhysicalImageDestinationSafetyTests
                 complete, @"\\?\Volume{not-a-guid}\"));
     }
 
+    [Fact]
+    public void PinnedDestinationMappingMustMatchPreflightAndExcludeSourceDisk()
+    {
+        const string destinationVolume = @"\\?\Volume{11111111-1111-1111-1111-111111111111}\";
+        var map = new PhysicalVolumeMappingResult(
+            true,
+            new Dictionary<int, IReadOnlyList<string>>
+            {
+                [0] = new[] { @"\\?\Volume{22222222-2222-2222-2222-222222222222}\" },
+                [2] = new[] { destinationVolume }
+            },
+            Array.Empty<string>());
+
+        Assert.Empty(PhysicalImageDestinationSafety.ValidatePinnedDestinationVolume(
+            0, destinationVolume, map, new[] { 2 }));
+
+        Assert.Contains(
+            PhysicalImageDestinationSafety.ValidatePinnedDestinationVolume(
+                0, destinationVolume, map, new[] { 3 }),
+            issue => issue.Contains("do not agree", StringComparison.OrdinalIgnoreCase));
+
+        Assert.Contains(
+            PhysicalImageDestinationSafety.ValidatePinnedDestinationVolume(
+                2, destinationVolume, map, new[] { 2 }),
+            issue => issue.Contains("shares the source", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void PinnedDestinationMappingFailsClosedWhenVolumeMapIsIncomplete()
+    {
+        var incomplete = new PhysicalVolumeMappingResult(
+            false,
+            new Dictionary<int, IReadOnlyList<string>>(),
+            new[] { "volume enumeration incomplete" });
+
+        Assert.Contains(
+            PhysicalImageDestinationSafety.ValidatePinnedDestinationVolume(
+                0, @"\\?\Volume{11111111-1111-1111-1111-111111111111}\", incomplete, new[] { 1 }),
+            issue => issue.Contains("complete Windows volume map", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static PhysicalDiskDescriptor PhysicalDisk(int number, string? serial = null, uint? busType = 17) =>
         new(number, $@"\\.\PhysicalDrive{number}", 1024 * 1024, 512,
             SerialNumber: serial ?? $"SERIAL-{number}", BusType: busType, RemovableMedia: false);
