@@ -114,6 +114,7 @@ public sealed class PhysicalAcquisitionDestinationSessionContractTests
         public PhysicalDestinationDirectoryIdentity DirectoryIdentity { get; } =
             new("WINVOL:FAKE", 0xAUL, 0xBUL);
         public string VolumeGuidPath => @"\\?\Volume{00000000-0000-0000-0000-000000000001}\";
+        public string GetCurrentDirectoryPath() => @"C:\fake-destination";
 
 
         public int CreatedCount => _owned.Count;
