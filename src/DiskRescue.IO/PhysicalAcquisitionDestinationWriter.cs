@@ -58,6 +58,13 @@ internal static class PhysicalAcquisitionDestinationWriter
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(manifest);
 
+        var directoryIdentity = session.DirectoryIdentity;
+        if (string.IsNullOrWhiteSpace(directoryIdentity.VolumeIdentity) ||
+            (directoryIdentity.FileIdHigh == 0 && directoryIdentity.FileIdLow == 0))
+        {
+            throw new IOException("The destination session did not provide a verifiable directory identity.");
+        }
+
         PhysicalDestinationLeafName.Validate(imageTemporaryLeaf, nameof(imageTemporaryLeaf));
         PhysicalDestinationLeafName.Validate(imageFinalLeaf, nameof(imageFinalLeaf));
         PhysicalDestinationLeafName.Validate(manifestTemporaryLeaf, nameof(manifestTemporaryLeaf));
@@ -125,6 +132,7 @@ internal static class PhysicalAcquisitionDestinationWriter
     {
         var identity = await session.GetFileIdentityAsync(stream, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(identity.VolumeIdentity) ||
+            (identity.FileIdHigh == 0 && identity.FileIdLow == 0) ||
             !StringComparer.OrdinalIgnoreCase.Equals(
                 session.DirectoryIdentity.VolumeIdentity, identity.VolumeIdentity))
         {
