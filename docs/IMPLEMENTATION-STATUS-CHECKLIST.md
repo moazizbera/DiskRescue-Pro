@@ -430,3 +430,17 @@ All current validation uses generated disk images. Source images remain read-onl
 - [x] Corrected both stale references in `.github/workflows/ci.yml` to use `DISKRESCUE_WORKSPACE_SCREENSHOT_IMAGE` consistently. Workflow fix commit: `be8546659af31d31e59551501cf183e24dd6ca02`.
 - [ ] Await a fresh full CI run on the corrected head; review its actual screenshot artifact before merge.
 - [ ] Keep manual Windows interaction tests and generated-image SHA-256 before/after comparison outstanding. No physical HDD validation is claimed.
+
+
+### PR #16 merged — 2026-11-10
+
+- [x] Merged [PR #16](https://github.com/moazizbera/DiskRescue-Pro/pull/16) into `main` using squash merge. Merge commit: `7805fb27b16cd92d9858c66691b9924e98f5edd7`.
+- [x] Exact merged head `a07e0a7fc22479500fa4179d01ad1076deb17f6f` passed Windows CI run [42770653423](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42770653423): solution build, 307 tests, generated-image CLI/discovery/recovery smoke tests, WPF build, Windows x64 desktop and CLI publishing, WPF screenshot capture, and artifact uploads all succeeded.
+- [x] Downloaded and visually reviewed the screenshot artifact from that exact run. It shows the valid MBR image, populated navigator, selected partition, and inspector geometry. The inspector uses a scrollbar and lower interpretation text is not fully visible in the captured viewport; responsive/manual visual review remains worthwhile.
+- [ ] Perform manual Windows interaction tests using generated fixtures: navigator/grid synchronization, partition-map highlight, lost-candidate evidence, NTFS preview, file-entry search, cancellation, and JSON export.
+- [ ] Compare generated fixture SHA-256 values before and after manual interaction tests and obtain user-confirmed results.
+- [ ] Keep physical-device partition scanning/recovery disabled. No physical HDD test is authorized or claimed.
+
+### Safety boundary reaffirmed
+
+All automated validation used generated disk images. Source images remain read-only. No format, initialize, repair, repartition, partition-table write, or source-media write operation is authorized. Recovery output must remain separate from source storage. CI success and the screenshot do not prove physical HDD recovery capability.
