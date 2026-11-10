@@ -11,7 +11,7 @@ public partial class MainWindow
     /// but only against an explicitly supplied synthetic regular image file.
     /// This is enabled only by the CI screenshot environment variable.
     /// </summary>
-    public async Task CaptureDiscoveryScenarioAsync(string imagePath)
+    public async Task CaptureWorkspaceScenarioAsync(string imagePath)
     {
         if (string.IsNullOrWhiteSpace(imagePath))
             throw new ArgumentException("A synthetic disk-image path is required.", nameof(imagePath));
@@ -38,20 +38,15 @@ public partial class MainWindow
             status => status.Contains("failed safely", StringComparison.OrdinalIgnoreCase),
             "Read-only image inspection");
 
-        Discover_Click(this, new RoutedEventArgs());
-        await WaitForScenarioStatusAsync(
-            status => status.StartsWith("Partition search complete", StringComparison.Ordinal),
-            status => status.Contains("failed safely", StringComparison.OrdinalIgnoreCase) ||
-                      status.Contains("cancelled", StringComparison.OrdinalIgnoreCase),
-            "Read-only lost-partition discovery");
-
-        if (!FindingsBox.Text.Contains("FAT32 · Lost partition candidate", StringComparison.Ordinal))
+        if (!_rows.Any(row => row.Table is "MBR" or "GPT"))
             throw new InvalidOperationException(
-                "The synthetic FAT32 discovery scenario did not produce the expected visible lost-partition candidate.");
+                "The workspace screenshot fixture did not produce a validated MBR/GPT partition.");
 
-        if (!_rows.Any(row => row.Table == "SCAN"))
-            throw new InvalidOperationException(
-                "The synthetic discovery scenario did not populate the partition candidate list.");
+        var selected = _rows.First(row => row.Table is "MBR" or "GPT");
+        PartitionsGrid.SelectedItem = selected;
+        PartitionsGrid.ScrollIntoView(selected);
+        UpdateSelectedPartitionDetails(selected);
+        StatusText.Text = "Workspace preview ready · validated partition selected · source opened read-only";
     }
 
     private async Task WaitForScenarioStatusAsync(
