@@ -129,12 +129,12 @@
         </Grid>
 
         <!-- Partition map -->
-        <Border Grid.Row="3" Background="{StaticResource Panel}" BorderBrush="#263A52"
+        <Border x:Name="PartitionMapPanel" Grid.Row="3" Background="{StaticResource Panel}" BorderBrush="#263A52"
                 BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,0,9">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="42"/>
+                    <RowDefinition Height="68"/>
                 </Grid.RowDefinitions>
                 <Grid Grid.Row="0" Margin="0,0,0,5">
                     <Grid.ColumnDefinitions>
@@ -152,7 +152,7 @@
                                VerticalAlignment="Center"/>
                 </Grid>
                 <Border Grid.Row="1" Background="#0A1422" CornerRadius="6" Padding="3">
-                    <Canvas x:Name="PartitionMapCanvas" Height="34" ClipToBounds="True"
+                    <Canvas x:Name="PartitionMapCanvas" Height="60" ClipToBounds="True"
                             SizeChanged="PartitionMapCanvas_SizeChanged"/>
                 </Border>
             </Grid>
@@ -169,6 +169,23 @@
             <Border Background="{StaticResource Panel}" BorderBrush="#263A52"
                     BorderThickness="1" CornerRadius="11" Padding="14" Margin="0,0,12,0">
                 <TabControl Background="{StaticResource Panel}" BorderThickness="0">
+                    <TabItem Header="Image navigator">
+                        <DockPanel Margin="2,12,2,2">
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                                <TextBlock Text="Image and partition hierarchy" Foreground="{StaticResource Text}"
+                                           FontSize="17" FontWeight="SemiBold"/>
+                                <TextBlock Text="Select a node to synchronize the partition inventory, map highlight and inspector."
+                                           Foreground="{StaticResource Muted}" FontSize="11"
+                                           TextWrapping="Wrap" Margin="0,4,0,0"/>
+                            </StackPanel>
+                            <TreeView x:Name="ImageNavigatorTree" Background="#0C1726"
+                                      Foreground="{StaticResource Text}" BorderThickness="1"
+                                      BorderBrush="#263A52" Padding="8"
+                                      SelectedItemChanged="ImageNavigatorTree_SelectedItemChanged">
+                                <TreeViewItem Header="No image loaded" IsEnabled="False"/>
+                            </TreeView>
+                        </DockPanel>
+                    </TabItem>
                     <TabItem Header="Partitions">
                         <DockPanel Margin="2,12,2,2">
                             <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
@@ -307,6 +324,16 @@
                     BorderThickness="1" CornerRadius="11" Padding="15">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,11">
+                        <TextBlock Text="03  /  SELECTED ITEM" Foreground="{StaticResource Muted}"
+                                   FontSize="10" FontWeight="Bold"/>
+                        <TextBlock Text="Partition inspector" Foreground="{StaticResource Text}"
+                                   FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0"/>
+                        <TextBox x:Name="SelectedPartitionDetailsBox" IsReadOnly="True"
+                                 TextWrapping="Wrap" AcceptsReturn="True"
+                                 VerticalScrollBarVisibility="Auto" Height="150"
+                                 Margin="0,8,0,12" BorderThickness="1"
+                                 BorderBrush="#263A52" Background="#0C1726" Padding="10"
+                                 Text="Inspect an image and select a partition to review its geometry and validation context."/>
                         <TextBlock Text="03  /  INSPECTION REPORT" Foreground="{StaticResource Muted}"
                                    FontSize="10" FontWeight="Bold"/>
                         <TextBlock Text="Findings &amp; guidance" Foreground="{StaticResource Text}"

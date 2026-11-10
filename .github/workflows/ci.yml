@@ -109,12 +109,12 @@ jobs:
           $app = Join-Path $PWD "artifacts/DiskRescue-Pro-Desktop-win-x64/DiskRescue.Desktop.exe"
           if (-not (Test-Path $app)) { throw "Published DiskRescue desktop executable was not found." }
           $env:DISKRESCUE_CAPTURE_UI_SCREENSHOT = $screenshot
-          $env:DISKRESCUE_DISCOVERY_SCREENSHOT_IMAGE = Join-Path "$env:RUNNER_TEMP/DiskRescue-TestImages" "lost-fat32-partition.img"
-          if (-not (Test-Path $env:DISKRESCUE_DISCOVERY_SCREENSHOT_IMAGE)) { throw "Synthetic FAT32 screenshot fixture was not generated." }
+          $env:DISKRESCUE_WORKSPACE_SCREENSHOT_IMAGE = Join-Path "$env:RUNNER_TEMP/DiskRescue-TestImages" "mbr-valid.img"
+          if (-not (Test-Path $env:DISKRESCUE_WORKSPACE_SCREENSHOT_IMAGE)) { throw "Synthetic valid MBR workspace screenshot fixture was not generated." }
           $captureProcess = Start-Process -FilePath $app -PassThru -Wait
           $captureExitCode = $captureProcess.ExitCode
           Remove-Item Env:DISKRESCUE_CAPTURE_UI_SCREENSHOT -ErrorAction SilentlyContinue
-          Remove-Item Env:DISKRESCUE_DISCOVERY_SCREENSHOT_IMAGE -ErrorAction SilentlyContinue
+          Remove-Item Env:DISKRESCUE_WORKSPACE_SCREENSHOT_IMAGE -ErrorAction SilentlyContinue
           if ($captureExitCode -ne 0 -or -not (Test-Path $screenshot)) {
             $diagnostic = if (Test-Path "$screenshot.error.txt") { Get-Content "$screenshot.error.txt" -Raw } else { "No WPF diagnostic file was produced." }
             throw "The real WPF dashboard screenshot could not be captured (exit $captureExitCode). $diagnostic"

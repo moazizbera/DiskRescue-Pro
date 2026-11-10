@@ -1,3 +1,58 @@
+# Current status update — 2026-11-10 (professional workspace implementation in progress)
+
+### Implemented in `feat/pro-workspace-navigator-inspector`
+
+- Added an image navigator tab with a root node for the opened regular image and child nodes for detected MBR/GPT partitions.
+- Added a selected-partition inspector showing table, name, index, start LBA, byte offset, exclusive end, byte length, image identity and read-only interpretation.
+- Synchronized navigator and partition-grid selection; selecting a navigator node scrolls the matching inventory row into view.
+- Added a visible accent outline to the selected partition in the proportional map while retaining unallocated gaps and lost-candidate overlays.
+- Expanded the map lane for clearer reading. No partition mutation or live physical-device partition browsing was added.
+- Validation is pending for this feature branch: do not mark Windows build, automated tests, or visual behavior as passed until CI and Windows review complete.
+
+# Current status update — 2026-11-10 (DiskGenius UX benchmark and professional workspace plan)
+
+This section records the new UX benchmark supplied by the project owner. The DiskGenius screenshots are reference material for information architecture only; DiskRescue Pro must retain its read-only, image-first recovery safety model.
+
+## UX benchmark translated into DiskRescue Pro
+
+| DiskGenius reference | DiskRescue Pro direction | Safety boundary |
+|---|---|---|
+| Physical-disk / partition tree | Add a dedicated image-and-partition navigator with clear hierarchy and selected-item state | Show only the currently opened regular image; no live-device partition browsing |
+| Proportional partition map | Keep the visual map synchronized with the partition navigator and details | Map is evidence visualization, never an editable partition surface |
+| Partition table with filesystem, start/end and capacity | Provide a readable, sortable partition inventory with sector and byte boundaries | Metadata is read-only; no partition mutation |
+| Detailed volume information | Add a focused details inspector for geometry, identifiers, filesystem and validation evidence | Distinguish observed values from inferred or unavailable values |
+| Context-sensitive menus | Offer safe actions appropriate to the selected image, partition, candidate or file entry | No format, delete, resize, extend, split, repair, initialize, mount, or partition-table write commands |
+| File operations and recovery | Make preview, assessment, destination preflight and queued export discoverable | Export only through existing bounded, fail-closed recovery workflow |
+
+## Professional workspace implementation checklist
+
+- [x] P0: Add an image/partition navigator; selecting a node synchronizes the partition grid and details view. (Feature branch implementation; CI pending.)
+- [x] P0: Add a selected-partition inspector for currently available table/name/index/start-LBA/byte-offset/end/length/image details. Filesystem geometry, identifiers and validation evidence remain follow-up enrichment.
+- [x] P0: Highlight the selected partition in the proportional map; exact start/end/length values are exposed in the inspector and map tooltip. Preserve unallocated gaps.
+- [ ] P0: Keep the workspace usable at common laptop resolutions and Windows work-area sizes; verify resize behavior, minimum dimensions, scrollability and no clipped controls.
+- [ ] P0: Make empty, loading, scanning, cancelled, warning and failed states visually distinct and understandable.
+- [ ] P1: Add safe context actions by selection type (inspect image, preview filesystem metadata, review candidate evidence, inspect file entry, queue eligible deleted-file export).
+- [ ] P1: Improve partition inventory columns and sorting for filesystem, status, start sector, end sector, capacity and evidence source.
+- [ ] P1: Improve queue visibility with per-file progress/status, destination summary, cancellation and actionable failure reasons.
+- [ ] P1: Add keyboard navigation, visible focus states, accessible names/tooltips and high-DPI checks.
+- [ ] P2: Capture and review fresh Windows screenshots at 1366×768, 1920×1080 and a constrained work area; attach artifacts to CI.
+- [ ] P2: Add a documented visual regression baseline and release-readiness review.
+
+## UX acceptance and safety criteria
+
+- [ ] Navigator, map, grid and details always refer to the same selected image/partition; stale selection/details are cleared when the image changes. (Implemented selection path; verify with CI and Windows manual smoke.)
+- [ ] Selecting a lost-partition candidate never implies that a partition was restored or that the partition table was changed.
+- [ ] Every recovery action remains gated by current metadata validation, byte limits, cancellation, no-overwrite publication and verified separate physical destination.
+- [ ] No destructive DiskGenius menu operation is introduced, even as a disabled or misleadingly available command.
+- [ ] UI screenshots are generated from synthetic disposable images; never from the user's original HDD.
+- [ ] Manual Windows visual and hardware checks are recorded as manual, not inferred from a successful CI build.
+
+## Reference interpretation
+
+The supplied DiskGenius V5.3 screenshots demonstrate a compact hierarchy: disk navigation, proportional partition layout, a detailed partition list, a metadata pane, and selection-sensitive menus. We will adapt that hierarchy to an image-file workspace. The product should feel like a professional disk-analysis console while remaining intentionally narrower and safer than a partition manager.
+
+---
+
 # DiskRescue Pro — Implementation and Release Checklist
 
 # Current status update — 2026-11-10 (mainline integration merged)
@@ -320,3 +375,58 @@ These items are additive to the existing implementation checklist. They do not a
 - The workflow file blob is identical on this commit and the previously passing commit `dceeacb75a2f5ee7ef908de79b8654ace4831cb7`.
 - GitHub rejected the API request to re-run this run (HTTP 403: workflow run cannot be retried).
 - A fresh CI run is required before marking the UX validation gate complete. Keep PR #10 in draft; do not merge until the exact latest commit passes.
+
+
+## Current workspace follow-up — 2026-11-10 (PR #16)
+
+This section supersedes older branch/PR snapshots above for the current desktop workspace effort. Historical notes are retained as historical evidence, not as the current project state.
+
+### Current candidate
+
+- Pull request: https://github.com/moazizbera/DiskRescue-Pro/pull/16
+- Branch: `feat/pro-workspace-navigator-inspector`
+- Workspace feature baseline: `5c5c9f07a4bc4659a859b08e6e38f5bfce645875`
+- Follow-up commits: `36415fba75873999cc46b8617ebdac982e2d6fd1` (named map panel), `0615d3b453329ab08285927e36f57f610c30bea4` (compact-height behavior and initial partition focus), and `ef1b8b351e53febf0045c515a83b67597b9f0a74` (CI screenshot fixture).
+- PR #16 remains open; do not treat an earlier green run as validation of these later commits.
+
+### Implemented workspace behavior
+
+- [x] Add an image navigator with the image root and validated MBR/GPT partition nodes.
+- [x] Synchronize navigator and partition-grid selection; selecting a partition updates the inspector and map highlight.
+- [x] Show selected-partition geometry, including table, index, start LBA, byte offset, exclusive end, length, image name, and read-only interpretation.
+- [x] Select the first validated partition after image inspection so the initial workspace has a useful focus. If no validated partition-table entry exists, retain the image root; never promote scan candidates into validated partitions.
+- [x] On short work areas (under 760 logical pixels high), collapse the partition-map panel to preserve usable space for the navigator and inspector. The map remains visible on normal-height work areas.
+- [x] Change the CI screenshot fixture from a lost FAT32 candidate image to a generated valid MBR image, so the screenshot demonstrates a populated partition navigator and inspector. Lost-candidate discovery remains covered by its dedicated generated-image smoke tests.
+
+### Validation evidence and remaining gates
+
+- [x] Baseline commit `5c5c9f07a4bc4659a859b08e6e38f5bfce645875`: Windows CI run [42769291354](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42769291354) passed build, tests, generated-image CLI/recovery smoke tests, WPF build, Windows x64 desktop/CLI publishing, and screenshot capture.
+- [x] Baseline screenshot artifact was downloaded and reviewed. It exposed a cramped workspace and did not demonstrate a populated navigator/selected partition; this prompted the follow-up changes above.
+- [ ] Run full Windows CI on the exact latest PR head after the follow-up commits, including screenshot capture and artifact upload.
+- [ ] Review the new screenshot artifact at the exact latest PR head for readable navigator, selected partition, inspector details, and compact-height layout.
+- [ ] Perform manual Windows interaction tests with generated fixtures: navigator/grid synchronization, partition-map highlight, lost-candidate evidence, NTFS preview, file-entry search, cancellation, and JSON export.
+- [ ] Compare generated fixture SHA-256 values before and after manual interaction tests.
+- [ ] Obtain user-confirmed manual Windows results. Hosted CI is not a substitute for interactive hardware/display validation.
+- [ ] Keep physical-device partition scanning/recovery disabled. No physical HDD test is authorized or claimed.
+
+### Safety boundary
+
+All current validation uses generated disk images. Source images remain read-only. No format, initialize, repair, repartition, partition-table write, or source-media write operation is authorized. Recovery output must remain separate from source storage. A passing build or screenshot does not prove physical HDD recovery capability.
+
+
+### Screenshot workflow correction — 2026-11-10
+
+- [x] Diagnosed CI run [42769752826](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42769752826): 307 tests passed, solution/WPF builds passed, and Windows x64 desktop publish passed; screenshot capture failed because the CI supplied a valid MBR image to a routine that still asserted for a lost-FAT32 discovery candidate.
+- [x] Replaced the mismatched discovery-specific screenshot routine with a workspace screenshot scenario. It runs the real read-only Inspect UI flow against the generated valid MBR fixture, requires a validated MBR/GPT partition, selects it, and refreshes the inspector before capture.
+- [x] Renamed the screenshot environment variable to `DISKRESCUE_WORKSPACE_SCREENSHOT_IMAGE` consistently in the WPF startup and CI workflow.
+- [ ] Re-run full CI on the exact latest PR head and inspect the resulting screenshot artifact.
+- [ ] Merge PR #16 only after all required checks pass. Manual Windows interaction validation remains a separate outstanding gate.
+
+
+### Screenshot environment-variable correction — 2026-11-10
+
+- [x] Inspected failed run [42770012171](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42770012171) on head `34a4ae1a85326dc25bc58a53844b04aff1767db5`: 307 tests, solution build, generated-image CLI/recovery smoke tests, WPF build, and Windows x64 desktop publish passed.
+- [x] Identified the screenshot failure as a stale workflow variable reference: the step set `DISKRESCUE_WORKSPACE_SCREENSHOT_IMAGE` but tested and cleared the former `DISKRESCUE_DISCOVERY_SCREENSHOT_IMAGE`, causing a null-path error before the app launched.
+- [x] Corrected both stale references in `.github/workflows/ci.yml` to use `DISKRESCUE_WORKSPACE_SCREENSHOT_IMAGE` consistently. Workflow fix commit: `be8546659af31d31e59551501cf183e24dd6ca02`.
+- [ ] Await a fresh full CI run on the corrected head; review its actual screenshot artifact before merge.
+- [ ] Keep manual Windows interaction tests and generated-image SHA-256 before/after comparison outstanding. No physical HDD validation is claimed.
