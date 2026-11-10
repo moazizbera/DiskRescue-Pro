@@ -1083,7 +1083,7 @@ public partial class MainWindow : Window
         var usableWidth = Math.Max(1, width - inset * 2);
         var scale = usableWidth / _partitionMapLength;
         var cursor = 0L;
-        var laneTop = 12d;
+        var laneTop = 5d;
         var laneHeight = 32d;
 
         void AddSegment(long start, long length, string label, Brush fill, double top, double segmentHeight, string tooltip, bool selected = false)
