@@ -138,6 +138,30 @@ public sealed class NtfsMftReaderTests
     }
 
     [Fact]
+    public void FailsClosedWhenAttributeListReferencesContinuationOutsideValidatedInitialMap()
+    {
+        using var image = CreateImage(recordTwoBaseReferenceRaw: (9UL << 48),
+            includeAttributeList: true, includeContinuation: true);
+
+        // Redirect the second $ATTRIBUTE_LIST entry to record 9. The record is
+        // intentionally beyond the currently mapped initial MFT extent.
+        Span<byte> reference = stackalloc byte[8];
+        BinaryPrimitives.WriteUInt64LittleEndian(reference, (9UL << 48) | 9UL);
+        image.WriteFixtureBytes(4 * 512 + 152 + 32 + 16, reference);
+
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+        Assert.True(opened.IsValid, string.Join("; ", opened.Issues));
+
+        var extended = opened.Reader!.ExtendUsingResidentAttributeList();
+
+        Assert.False(extended.IsValid);
+        Assert.False(extended.Extended);
+        Assert.Null(extended.Reader);
+        Assert.Contains(extended.Issues, issue =>
+            issue.Contains("currently validated MFT map", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void CopiesResidentFileDataToCallerOwnedStreamWithoutChangingSource()
     {
         var expected = Encoding.UTF8.GetBytes("DiskRescue recovered content");
