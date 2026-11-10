@@ -13,7 +13,7 @@ public sealed record PhysicalImageDestinationAssessment(
 
 /// <summary>
 /// Verifies that an existing image destination resolves to storage that does not
-/// overlap the selected physical source disk. This is a preflight only; it does
+/// overlap the selected physical source disk(s). This is a preflight only; it does
 /// not create files or open the source device.
 /// </summary>
 public static class PhysicalImageDestinationSafety
@@ -59,20 +59,23 @@ public static class PhysicalImageDestinationSafety
             if (string.IsNullOrWhiteSpace(destinationDirectory) || !Directory.Exists(destinationDirectory))
                 throw new DirectoryNotFoundException("Destination directory does not exist.");
 
-            var driveRoot = Path.GetPathRoot(destinationDirectory);
-            if (string.IsNullOrWhiteSpace(driveRoot))
-                throw new IOException("Unable to resolve the destination filesystem root.");
-            var destinationDrive = new DriveInfo(driveRoot);
-            if (!destinationDrive.IsReady)
-                throw new IOException("Destination filesystem is not ready.");
-            blockers.AddRange(ValidateFilesystemCapacity(
-                destinationDrive.DriveFormat,
-                destinationDrive.AvailableFreeSpace,
-                requiredBytes));
-
             var mountPath = new StringBuilder(1024);
             if (!NativeMethods.GetVolumePathName(destinationDirectory, mountPath, mountPath.Capacity))
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to resolve the destination mount point.");
+
+            // Query the resolved mount path directly. DriveInfo normalizes a path
+            // to its drive root, which can report the parent volume for nested mount points.
+            var fileSystemName = new StringBuilder(256);
+            if (!NativeMethods.GetVolumeInformation(
+                    mountPath.ToString(), IntPtr.Zero, 0,
+                    out _, out _, out _, fileSystemName, fileSystemName.Capacity))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to inspect the destination filesystem type.");
+            if (!NativeMethods.GetDiskFreeSpaceEx(
+                    mountPath.ToString(), out var availableBytes, out _, out _))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to inspect destination free space.");
+            var availableCapacity = availableBytes > long.MaxValue ? long.MaxValue : (long)availableBytes;
+            blockers.AddRange(ValidateFilesystemCapacity(
+                fileSystemName.ToString(), availableCapacity, requiredBytes));
 
             var volumeName = new StringBuilder(1024);
             if (!NativeMethods.GetVolumeNameForVolumeMountPoint(mountPath.ToString(), volumeName, volumeName.Capacity))
@@ -119,6 +122,83 @@ public static class PhysicalImageDestinationSafety
         }
     }
 
+
+    /// <summary>
+    /// Verifies that an image-file export destination is on physical storage that
+    /// does not overlap any disk backing the source image file. Unknown, incomplete,
+    /// virtual, network, or otherwise unmappable source/destination storage fails closed.
+    /// </summary>
+    public static PhysicalImageDestinationAssessment AssessForImageFile(
+        string sourceImagePath,
+        string destinationPath,
+        PhysicalVolumeMappingResult volumeMap,
+        long requiredBytes = 0)
+    {
+        ArgumentNullException.ThrowIfNull(volumeMap);
+        if (string.IsNullOrWhiteSpace(sourceImagePath))
+            return new(false, null, Array.Empty<int>(), new[] { "Source image path is empty." });
+        if (!volumeMap.IsComplete || volumeMap.Issues.Count != 0)
+            return new(false, null, Array.Empty<int>(),
+                new[] { "A complete, diagnostic-free Windows volume map is required." });
+        if (!OperatingSystem.IsWindows())
+            return new(false, null, Array.Empty<int>(),
+                new[] { "Source/destination physical-volume verification is available only on Windows." });
+
+        try
+        {
+            var fullSourcePath = Path.GetFullPath(sourceImagePath);
+            if (!File.Exists(fullSourcePath))
+                throw new FileNotFoundException("Source image file does not exist.", fullSourcePath);
+            if ((File.GetAttributes(fullSourcePath) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException("Source image is a reparse point; its physical storage identity cannot be trusted.");
+
+            var sourceMountPath = new StringBuilder(1024);
+            if (!NativeMethods.GetVolumePathName(fullSourcePath, sourceMountPath, sourceMountPath.Capacity))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to resolve the source image volume mount point.");
+            var sourceVolumeName = new StringBuilder(1024);
+            if (!NativeMethods.GetVolumeNameForVolumeMountPoint(
+                    sourceMountPath.ToString(), sourceVolumeName, sourceVolumeName.Capacity))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to resolve the source image volume GUID.");
+
+            var sourceGuid = sourceVolumeName.ToString();
+            var sourceDisks = volumeMap.VolumePathsByDisk
+                .Where(pair => pair.Value.Contains(sourceGuid, StringComparer.OrdinalIgnoreCase))
+                .Select(pair => pair.Key)
+                .Order()
+                .ToArray();
+            if (sourceDisks.Length == 0 || sourceDisks.Any(number => number < 0))
+                throw new IOException("Source image volume has no verifiable physical-disk mapping.");
+
+            PhysicalImageDestinationAssessment? destinationAssessment = null;
+            var blockers = new List<string>();
+            foreach (var sourceDisk in sourceDisks)
+            {
+                destinationAssessment = Assess(sourceDisk, destinationPath, volumeMap, requiredBytes);
+                if (!destinationAssessment.CanUseAsSeparateDestination)
+                    blockers.AddRange(destinationAssessment.Blockers);
+            }
+
+            if (blockers.Count != 0)
+                return new(false, destinationAssessment?.VolumeGuidPath,
+                    destinationAssessment?.DestinationDiskNumbers ?? Array.Empty<int>(),
+                    blockers.Distinct(StringComparer.Ordinal).ToArray());
+
+            var inventory = WindowsPhysicalDiskDiscovery.Enumerate();
+            var identityIssues = ValidatePhysicalDiskIdentities(
+                inventory, sourceDisks, destinationAssessment!.DestinationDiskNumbers);
+            if (identityIssues.Count != 0)
+                return new(false, destinationAssessment.VolumeGuidPath,
+                    destinationAssessment.DestinationDiskNumbers, identityIssues);
+
+            return destinationAssessment;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or
+                                   Win32Exception or OverflowException)
+        {
+            return new(false, null, Array.Empty<int>(),
+                new[] { "Source/destination physical separation could not be verified: " + ex.Message });
+        }
+    }
 
     public static IReadOnlyList<string> ValidateFilesystemCapacity(
         string fileSystem,
@@ -189,11 +269,73 @@ public static class PhysicalImageDestinationSafety
         return issues.AsReadOnly();
     }
 
+    internal static IReadOnlyList<string> ValidatePhysicalDiskIdentities(
+        PhysicalDiskDiscoveryResult inventory,
+        IReadOnlyList<int> sourceDiskNumbers,
+        IReadOnlyList<int> destinationDiskNumbers)
+    {
+        ArgumentNullException.ThrowIfNull(inventory);
+        ArgumentNullException.ThrowIfNull(sourceDiskNumbers);
+        ArgumentNullException.ThrowIfNull(destinationDiskNumbers);
+
+        var issues = new List<string>();
+        if (inventory.Issues.Count != 0)
+            issues.Add("Physical-disk identity enumeration reported diagnostics; separate storage cannot be verified.");
+        if (sourceDiskNumbers.Count == 0 || destinationDiskNumbers.Count == 0)
+            issues.Add("Source and destination must both resolve to at least one physical disk.");
+
+        var relevantNumbers = sourceDiskNumbers.Concat(destinationDiskNumbers).Distinct().ToArray();
+        var relevant = new List<PhysicalDiskDescriptor>();
+        foreach (var number in relevantNumbers)
+        {
+            var matches = inventory.Disks.Where(disk => disk.DiskNumber == number).ToArray();
+            if (matches.Length != 1)
+            {
+                issues.Add($"Physical disk {number} does not have exactly one current identity descriptor.");
+                continue;
+            }
+
+            var disk = matches[0];
+            if (string.IsNullOrWhiteSpace(disk.SerialNumber))
+                issues.Add($"Physical disk {number} has no reported serial number.");
+            if (!disk.BusType.HasValue ||
+                disk.BusType.Value is 0 or 8 or 14 or 15 or 16)
+                issues.Add($"Physical disk {number} has an unknown, RAID, virtual, file-backed virtual, or Storage Spaces bus identity.");
+
+            var deviceDescription = $"{disk.Vendor} {disk.Model}";
+            if (new[] { "virtual", "storage spaces", "raid", "vmware", "hyper-v", "qemu", "virtualbox", "vbox" }
+                .Any(marker => deviceDescription.Contains(marker, StringComparison.OrdinalIgnoreCase)))
+                issues.Add($"Physical disk {number} reports a virtualized or layered device description.");
+            relevant.Add(disk);
+        }
+
+        foreach (var duplicate in relevant
+                     .Where(disk => !string.IsNullOrWhiteSpace(disk.SerialNumber))
+                     .GroupBy(disk => disk.SerialNumber!.Trim(), StringComparer.OrdinalIgnoreCase)
+                     .Where(group => group.Select(disk => disk.DiskNumber).Distinct().Count() > 1))
+            issues.Add("Physical disk serial identity is duplicated across source/destination devices.");
+
+        return issues.AsReadOnly();
+    }
+
     private static class NativeMethods
     {
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool GetVolumePathName(string fileName, StringBuilder volumePathName, int bufferLength);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetVolumeInformation(
+            string rootPathName, IntPtr volumeNameBuffer, int volumeNameSize,
+            out uint volumeSerialNumber, out uint maximumComponentLength, out uint fileSystemFlags,
+            StringBuilder fileSystemNameBuffer, int fileSystemNameSize);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetDiskFreeSpaceEx(
+            string directoryName, out ulong freeBytesAvailableToCaller,
+            out ulong totalNumberOfBytes, out ulong totalNumberOfFreeBytes);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
