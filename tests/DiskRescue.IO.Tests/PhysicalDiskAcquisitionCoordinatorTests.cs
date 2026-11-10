@@ -238,7 +238,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         };
         var imagePath = folder.File("verified.img");
 
-        var error = await Assert.ThrowsAsync<IOException>(() =>
+        var error = await Assert.ThrowsAsync<PhysicalAcquisitionManifestCommitException>(() =>
             PhysicalDiskAcquisitionCoordinator.AcquireAsync(
                 Descriptor(), imagePath, environment));
 
@@ -246,6 +246,8 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
             "synthetic manifest storage failure",
             error.InnerException?.Message ?? error.ToString(),
             StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("verified.img", error.ImageLeafName);
+        Assert.Equal("verified.img.diskrescue.json", error.ManifestLeafName);
         Assert.True(File.Exists(imagePath));
         Assert.Equal(bytes, await File.ReadAllBytesAsync(imagePath));
         Assert.False(File.Exists(imagePath + ".diskrescue.json"));
