@@ -84,7 +84,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
 
         var rootHandle = CreateFileW(
             root,
-            FileListDirectory | FileReadAttributes | Synchronize,
+            FileListDirectory | FileAddFile | FileReadAttributes | Synchronize,
             ShareRead | ShareWrite | ShareDelete,
             IntPtr.Zero,
             OpenExisting,
@@ -107,10 +107,11 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
                 new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
                 StringSplitOptions.RemoveEmptyEntries);
 
-            foreach (var component in components)
+            for (var index = 0; index < components.Length; index++)
             {
+                var component = components[index];
                 PhysicalDestinationLeafName.Validate(component, nameof(directoryPath));
-                var next = OpenRelativeDirectory(current, component);
+                var next = OpenRelativeDirectory(current, component, isFinalComponent: index == components.Length - 1);
                 try
                 {
                     EnsureNotReparseDirectory(next);
@@ -260,11 +261,15 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         return handle;
     }
 
-    private static SafeFileHandle OpenRelativeDirectory(SafeFileHandle parent, string component) =>
+    private static SafeFileHandle OpenRelativeDirectory(
+        SafeFileHandle parent,
+        string component,
+        bool isFinalComponent) =>
         OpenRelative(
             parent,
             component,
-            FileListDirectory | FileReadAttributes | Synchronize,
+            FileListDirectory | FileReadAttributes | Synchronize |
+                (isFinalComponent ? FileAddFile : 0),
             FileOpen,
             FileDirectoryFile | FileSynchronousIoNonAlert | FileOpenReparsePoint);
 
