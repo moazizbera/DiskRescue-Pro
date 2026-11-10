@@ -111,7 +111,16 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
             {
                 PhysicalDestinationLeafName.Validate(component, nameof(directoryPath));
                 var next = OpenRelativeDirectory(current, component);
-                EnsureNotReparseDirectory(next);
+                try
+                {
+                    EnsureNotReparseDirectory(next);
+                }
+                catch
+                {
+                    next.Dispose();
+                    throw;
+                }
+
                 if (!ReferenceEquals(current, rootHandle))
                     current.Dispose();
                 current = next;
