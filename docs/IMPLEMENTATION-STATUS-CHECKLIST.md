@@ -421,3 +421,12 @@ All current validation uses generated disk images. Source images remain read-onl
 - [x] Renamed the screenshot environment variable to `DISKRESCUE_WORKSPACE_SCREENSHOT_IMAGE` consistently in the WPF startup and CI workflow.
 - [ ] Re-run full CI on the exact latest PR head and inspect the resulting screenshot artifact.
 - [ ] Merge PR #16 only after all required checks pass. Manual Windows interaction validation remains a separate outstanding gate.
+
+
+### Screenshot environment-variable correction — 2026-11-10
+
+- [x] Inspected failed run [42770012171](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42770012171) on head `34a4ae1a85326dc25bc58a53844b04aff1767db5`: 307 tests, solution build, generated-image CLI/recovery smoke tests, WPF build, and Windows x64 desktop publish passed.
+- [x] Identified the screenshot failure as a stale workflow variable reference: the step set `DISKRESCUE_WORKSPACE_SCREENSHOT_IMAGE` but tested and cleared the former `DISKRESCUE_DISCOVERY_SCREENSHOT_IMAGE`, causing a null-path error before the app launched.
+- [x] Corrected both stale references in `.github/workflows/ci.yml` to use `DISKRESCUE_WORKSPACE_SCREENSHOT_IMAGE` consistently. Workflow fix commit: `be8546659af31d31e59551501cf183e24dd6ca02`.
+- [ ] Await a fresh full CI run on the corrected head; review its actual screenshot artifact before merge.
+- [ ] Keep manual Windows interaction tests and generated-image SHA-256 before/after comparison outstanding. No physical HDD validation is claimed.
