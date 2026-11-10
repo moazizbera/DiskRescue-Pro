@@ -15,8 +15,8 @@ This is the authoritative status snapshot for the current integration sequence. 
 
 - PR #14: [Desktop inspection, FAT/exFAT discovery, and deleted-file recovery queue](https://github.com/moazizbera/DiskRescue-Pro/pull/14).
 - Branch: `feat/desktop-recovery-queue-mainline`.
-- Candidate head at this snapshot: `1e7436aacc81de6f1e9c5f2dec988a6ffc0fda8f`.
-- Windows CI on the combined candidate is running; do not treat the branch as merged or release-ready until the exact final head passes.
+- Combined implementation commit `1e7436aacc81de6f1e9c5f2dec988a6ffc0fda8f` passed Windows CI run [#42764809834](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42764809834), including build, tests, generated-fixture smoke checks, and Windows publish stages.
+- The checklist refresh is documentation-only; its latest branch head has a separate Windows CI run in progress. Do not treat the branch as merged or release-ready until that exact head passes.
 - Includes the screen-aware WPF redesign, visual partition map, FAT32/exFAT discovery, deleted-NTFS safety assessment/export, and multi-file queue with per-file states, progress, cancellation, and destination checks.
 
 ## Current checklist
