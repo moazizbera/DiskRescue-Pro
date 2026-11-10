@@ -1,7 +1,7 @@
 namespace DiskRescue.IO;
 
 /// <summary>
-/// A read-only source opened after the environment's second preflight. Ownership transfers
+/// A read-only source opened after the environment's second preflight and final pre-read revalidation. Ownership transfers
 /// to the coordinator for the duration of the copy.
 /// </summary>
 public sealed class PhysicalDiskOpenedSource : IDisposable
@@ -65,8 +65,9 @@ public sealed class WindowsPhysicalDiskAcquisitionEnvironment : IPhysicalDiskAcq
 }
 
 /// <summary>
-/// Orchestrates a two-pass fail-closed preflight, identity revalidation, read-only imaging,
-/// SHA-256 verification, and non-cancellable sidecar publication after image commit.
+/// Orchestrates repeated fail-closed preflight, source identity revalidation, a final destination
+/// recheck before the first source read, read-only imaging, SHA-256 verification, and
+/// non-cancellable sidecar publication after image commit.
 /// </summary>
 public static class PhysicalDiskAcquisitionCoordinator
 {
@@ -107,6 +108,19 @@ public static class PhysicalDiskAcquisitionCoordinator
         if (opened.Source.Length != opened.Descriptor.LengthBytes)
             throw new IOException("The opened read-only source length does not match its revalidated disk capacity.");
 
+        // The destination may have changed after the second preflight (for example, a
+        // volume mapping or available capacity change). Re-enumerate all relevant state
+        // after the source handle is open but before reading the first source byte.
+        // The opened handle remains bound to the already identity-checked source device.
+        cancellationToken.ThrowIfCancellationRequested();
+        var finalPreflight = RunPreflight(selected, fullImagePath, environment);
+        if (!finalPreflight.Assessment.CanAcquire)
+            throw new InvalidOperationException("Physical acquisition final pre-read revalidation failed: " +
+                string.Join(" ", finalPreflight.Assessment.Blockers));
+        if (!WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(second.CurrentDescriptor, finalPreflight.CurrentDescriptor) ||
+            !WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(opened.Descriptor, finalPreflight.CurrentDescriptor))
+            throw new IOException("The source device identity changed during final pre-read revalidation. No source sectors were read.");
+
         var image = await DiskImager.CreateImageAsync(
             opened.Source, fullImagePath, progress, cancellationToken).ConfigureAwait(false);
 
@@ -141,13 +155,13 @@ public static class PhysicalDiskAcquisitionCoordinator
                 pointInTimeConsistencyGuaranteed = false,
                 resumable = false
             },
-            warnings = second.Assessment.Warnings
+            warnings = finalPreflight.Assessment.Warnings
         };
 
         await environment.PublishManifestAsync(
             manifestPath, manifest, image.ImagePath, image.Sha256).ConfigureAwait(false);
 
-        return new(image, manifestPath, opened.Descriptor, second.Assessment.Warnings);
+        return new(image, manifestPath, opened.Descriptor, finalPreflight.Assessment.Warnings);
     }
 
     private static string ValidateNewImageDestination(string destinationImagePath)
