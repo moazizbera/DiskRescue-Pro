@@ -129,7 +129,7 @@
         </Grid>
 
         <!-- Partition map -->
-        <Border Grid.Row="3" Background="{StaticResource Panel}" BorderBrush="#263A52"
+        <Border x:Name="PartitionMapPanel" Grid.Row="3" Background="{StaticResource Panel}" BorderBrush="#263A52"
                 BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,0,9">
             <Grid>
                 <Grid.RowDefinitions>
