@@ -1,3 +1,47 @@
+# Current status update — 2026-11-10 (DiskGenius UX benchmark and professional workspace plan)
+
+This section records the new UX benchmark supplied by the project owner. The DiskGenius screenshots are reference material for information architecture only; DiskRescue Pro must retain its read-only, image-first recovery safety model.
+
+## UX benchmark translated into DiskRescue Pro
+
+| DiskGenius reference | DiskRescue Pro direction | Safety boundary |
+|---|---|---|
+| Physical-disk / partition tree | Add a dedicated image-and-partition navigator with clear hierarchy and selected-item state | Show only the currently opened regular image; no live-device partition browsing |
+| Proportional partition map | Keep the visual map synchronized with the partition navigator and details | Map is evidence visualization, never an editable partition surface |
+| Partition table with filesystem, start/end and capacity | Provide a readable, sortable partition inventory with sector and byte boundaries | Metadata is read-only; no partition mutation |
+| Detailed volume information | Add a focused details inspector for geometry, identifiers, filesystem and validation evidence | Distinguish observed values from inferred or unavailable values |
+| Context-sensitive menus | Offer safe actions appropriate to the selected image, partition, candidate or file entry | No format, delete, resize, extend, split, repair, initialize, mount, or partition-table write commands |
+| File operations and recovery | Make preview, assessment, destination preflight and queued export discoverable | Export only through existing bounded, fail-closed recovery workflow |
+
+## Professional workspace implementation checklist
+
+- [ ] P0: Add a left-side image/partition navigator; selecting a node must synchronize the partition grid, map highlight and details view.
+- [ ] P0: Add a dedicated selected-partition details inspector (filesystem, byte offset, start LBA, length, sector/cluster geometry where available, identifiers and validation state).
+- [ ] P0: Make the partition map selection-aware and expose exact start/end/length values accessibly; preserve proportional sizing and unallocated gaps.
+- [ ] P0: Keep the workspace usable at common laptop resolutions and Windows work-area sizes; verify resize behavior, minimum dimensions, scrollability and no clipped controls.
+- [ ] P0: Make empty, loading, scanning, cancelled, warning and failed states visually distinct and understandable.
+- [ ] P1: Add safe context actions by selection type (inspect image, preview filesystem metadata, review candidate evidence, inspect file entry, queue eligible deleted-file export).
+- [ ] P1: Improve partition inventory columns and sorting for filesystem, status, start sector, end sector, capacity and evidence source.
+- [ ] P1: Improve queue visibility with per-file progress/status, destination summary, cancellation and actionable failure reasons.
+- [ ] P1: Add keyboard navigation, visible focus states, accessible names/tooltips and high-DPI checks.
+- [ ] P2: Capture and review fresh Windows screenshots at 1366×768, 1920×1080 and a constrained work area; attach artifacts to CI.
+- [ ] P2: Add a documented visual regression baseline and release-readiness review.
+
+## UX acceptance and safety criteria
+
+- [ ] Navigator, map, grid and details always refer to the same selected image/partition; stale selection/details are cleared when the image changes.
+- [ ] Selecting a lost-partition candidate never implies that a partition was restored or that the partition table was changed.
+- [ ] Every recovery action remains gated by current metadata validation, byte limits, cancellation, no-overwrite publication and verified separate physical destination.
+- [ ] No destructive DiskGenius menu operation is introduced, even as a disabled or misleadingly available command.
+- [ ] UI screenshots are generated from synthetic disposable images; never from the user's original HDD.
+- [ ] Manual Windows visual and hardware checks are recorded as manual, not inferred from a successful CI build.
+
+## Reference interpretation
+
+The supplied DiskGenius V5.3 screenshots demonstrate a compact hierarchy: disk navigation, proportional partition layout, a detailed partition list, a metadata pane, and selection-sensitive menus. We will adapt that hierarchy to an image-file workspace. The product should feel like a professional disk-analysis console while remaining intentionally narrower and safer than a partition manager.
+
+---
+
 # DiskRescue Pro — Implementation and Release Checklist
 
 # Current status update — 2026-11-10 (mainline integration merged)
