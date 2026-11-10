@@ -207,7 +207,7 @@
                                      Text="Select a candidate to review its validation evidence."/>
                             <DataGrid x:Name="CandidatesGrid" ItemsSource="{Binding}"
                                       AutoGenerateColumns="False" IsReadOnly="True"
-                                      SelectionMode="Single"
+                                      SelectionMode="Extended" SelectionUnit="FullRow"
                                       SelectionChanged="CandidatesGrid_SelectionChanged">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="FS" Binding="{Binding FileSystem}" Width="60"/>
@@ -240,7 +240,7 @@
                                             Content="Check destination…" Click="CheckRecoveryDestination_Click"
                                             IsEnabled="False" Margin="0,0,7,6"/>
                                     <Button x:Name="RecoverDeletedFileButton"
-                                            Content="Export selected file…" Click="RecoverDeletedFile_Click"
+                                            Content="Queue selected deleted files…" Click="RecoverDeletedFile_Click"
                                             IsEnabled="False" Margin="0,0,7,6"/>
                                     <Button x:Name="CancelRecoveryButton" Content="Cancel export"
                                             Click="CancelRecovery_Click" IsEnabled="False"
@@ -261,7 +261,8 @@
                                      VerticalScrollBarVisibility="Auto" BorderThickness="1"
                                      BorderBrush="#263A52" Background="#0C1726" Padding="10"
                                      Text="Run an NTFS preview, then select an entry to inspect its metadata."/>
-                            <DataGrid x:Name="NtfsEntriesGrid" AutoGenerateColumns="False"
+                            <DataGrid x:Name="RecoveryQueueGrid" DockPanel.Dock="Bottom" Height="115" Margin="0,8,0,0" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"><DataGrid.Columns><DataGridTextColumn Header="QUEUED FILE" Binding="{Binding FileName}" Width="2*"/><DataGridTextColumn Header="MFT RECORD" Binding="{Binding RecordNumber}" Width="95"/><DataGridTextColumn Header="MAX BYTES" Binding="{Binding MaximumBytes}" Width="110"/><DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="*"/></DataGrid.Columns></DataGrid>
+<DataGrid x:Name="NtfsEntriesGrid" AutoGenerateColumns="False"
                                       IsReadOnly="True" CanUserSortColumns="True"
                                       SelectionMode="Single"
                                       SelectionChanged="NtfsEntriesGrid_SelectionChanged">
