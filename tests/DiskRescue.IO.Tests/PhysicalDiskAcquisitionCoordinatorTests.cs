@@ -352,6 +352,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
 
         public PhysicalDestinationDirectoryIdentity DirectoryIdentity { get; }
         public string VolumeGuidPath { get; }
+        public string GetCurrentDirectoryPath() => _directory;
 
         public ValueTask<Stream> CreateNewFileAsync(string leafName, CancellationToken cancellationToken = default)
         {
