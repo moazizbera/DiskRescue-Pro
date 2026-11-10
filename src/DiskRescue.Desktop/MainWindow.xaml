@@ -248,8 +248,7 @@
                                 <TextBlock Text="Bounded MFT metadata preview. Filenames and attributes only; this is not file-content recovery."
                                            Foreground="{StaticResource Muted}" FontSize="11"
                                            TextWrapping="Wrap" Margin="0,4,0,9"/>
-                                <TextBox x:Name="NtfsEntrySearchBox" AutomationProperties.Name="Filter NTFS file-entry metadata" ToolTip="Filter the bounded metadata preview by filename, record number, parent reference, or attributes."
-                                         ToolTip="Search names, record numbers, parent references, and attributes"
+                                <TextBox x:Name="NtfsEntrySearchBox" AutomationProperties.Name="Filter NTFS file-entry metadata" ToolTip="Filter the bounded metadata preview by filename, record number, parent reference, or attributes"
                                          TextChanged="NtfsEntrySearchBox_TextChanged"
                                          Height="34" Padding="9,6"/>
                                 <WrapPanel Margin="0,9,0,0">
