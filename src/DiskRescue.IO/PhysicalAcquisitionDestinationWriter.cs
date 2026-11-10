@@ -43,7 +43,7 @@ internal sealed class PhysicalAcquisitionManifestCommitException : IOException
 /// </summary>
 internal static class PhysicalAcquisitionDestinationWriter
 {
-    public static async Task<PhysicalAcquisitionDestinationWriteResult> WriteAndPublishAsync(
+    public static Task<PhysicalAcquisitionDestinationWriteResult> WriteAndPublishAsync(
         IReadOnlyRandomAccessSource source,
         IPhysicalAcquisitionDestinationSession session,
         string imageTemporaryLeaf,
@@ -54,9 +54,27 @@ internal static class PhysicalAcquisitionDestinationWriter
         IProgress<DiskImageProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(manifest);
+        return WriteAndPublishAsync(
+            source, session, imageTemporaryLeaf, imageFinalLeaf,
+            manifestTemporaryLeaf, manifestFinalLeaf, _ => manifest,
+            progress, cancellationToken);
+    }
+
+    public static async Task<PhysicalAcquisitionDestinationWriteResult> WriteAndPublishAsync(
+        IReadOnlyRandomAccessSource source,
+        IPhysicalAcquisitionDestinationSession session,
+        string imageTemporaryLeaf,
+        string imageFinalLeaf,
+        string manifestTemporaryLeaf,
+        string manifestFinalLeaf,
+        Func<DiskImageContentResult, object> manifestFactory,
+        IProgress<DiskImageProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(session);
-        ArgumentNullException.ThrowIfNull(manifest);
+        ArgumentNullException.ThrowIfNull(manifestFactory);
 
         var directoryIdentity = session.DirectoryIdentity;
         if (string.IsNullOrWhiteSpace(directoryIdentity.VolumeIdentity) ||
@@ -107,6 +125,8 @@ internal static class PhysicalAcquisitionDestinationWriter
             manifestStream = await session.CreateNewFileAsync(
                 manifestTemporaryLeaf, CancellationToken.None).ConfigureAwait(false);
             await EnsureOwnedVolume(session, manifestStream, CancellationToken.None).ConfigureAwait(false);
+            var manifest = manifestFactory(image)
+                ?? throw new InvalidOperationException("Manifest factory returned null after image publication.");
             await PhysicalDiskManifestPublisher.WriteManifestAsync(
                 manifestStream, manifest, CancellationToken.None).ConfigureAwait(false);
             await session.FlushToDiskAsync(manifestStream, CancellationToken.None).ConfigureAwait(false);
