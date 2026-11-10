@@ -87,7 +87,7 @@ internal static class PhysicalDestinationLeafName
             leafName.EndsWith(' ') ||
             leafName.EndsWith('.') ||
             leafName.Any(character =>
-                character is '/' or '\\\\' or ':' or '\\0' ||
+                character is '/' or '\\' or ':' or '\\0' ||
                 char.IsControl(character)))
         {
             throw new ArgumentException(
