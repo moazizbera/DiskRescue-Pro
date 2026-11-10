@@ -43,7 +43,8 @@ This section is the current source of truth for physical acquisition safety. Old
 - [ ] Disposable-VHDX end-to-end acquisition acceptance using only a newly created, disposable virtual disk and a separate disposable destination.
 - [ ] Prove source bytes remain unchanged and output bytes/hash/manifest are correct throughout the disposable test.
 - [ ] Exercise cancellation, read failure, destination-full, manifest-publication failure, path replacement, and cleanup on disposable media.
-- [ ] Manual review of the captured WPF screenshot and manual keyboard/accessibility/high-DPI interaction checks.
+- [x] Visually reviewed the CI #1303 WPF screenshot artifact (963×662): it shows the read-only source state, validated MBR partition selection, navigator, and inspector. The inspector viewport is intentionally scrollable but clips some lower metadata until scrolled; this is a visual limitation, not a data-integrity failure.
+- [ ] Manual keyboard-only, accessibility/Narrator, high-DPI, and multi-work-area interaction checks remain outstanding.
 - [ ] Only after all gates pass, conduct a separate design/security review before any proposal to enable the public acquisition API/UI.
 - [ ] Physical HDD testing remains unauthorized until a separate release decision; never test against an original or valuable disk.
 
