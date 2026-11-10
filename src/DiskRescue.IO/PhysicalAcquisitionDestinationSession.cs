@@ -30,6 +30,9 @@ internal interface IPhysicalAcquisitionDestinationSession : IAsyncDisposable
 {
     PhysicalDestinationDirectoryIdentity DirectoryIdentity { get; }
 
+    /// <summary>Volume-GUID root resolved from the pinned directory handle, not the input path.</summary>
+    string VolumeGuidPath { get; }
+
     /// <summary>
     /// Creates a new read/write stream relative to the pinned directory. The returned
     /// stream must remain owned by this session and support reading, writing, seeking,
