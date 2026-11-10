@@ -108,7 +108,8 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
     {
         private readonly Dictionary<Stream, string> _owned = new();
         private readonly Dictionary<string, byte[]> _published = new(StringComparer.OrdinalIgnoreCase);
-        private readonly HashSet<string> _deleted = new(StringComparer.OrdinalIgnoreCase);\n        private readonly HashSet<Stream> _publishedStreams = new();
+        private readonly HashSet<string> _deleted = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<Stream> _publishedStreams = new();
         private bool _disposed;
 
         public PhysicalDestinationDirectoryIdentity DirectoryIdentity { get; } =
@@ -162,6 +163,7 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
                 _owned.Values.Contains(finalLeafName, StringComparer.OrdinalIgnoreCase))
                 throw new IOException("No-replace collision.");
             _published.Add(finalLeafName, ((MemoryStream)file).ToArray());
+            _publishedStreams.Add(file);
             return ValueTask.CompletedTask;
         }
 
