@@ -15,6 +15,9 @@
   - Post-merge mainline Windows CI: [run 42819949095](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42819949095) — all 22 job steps successful, including build, tests, generated-image fixtures, CLI and NTFS recovery smoke tests, WPF build, Windows x64 desktop/CLI publishes, and dashboard screenshot capture/uploads.
 - [x] Windows x64 desktop preview artifact produced by CI.
 - [x] PR #25 — hard-disable the public physical-acquisition API and WPF Acquire action until the pinned destination session exists. The regression test verifies fail-closed behavior and absence of image/manifest output.
+- [x] PR #26 — make the lower-level physical-acquisition coordinator internal so the public API hard gate cannot be bypassed through the coordinator; grant the IO test assembly friend access to retain deterministic tests.
+  - Merge commit: `ca6cd9abc654573e958db71aec5031bdcc58cbc3`.
+  - Exact-head Windows CI: [run 42842659373](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42842659373) — successful.
   - Merge commit: `c23414dde17c503c96ce0f1e74e42b9db974ffa4`.
   - Exact-head Windows CI: [run 42839029924](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42839029924) — successful.
   - Post-merge mainline Windows CI: [run 42840092839](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42840092839) — successful.
