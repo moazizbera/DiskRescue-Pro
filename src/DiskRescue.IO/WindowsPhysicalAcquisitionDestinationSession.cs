@@ -29,13 +29,12 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
     private const uint ObjectCaseInsensitive = 0x00000040;
     private const uint FileAttributeReparsePoint = 0x00000400;
     private const uint FileAttributeDirectory = 0x00000010;
-    private const int FileRenameInfo = 3;
     private const int FileDispositionInfo = 4;
     private const int FileAttributeTagInfoClass = 9;
     private const int FileIdInfoClass = 18;
-    private const int ErrorFileExists = 80;
-    private const int ErrorAlreadyExists = 183;
     private const uint DriveFixed = 3;
+    private const int FileRenameInformationClass = 10;
+    private const uint StatusObjectNameCollision = 0xC0000035;
 
     private readonly SafeFileHandle _directoryHandle;
     private readonly Dictionary<Stream, OwnedFile> _files = new(ReferenceEqualityComparer.Instance);
@@ -371,14 +370,19 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
             Marshal.WriteInt32(buffer, lengthOffset, nameBytes.Length);
             Marshal.Copy(nameBytes, 0, IntPtr.Add(buffer, nameOffset), nameBytes.Length);
 
-            if (!SetFileInformationByHandle(
-                    fileHandle, FileRenameInfo, buffer, checked((uint)(nameOffset + nameBytes.Length))))
+            var status = NtSetInformationFile(
+                fileHandle,
+                out _,
+                buffer,
+                checked((uint)(nameOffset + nameBytes.Length)),
+                FileRenameInformationClass);
+            if (status < 0)
             {
-                var error = Marshal.GetLastWin32Error();
-                if (error is ErrorFileExists or ErrorAlreadyExists)
+                var nativeStatus = unchecked((uint)status);
+                if (nativeStatus == StatusObjectNameCollision)
                     throw new IOException($"Destination entry '{finalLeafName}' already exists.");
                 throw new IOException(
-                    $"Handle-relative no-replace publication failed (Win32 error {error}).");
+                    $"Native handle-relative no-replace publication failed (NTSTATUS 0x{nativeStatus:X8}).");
             }
         }
         finally
@@ -513,6 +517,14 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr handle);
+
+    [DllImport("ntdll.dll")]
+    private static extern int NtSetInformationFile(
+        SafeFileHandle fileHandle,
+        out IoStatusBlock ioStatusBlock,
+        IntPtr fileInformation,
+        uint length,
+        int fileInformationClass);
 
     [DllImport("ntdll.dll")]
     private static extern int NtCreateFile(
