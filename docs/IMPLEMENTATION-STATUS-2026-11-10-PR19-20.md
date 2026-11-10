@@ -14,6 +14,7 @@
   - Exact-head Windows CI: [run 42800521567](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42800521567) — successful.
   - Post-merge mainline Windows CI: [run 42819949095](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42819949095) — all 22 job steps successful, including build, tests, generated-image fixtures, CLI and NTFS recovery smoke tests, WPF build, Windows x64 desktop/CLI publishes, and dashboard screenshot capture/uploads.
 - [x] Windows x64 desktop preview artifact produced by CI.
+- [ ] Issue #23 — pin and revalidate acquisition destination filesystem identity. Code-path review confirmed that image and manifest creation, verification, and publication remain path-based after the final pre-read check. A handle-bound destination session is required; no partial path-only mitigation is accepted. See [Issue #23](https://github.com/moazizbera/DiskRescue-Pro/issues/23).
 - [x] Actual WPF dashboard screenshot captured and uploaded. Capture success is automated evidence; human visual review and manual Windows interaction remain separate acceptance activities.
 
 ## NTFS MFT continuation boundary
@@ -51,7 +52,7 @@ Do not begin until Stage 1 passes and the physical-access code receives a dedica
 - [ ] Verify the device identity and geometry reported by Windows against an independently recorded device label/model/capacity; do not rely on disk number alone.
 - [ ] Verify the source handle requests read access only and every code path rejects write access.
 - [ ] Verify boot-critical disk exclusion, complete volume-to-disk extent mapping, supported non-layered bus identity, and unique reported serial requirements.
-- [ ] Verify source identity/geometry revalidation and destination physical-disk separation before and during acquisition, including the final pre-read revalidation added in PR #22. This narrows, but does not eliminate, Windows mount/reparse and concurrent-storage race windows.
+- [ ] Verify source identity/geometry revalidation and destination physical-disk separation before and during acquisition, including the final pre-read revalidation added in PR #22. **Still blocked by Issue #23:** bind image/manifest create, verify, and publish operations to one pinned destination directory/volume identity. PR #22 narrows, but does not eliminate, Windows mount/reparse and concurrent-storage race windows.
 - [ ] Use a hardware write blocker for any irreplaceable or evidentiary source; software read-only access alone is not hardware write protection.
 - [ ] Test only with a spare, non-critical HDD and a separate destination disk. Stop on clicking, repeated disconnects, overheating, or persistent I/O errors.
 - [ ] Record acquisition length, SHA-256, manifest, and source/destination identity evidence; do not interpret the copied-image hash as proof of original file integrity.
@@ -71,6 +72,7 @@ Do not begin until Stage 1 passes and the physical-access code receives a dedica
 - [ ] Manual generated-image smoke tests with before/after SHA-256.
 - [ ] Disposable Windows VHDX host validation.
 - [ ] Physical-device preflight review and spare-HDD acquisition test.
+- [ ] Resolve Issue #23 with handle-bound destination identity, deterministic Windows reparse/path-replacement tests, and exact-head plus post-merge CI.
 - [ ] Positive deleted-file export on supported Windows storage with complete physical identity metadata.
 
 ## Safety invariants
