@@ -152,7 +152,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         try
         {
             var stream = new FileStream(handle, FileAccess.ReadWrite, 4096, isAsync: false);
-            _files.Add(stream, new OwnedFile(stream));
+            _files.Add(stream, new OwnedFile(stream, handle));
             return ValueTask.FromResult<Stream>(stream);
         }
         catch
@@ -232,7 +232,10 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
             return ValueTask.CompletedTask;
         _disposed = true;
         foreach (var owned in _files.Values)
+        {
             owned.Stream.Dispose();
+            owned.Handle.Dispose();
+        }
         _files.Clear();
         _directoryHandle.Dispose();
         return ValueTask.CompletedTask;
@@ -453,9 +456,10 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         throw new IOException($"{message} (Win32 error {error}).", new System.ComponentModel.Win32Exception(error));
     }
 
-    private sealed class OwnedFile(FileStream stream)
+    private sealed class OwnedFile(FileStream stream, SafeFileHandle handle)
     {
         public FileStream Stream { get; } = stream;
+        public SafeFileHandle Handle { get; } = handle;
         public bool Published { get; set; }
         public bool DeletePending { get; set; }
     }
