@@ -70,6 +70,55 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
     }
 
     [Fact]
+    public async Task FinalPreReadRevalidationFailureDisposesSourceBeforeAnyRead()
+    {
+        using var folder = new TemporaryFolder();
+        var source = new MemorySource(new byte[128 * 1024]);
+        var environment = new FakeEnvironment
+        {
+            Source = source,
+            InventoryFactory = call => call == 3
+                ? new PhysicalDiskDiscoveryResult(new[] { Descriptor() }, new[] { "destination/source inventory changed" })
+                : Inventory()
+        };
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            PhysicalDiskAcquisitionCoordinator.AcquireAsync(
+                Descriptor(), folder.File("late-change.img"), environment));
+
+        Assert.Contains("final pre-read revalidation failed", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(3, environment.InventoryCalls);
+        Assert.Equal(1, environment.OpenCalls);
+        Assert.Equal(0, source.ReadAttempts);
+        Assert.Equal(1, source.DisposeCalls);
+        Assert.Empty(Directory.GetFiles(folder.Path));
+    }
+
+    [Fact]
+    public async Task DestinationSeparationChangeOnFinalPreReadCheckPreventsAnyRead()
+    {
+        using var folder = new TemporaryFolder();
+        var source = new MemorySource(new byte[128 * 1024]);
+        var environment = new FakeEnvironment
+        {
+            Source = source,
+            DestinationAssessmentFactory = call => call == 3
+                ? new PhysicalImageDestinationAssessment(false, null, new[] { 2 }, new[] { "destination now overlaps source disk" })
+                : new PhysicalImageDestinationAssessment(true, @"\\?\Volume{test-destination}\", new[] { 7 }, Array.Empty<string>())
+        };
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            PhysicalDiskAcquisitionCoordinator.AcquireAsync(
+                Descriptor(), folder.File("destination-shift.img"), environment));
+
+        Assert.Contains("destination now overlaps source disk", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(3, environment.DestinationAssessmentCalls);
+        Assert.Equal(0, source.ReadAttempts);
+        Assert.Equal(1, source.DisposeCalls);
+        Assert.Empty(Directory.GetFiles(folder.Path));
+    }
+
+    [Fact]
     public async Task SourceReadFailureAbortsAndDoesNotPublishImageOrManifest()
     {
         using var folder = new TemporaryFolder();
@@ -196,6 +245,8 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
     {
         public Func<int, PhysicalDiskDiscoveryResult>? InventoryFactory { get; init; }
         public PhysicalImageDestinationAssessment? DestinationAssessment { get; init; }
+        public Func<int, PhysicalImageDestinationAssessment>? DestinationAssessmentFactory { get; init; }
+        public int DestinationAssessmentCalls { get; private set; }
         public PhysicalDiskDescriptor? OpenedDescriptor { get; init; }
         public MemorySource? Source { get; init; }
         public Exception? ManifestException { get; init; }
@@ -220,9 +271,13 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
 
         public PhysicalImageDestinationAssessment AssessDestination(
             int sourceDiskNumber, string destinationPath,
-            PhysicalVolumeMappingResult volumeMap, long requiredBytes) =>
-            DestinationAssessment ?? new(true, @"\\?\Volume{test-destination}\",
-                new[] { 7 }, Array.Empty<string>());
+            PhysicalVolumeMappingResult volumeMap, long requiredBytes)
+        {
+            DestinationAssessmentCalls++;
+            return DestinationAssessmentFactory?.Invoke(DestinationAssessmentCalls) ??
+                DestinationAssessment ?? new(true, @"\\?\Volume{test-destination}\",
+                    new[] { 7 }, Array.Empty<string>());
+        }
 
         public PhysicalDiskOpenedSource OpenReadOnly(PhysicalDiskDescriptor descriptor)
         {
