@@ -412,3 +412,12 @@ This section supersedes older branch/PR snapshots above for the current desktop 
 ### Safety boundary
 
 All current validation uses generated disk images. Source images remain read-only. No format, initialize, repair, repartition, partition-table write, or source-media write operation is authorized. Recovery output must remain separate from source storage. A passing build or screenshot does not prove physical HDD recovery capability.
+
+
+### Screenshot workflow correction — 2026-11-10
+
+- [x] Diagnosed CI run [42769752826](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42769752826): 307 tests passed, solution/WPF builds passed, and Windows x64 desktop publish passed; screenshot capture failed because the CI supplied a valid MBR image to a routine that still asserted for a lost-FAT32 discovery candidate.
+- [x] Replaced the mismatched discovery-specific screenshot routine with a workspace screenshot scenario. It runs the real read-only Inspect UI flow against the generated valid MBR fixture, requires a validated MBR/GPT partition, selects it, and refreshes the inspector before capture.
+- [x] Renamed the screenshot environment variable to `DISKRESCUE_WORKSPACE_SCREENSHOT_IMAGE` consistently in the WPF startup and CI workflow.
+- [ ] Re-run full CI on the exact latest PR head and inspect the resulting screenshot artifact.
+- [ ] Merge PR #16 only after all required checks pass. Manual Windows interaction validation remains a separate outstanding gate.
