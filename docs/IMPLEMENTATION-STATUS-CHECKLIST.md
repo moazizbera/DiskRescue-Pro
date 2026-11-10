@@ -6,7 +6,7 @@ This section is the current source of truth for physical acquisition safety. Old
 
 - [PR #30 — managed pinned-destination session contract and coordinator integration](https://github.com/moazizbera/DiskRescue-Pro/pull/30) remains **draft/open**.
 - Branch: `security/managed-destination-session-contract-20261110`.
-- Exact latest code head: `e8fcd11767b8e1ca1627f698bfa2a807c664f7a2`.
+- Exact latest PR head (including checklist/screenshot-review update): `4b0a2945d5c1c2f60d2b8cc1025ccbe6e4cbbf3b`.
 - Related security issue: [Issue #23 — pin and revalidate acquisition destination filesystem identity](https://github.com/moazizbera/DiskRescue-Pro/issues/23).
 
 ## Implemented and exact-head validated
@@ -23,8 +23,9 @@ This section is the current source of truth for physical acquisition safety. Old
 - [x] Regression tests assert zero source reads for pinned-volume mismatch and changed-directory-path cases.
 - [x] Manifest publication failure preserves the committed image and returns an explicit manifest-commit error.
 - [x] Native Windows tests cover normal directory operations, path replacement after pinning, no-overwrite publication, handle deletion, symbolic-link rejection, and junction rejection where fixture creation is permitted.
-- [x] Exact-head Windows CI #1303 passed at `e8fcd11767b8e1ca1627f698bfa2a807c664f7a2`: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42882362142
-- [x] CI #1303 test project result: 367 passed, 0 failed, 1 skipped (368 total).
+- [x] Exact-head Windows CI #1305 passed at `4b0a2945d5c1c2f60d2b8cc1025ccbe6e4cbbf3b`: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42883203138
+- [x] CI #1305 test project result: 367 passed, 0 failed, 1 skipped (368 total).
+- [x] Visually reviewed the CI #1303 WPF screenshot artifact (963×662): read-only source state, selected MBR partition, navigator, and inspector are visible; lower inspector metadata requires scrolling.
 - [x] CI #1303 also passed generated fixture creation, CLI smoke tests, deleted-NTFS extraction/recovery-manifest tests, one-command lost-NTFS recovery harness, WPF build, Windows x64 desktop/CLI publishing, dashboard screenshot capture, and artifact uploads.
 
 ## Explicit compatibility boundary
