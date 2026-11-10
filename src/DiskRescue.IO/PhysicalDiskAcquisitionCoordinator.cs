@@ -93,8 +93,8 @@ internal static class PhysicalDiskAcquisitionCoordinator
         cancellationToken.ThrowIfCancellationRequested();
 
         var fullImagePath = ValidateNewImageDestination(destinationImagePath);
-        var manifestPath = fullImagePath + ".diskrescue.json";
-        if (File.Exists(manifestPath) || Directory.Exists(manifestPath))
+        var manifestPreflightPath = fullImagePath + ".diskrescue.json";
+        if (File.Exists(manifestPreflightPath) || Directory.Exists(manifestPreflightPath))
             throw new IOException("Acquisition manifest already exists; existing files are never overwritten.");
 
         var first = RunPreflight(selected, fullImagePath, environment);
@@ -156,7 +156,7 @@ internal static class PhysicalDiskAcquisitionCoordinator
         cancellationToken.ThrowIfCancellationRequested();
 
         var imageLeaf = Path.GetFileName(fullImagePath);
-        var manifestLeaf = Path.GetFileName(manifestPath);
+        var manifestLeaf = Path.GetFileName(manifestPreflightPath);
         if (string.IsNullOrWhiteSpace(imageLeaf) || string.IsNullOrWhiteSpace(manifestLeaf))
             throw new IOException("Image or manifest destination leaf name is invalid.");
 
@@ -167,45 +167,62 @@ internal static class PhysicalDiskAcquisitionCoordinator
             imageLeaf,
             $".diskrescue-{Guid.NewGuid():N}.manifest.partial",
             manifestLeaf,
-            imageContent => new
+            imageContent =>
             {
-                format = "DiskRescue.PhysicalAcquisitionManifest.v1",
-                acquiredAtUtc = DateTimeOffset.UtcNow,
-                source = new
+                // Resolve the directory name again from the pinned handle after the image
+                // commit; the original input path may have been renamed or replaced.
+                var currentDirectoryPath = destinationSession.GetCurrentDirectoryPath();
+                var currentImagePath = Path.Combine(currentDirectoryPath, imageLeaf);
+                return new
                 {
-                    opened.Descriptor.DiskNumber,
-                    opened.Descriptor.DevicePath,
-                    opened.Descriptor.LengthBytes,
-                    opened.Descriptor.BytesPerSector,
-                    opened.Descriptor.Vendor,
-                    opened.Descriptor.Model,
-                    opened.Descriptor.SerialNumber,
-                    opened.Descriptor.BusType,
-                    opened.Descriptor.RemovableMedia
-                },
-                image = new
-                {
-                    ImagePath = fullImagePath,
-                    imageContent.BytesCopied,
-                    sha256 = imageContent.Sha256,
-                    verifiedBeforePublish = true
-                },
-                acquisition = new
-                {
-                    mode = "read-only-live-copy",
-                    unreadableSectorPolicy = "abort-without-zero-fill",
-                    hardwareWriteBlocked = false,
-                    pointInTimeConsistencyGuaranteed = false,
-                    resumable = false
-                },
-                warnings = finalPreflight.Assessment.Warnings
+                    format = "DiskRescue.PhysicalAcquisitionManifest.v1",
+                    acquiredAtUtc = DateTimeOffset.UtcNow,
+                    source = new
+                    {
+                        opened.Descriptor.DiskNumber,
+                        opened.Descriptor.DevicePath,
+                        opened.Descriptor.LengthBytes,
+                        opened.Descriptor.BytesPerSector,
+                        opened.Descriptor.Vendor,
+                        opened.Descriptor.Model,
+                        opened.Descriptor.SerialNumber,
+                        opened.Descriptor.BusType,
+                        opened.Descriptor.RemovableMedia
+                    },
+                    destination = new
+                    {
+                        volumeGuidPath = destinationSession.VolumeGuidPath,
+                        directoryPathAtManifestCreation = currentDirectoryPath,
+                        directoryFileIdHigh = destinationSession.DirectoryIdentity.FileIdHigh,
+                        directoryFileIdLow = destinationSession.DirectoryIdentity.FileIdLow
+                    },
+                    image = new
+                    {
+                        ImagePath = currentImagePath,
+                        imageContent.BytesCopied,
+                        sha256 = imageContent.Sha256,
+                        verifiedBeforePublish = true
+                    },
+                    acquisition = new
+                    {
+                        mode = "read-only-live-copy",
+                        unreadableSectorPolicy = "abort-without-zero-fill",
+                        hardwareWriteBlocked = false,
+                        pointInTimeConsistencyGuaranteed = false,
+                        resumable = false
+                    },
+                    warnings = finalPreflight.Assessment.Warnings
+                };
             },
             progress,
             cancellationToken).ConfigureAwait(false);
 
+        var committedDirectoryPath = destinationSession.GetCurrentDirectoryPath();
+        var committedImagePath = Path.Combine(committedDirectoryPath, imageLeaf);
+        var committedManifestPath = Path.Combine(committedDirectoryPath, manifestLeaf);
         var image = new DiskImageResult(
-            fullImagePath, writeResult.BytesCopied, writeResult.Sha256);
-        return new(image, manifestPath, opened.Descriptor, finalPreflight.Assessment.Warnings);
+            committedImagePath, writeResult.BytesCopied, writeResult.Sha256);
+        return new(image, committedManifestPath, opened.Descriptor, finalPreflight.Assessment.Warnings);
     }
 
     private static string ValidateNewImageDestination(string destinationImagePath)
