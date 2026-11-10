@@ -23,6 +23,68 @@ public sealed class DiskImagerTests
     }
 
     [Fact]
+    public async Task StreamWriterCopiesAndVerifiesThroughTheSameOpenStream()
+    {
+        var bytes = Enumerable.Range(0, 190_000).Select(i => (byte)(i % 241)).ToArray();
+        using var source = new MemorySource(bytes);
+        await using var destination = new MemoryStream();
+
+        var result = await DiskImager.WriteImageAsync(
+            source, destination, chunkSize: 64 * 1024);
+
+        Assert.Equal(bytes.Length, result.BytesCopied);
+        Assert.Equal(Convert.ToHexString(SHA256.HashData(bytes)), result.Sha256);
+        Assert.Equal(bytes, destination.ToArray());
+        Assert.Equal(bytes.Length, destination.Position);
+        Assert.True(destination.CanRead);
+        Assert.Equal(0, source.WriteAttempts);
+    }
+
+    [Fact]
+    public async Task StreamVerifierRestoresPositionAndLeavesStreamOpen()
+    {
+        var bytes = new byte[] { 9, 8, 7, 6, 5 };
+        await using var stream = new MemoryStream(bytes);
+        stream.Position = 2;
+
+        var result = await DiskImageVerifier.VerifyAsync(
+            stream, bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)));
+
+        Assert.True(result.IsValid);
+        Assert.Equal(2, stream.Position);
+        Assert.True(stream.CanRead);
+        Assert.True(stream.CanWrite);
+    }
+
+    [Fact]
+    public async Task StreamWriterRejectsNonEmptyDestinationBeforeReadingSource()
+    {
+        using var source = new MemorySource(new byte[128 * 1024]);
+        await using var destination = new MemoryStream(new byte[] { 1, 2, 3 });
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            DiskImager.WriteImageAsync(source, destination, chunkSize: 64 * 1024));
+
+        Assert.Equal(0, source.ReadAttempts);
+        Assert.Equal(new byte[] { 1, 2, 3 }, destination.ToArray());
+    }
+
+    [Fact]
+    public async Task StreamWriterLeavesFailedPartialForSessionOwnedCleanupWithoutClosingStream()
+    {
+        using var source = new MemorySource(new byte[128 * 1024], failAfterFirstRead: true);
+        await using var destination = new MemoryStream();
+
+        var error = await Assert.ThrowsAsync<IOException>(() =>
+            DiskImager.WriteImageAsync(source, destination, chunkSize: 64 * 1024));
+
+        Assert.Contains("byte offset 65536", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(64 * 1024, destination.Length);
+        Assert.True(destination.CanRead);
+        Assert.True(destination.CanWrite);
+    }
+
+    [Fact]
     public async Task VerifierAcceptsExactLengthAndMatchingSha256()
     {
         var bytes = Enumerable.Range(0, 180_000).Select(i => (byte)(i % 239)).ToArray();
