@@ -423,7 +423,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         }
 
         var finalPath = buffer.ToString();
-        if (finalPath.StartsWith(@"\\?\\", StringComparison.OrdinalIgnoreCase) &&
+        if (finalPath.StartsWith(@"\\?\", StringComparison.OrdinalIgnoreCase) &&
             finalPath.Length > 6 &&
             char.IsAsciiLetter(finalPath[4]) &&
             finalPath[5] == ':')
