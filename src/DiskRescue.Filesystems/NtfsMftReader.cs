@@ -107,6 +107,8 @@ public sealed partial class NtfsMftReader
                 return InvalidOpen("The $MFT mapping pairs are invalid: " + string.Join("; ", runlist.Issues));
             if (runlist.Runs.Count == 0 || runlist.TotalClusters == 0)
                 return InvalidOpen("The $MFT mapping pairs contain no allocated extents.");
+            if (runlist.Runs.Any(run => run.IsSparse))
+                return InvalidOpen("Sparse runs are not supported in the $MFT::$DATA stream.");
             if (runlist.TotalClusters - 1 != data.HighestVcn.Value)
                 return InvalidOpen("$MFT highest VCN does not match the decoded mapping-pairs extent.");
             if (data.InitializedSize.Value > data.RealSize.Value || data.RealSize.Value > data.AllocatedSize.Value)
