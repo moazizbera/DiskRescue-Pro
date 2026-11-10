@@ -375,3 +375,40 @@ These items are additive to the existing implementation checklist. They do not a
 - The workflow file blob is identical on this commit and the previously passing commit `dceeacb75a2f5ee7ef908de79b8654ace4831cb7`.
 - GitHub rejected the API request to re-run this run (HTTP 403: workflow run cannot be retried).
 - A fresh CI run is required before marking the UX validation gate complete. Keep PR #10 in draft; do not merge until the exact latest commit passes.
+
+
+## Current workspace follow-up — 2026-11-10 (PR #16)
+
+This section supersedes older branch/PR snapshots above for the current desktop workspace effort. Historical notes are retained as historical evidence, not as the current project state.
+
+### Current candidate
+
+- Pull request: https://github.com/moazizbera/DiskRescue-Pro/pull/16
+- Branch: `feat/pro-workspace-navigator-inspector`
+- Workspace feature baseline: `5c5c9f07a4bc4659a859b08e6e38f5bfce645875`
+- Follow-up commits: `36415fba75873999cc46b8617ebdac982e2d6fd1` (named map panel), `0615d3b453329ab08285927e36f57f610c30bea4` (compact-height behavior and initial partition focus), and `ef1b8b351e53febf0045c515a83b67597b9f0a74` (CI screenshot fixture).
+- PR #16 remains open; do not treat an earlier green run as validation of these later commits.
+
+### Implemented workspace behavior
+
+- [x] Add an image navigator with the image root and validated MBR/GPT partition nodes.
+- [x] Synchronize navigator and partition-grid selection; selecting a partition updates the inspector and map highlight.
+- [x] Show selected-partition geometry, including table, index, start LBA, byte offset, exclusive end, length, image name, and read-only interpretation.
+- [x] Select the first validated partition after image inspection so the initial workspace has a useful focus. If no validated partition-table entry exists, retain the image root; never promote scan candidates into validated partitions.
+- [x] On short work areas (under 760 logical pixels high), collapse the partition-map panel to preserve usable space for the navigator and inspector. The map remains visible on normal-height work areas.
+- [x] Change the CI screenshot fixture from a lost FAT32 candidate image to a generated valid MBR image, so the screenshot demonstrates a populated partition navigator and inspector. Lost-candidate discovery remains covered by its dedicated generated-image smoke tests.
+
+### Validation evidence and remaining gates
+
+- [x] Baseline commit `5c5c9f07a4bc4659a859b08e6e38f5bfce645875`: Windows CI run [42769291354](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42769291354) passed build, tests, generated-image CLI/recovery smoke tests, WPF build, Windows x64 desktop/CLI publishing, and screenshot capture.
+- [x] Baseline screenshot artifact was downloaded and reviewed. It exposed a cramped workspace and did not demonstrate a populated navigator/selected partition; this prompted the follow-up changes above.
+- [ ] Run full Windows CI on the exact latest PR head after the follow-up commits, including screenshot capture and artifact upload.
+- [ ] Review the new screenshot artifact at the exact latest PR head for readable navigator, selected partition, inspector details, and compact-height layout.
+- [ ] Perform manual Windows interaction tests with generated fixtures: navigator/grid synchronization, partition-map highlight, lost-candidate evidence, NTFS preview, file-entry search, cancellation, and JSON export.
+- [ ] Compare generated fixture SHA-256 values before and after manual interaction tests.
+- [ ] Obtain user-confirmed manual Windows results. Hosted CI is not a substitute for interactive hardware/display validation.
+- [ ] Keep physical-device partition scanning/recovery disabled. No physical HDD test is authorized or claimed.
+
+### Safety boundary
+
+All current validation uses generated disk images. Source images remain read-only. No format, initialize, repair, repartition, partition-table write, or source-media write operation is authorized. Recovery output must remain separate from source storage. A passing build or screenshot does not prove physical HDD recovery capability.
