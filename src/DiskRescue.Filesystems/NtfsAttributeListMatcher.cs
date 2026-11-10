@@ -15,6 +15,7 @@ public enum NtfsAttributeListDiagnosticCode
     AmbiguousRecord,
     SequenceMismatch,
     RecordNotInUse,
+    RecordInUse,
     BaseRecordSequenceMismatch,
     BaseFileReferenceMismatch,
     MalformedRecordAttributes,

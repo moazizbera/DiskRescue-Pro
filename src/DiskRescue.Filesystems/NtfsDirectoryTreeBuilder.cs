@@ -31,7 +31,14 @@ public static class NtfsDirectoryTreeBuilder
             return Invalid("MFT tree input exceeds the 131072-entry safety limit.");
 
         var issues = new List<string>();
-        var canonicalEntries = entries
+        var deletedCount = entries.Count(entry => entry.IsDeleted);
+        if (deletedCount > 0)
+            issues.Add($"Excluded {deletedCount} deleted MFT filename entries from the confirmed directory hierarchy; assess them separately.");
+
+        // Deleted $FILE_NAME references can point to a parent record that has since
+        // been reused. Never attach deleted metadata to the live directory tree.
+        var activeEntries = entries.Where(entry => !entry.IsDeleted).ToArray();
+        var canonicalEntries = activeEntries
             .GroupBy(e => (e.RecordNumber, e.ParentRecordNumber, e.ParentSequenceNumber))
             .SelectMany(group =>
             {

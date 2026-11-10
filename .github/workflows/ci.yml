@@ -31,6 +31,7 @@ jobs:
           ./tools/New-DiskRescueTestImages.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiskRescue-TestImages"
           ./tools/New-NtfsMftPreviewImage.ps1 -OutputPath "$env:RUNNER_TEMP/DiskRescue-TestImages/ntfs-mft-preview.img"
           ./tools/New-LostNtfsPartitionImage.ps1 -OutputPath "$env:RUNNER_TEMP/DiskRescue-TestImages/lost-ntfs-partition.img"
+          ./tools/New-FatPartitionImages.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiskRescue-TestImages"
       - name: Smoke-test CLI against generated fixtures
         shell: pwsh
         run: |
@@ -48,6 +49,14 @@ jobs:
           $lostCandidate = @($discovery.partitionDiscovery.candidates | Where-Object { $_.status -eq "Lost partition candidate" })
           if ($lostCandidate.Count -ne 1 -or $lostCandidate[0].byteOffset -ne 1048576 -or -not $lostCandidate[0].backupBootSectorValid -or $lostCandidate[0].confidence -ne 95) { throw "Lost NTFS partition discovery did not validate the expected candidate." }
           if (-not $discovery.safety.sourceOpenedReadOnly -or $discovery.safety.sourceWriteOperationsAvailable -or $discovery.safety.partitionTableChangesAvailable) { throw "Lost-partition discovery safety assertions failed." }
+          $fat32 = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- discover-fat "$env:RUNNER_TEMP/DiskRescue-TestImages/lost-fat32-partition.img" | ConvertFrom-Json
+          $fat32Candidate = @($fat32.partitionDiscovery.candidates | Where-Object { $_.fileSystem -eq "FAT32" -and $_.status -eq "Lost partition candidate" })
+          if ($fat32Candidate.Count -ne 1 -or $fat32Candidate[0].byteOffset -ne 1048576 -or -not $fat32Candidate[0].backupBootRegionValid -or $fat32Candidate[0].confidence -ne 95) { throw "FAT32 discovery did not return the expected validated candidate." }
+          if (-not $fat32.safety.sourceOpenedReadOnly -or $fat32.safety.sourceWriteOperationsAvailable -or $fat32.safety.partitionTableChangesAvailable -or $fat32.safety.fileRecoveryAvailable) { throw "FAT32 discovery safety assertions failed." }
+          $exfat = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- discover-fat "$env:RUNNER_TEMP/DiskRescue-TestImages/lost-exfat-partition.img" | ConvertFrom-Json
+          $exfatCandidate = @($exfat.partitionDiscovery.candidates | Where-Object { $_.fileSystem -eq "exFAT" -and $_.status -eq "Lost partition candidate" })
+          if ($exfatCandidate.Count -ne 1 -or $exfatCandidate[0].byteOffset -ne 1048576 -or -not $exfatCandidate[0].backupBootRegionValid -or $exfatCandidate[0].confidence -ne 95) { throw "exFAT discovery did not return the expected validated candidate." }
+          if (-not $exfat.safety.sourceOpenedReadOnly -or $exfat.safety.sourceWriteOperationsAvailable -or $exfat.safety.partitionTableChangesAvailable -or $exfat.safety.fileRecoveryAvailable) { throw "exFAT discovery safety assertions failed." }
           $lostPreview = dotnet run --project src/DiskRescue.Cli --configuration Release --no-build -- scan-ntfs "$env:RUNNER_TEMP/DiskRescue-TestImages/lost-ntfs-partition.img" --offset 1048576 --length 65536 --max-records 4 | ConvertFrom-Json
           if ($lostPreview.scan.entries.Count -ne 1 -or $lostPreview.scan.entries[0].name -ne "Report.txt") { throw "Lost NTFS candidate did not produce the expected bounded file preview." }
           $lostRecovered = "$env:RUNNER_TEMP/DiskRescue-TestImages/Report-recovered-from-lost-partition.txt"
@@ -83,6 +92,9 @@ jobs:
           $recoveryExitCode = $LASTEXITCODE
           if ($recoveryExitCode -eq 0) { throw "NTFS extraction unexpectedly overwrote an existing output file." }
           $global:LASTEXITCODE = 0
+      - name: Smoke-test deleted NTFS extraction and recovery manifest
+        shell: pwsh
+        run: ./tools/Test-DeletedNtfsRecovery.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiskRescue-DeletedRecovery-Source" -DestinationDirectory "$env:TEMP/DiskRescue-DeletedRecovery-Destination"
       - name: Smoke-test one-command lost NTFS recovery harness
         shell: pwsh
         run: ./tools/Test-LostNtfsRecovery.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiskRescue-Recovery-Harness"
@@ -90,11 +102,48 @@ jobs:
         run: dotnet build src/DiskRescue.Desktop/DiskRescue.Desktop.csproj --configuration Release --no-restore
       - name: Publish Windows x64 desktop preview
         run: dotnet publish src/DiskRescue.Desktop/DiskRescue.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/DiskRescue-Pro-Desktop-win-x64
+      - name: Capture actual WPF dashboard screenshot
+        shell: pwsh
+        run: |
+          $screenshot = Join-Path $PWD "artifacts/DiskRescue-Pro-Desktop-Screenshot.png"
+          $app = Join-Path $PWD "artifacts/DiskRescue-Pro-Desktop-win-x64/DiskRescue.Desktop.exe"
+          if (-not (Test-Path $app)) { throw "Published DiskRescue desktop executable was not found." }
+          $env:DISKRESCUE_CAPTURE_UI_SCREENSHOT = $screenshot
+          $env:DISKRESCUE_DISCOVERY_SCREENSHOT_IMAGE = Join-Path "$env:RUNNER_TEMP/DiskRescue-TestImages" "lost-fat32-partition.img"
+          if (-not (Test-Path $env:DISKRESCUE_DISCOVERY_SCREENSHOT_IMAGE)) { throw "Synthetic FAT32 screenshot fixture was not generated." }
+          $captureProcess = Start-Process -FilePath $app -PassThru -Wait
+          $captureExitCode = $captureProcess.ExitCode
+          Remove-Item Env:DISKRESCUE_CAPTURE_UI_SCREENSHOT -ErrorAction SilentlyContinue
+          Remove-Item Env:DISKRESCUE_DISCOVERY_SCREENSHOT_IMAGE -ErrorAction SilentlyContinue
+          if ($captureExitCode -ne 0 -or -not (Test-Path $screenshot)) {
+            $diagnostic = if (Test-Path "$screenshot.error.txt") { Get-Content "$screenshot.error.txt" -Raw } else { "No WPF diagnostic file was produced." }
+            throw "The real WPF dashboard screenshot could not be captured (exit $captureExitCode). $diagnostic"
+          }
+          $png = [System.IO.File]::ReadAllBytes($screenshot)
+          if ($png.Length -lt 100 -or $png[0] -ne 137 -or $png[1] -ne 80 -or $png[2] -ne 78 -or $png[3] -ne 71) {
+            throw "The WPF screenshot is not a valid PNG."
+          }
+          Write-Output "Captured actual DiskRescue Pro WPF dashboard screenshot: $screenshot ($($png.Length) bytes)."
+      - name: Upload WPF startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiskRescue-Pro-WPF-Startup-Diagnostics
+          path: |
+            artifacts/DiskRescue-Pro-Desktop-Screenshot.png.error.txt
+            artifacts/DiskRescue-Pro-Desktop-Screenshot.png.trace.txt
+          if-no-files-found: warn
       - name: Upload Windows x64 desktop preview
         uses: actions/upload-artifact@v4
         with:
           name: DiskRescue-Pro-Desktop-win-x64-preview
           path: artifacts/DiskRescue-Pro-Desktop-win-x64/**
+          if-no-files-found: error
+      - name: Upload Windows x64 desktop screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiskRescue-Pro-Desktop-Screenshot
+          path: artifacts/DiskRescue-Pro-Desktop-Screenshot.png
           if-no-files-found: error
       - name: Publish Windows x64 CLI preview
         run: dotnet publish src/DiskRescue.Cli/DiskRescue.Cli.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/DiskRescue-Pro-win-x64

@@ -18,11 +18,20 @@ static int Run(string[] args)
     if (string.Equals(args[0], "discover-ntfs", StringComparison.OrdinalIgnoreCase))
         return RunNtfsDiscovery(args);
 
+    if (string.Equals(args[0], "discover-fat", StringComparison.OrdinalIgnoreCase))
+        return RunFatDiscovery(args);
+
     if (string.Equals(args[0], "scan-ntfs", StringComparison.OrdinalIgnoreCase))
         return RunNtfsScan(args);
 
     if (string.Equals(args[0], "extract-ntfs-file", StringComparison.OrdinalIgnoreCase))
         return RunNtfsExtract(args);
+
+    if (string.Equals(args[0], "extract-deleted-ntfs-file", StringComparison.OrdinalIgnoreCase))
+        return RunNtfsDeletedExtract(args);
+
+    if (string.Equals(args[0], "reconcile-deleted-ntfs-export", StringComparison.OrdinalIgnoreCase))
+        return RunDeletedExportReconciliation(args);
 
     if (string.Equals(args[0], "image-copy", StringComparison.OrdinalIgnoreCase))
         return RunImageCopy(args);
@@ -266,6 +275,104 @@ static int RunNtfsDiscovery(string[] args)
     catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
     {
         Console.Error.WriteLine($"NTFS partition discovery stopped safely: {exception.Message}");
+        return 1;
+    }
+}
+
+static int RunFatDiscovery(string[] args)
+{
+    if (args.Length < 2)
+    {
+        Console.Error.WriteLine("Usage: diskrescue discover-fat <image-file> [--sector-size <bytes>] [--max-scan-bytes <bytes>]");
+        return 2;
+    }
+
+    var sectorSize = 512;
+    long? maximumScanBytes = null;
+    for (var i = 2; i < args.Length; i++)
+    {
+        if (i + 1 >= args.Length)
+        {
+            Console.Error.WriteLine($"Missing value for {args[i]}.");
+            return 2;
+        }
+
+        var option = args[i];
+        var value = args[++i];
+        switch (option)
+        {
+            case "--sector-size" when int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedSectorSize):
+                sectorSize = parsedSectorSize;
+                break;
+            case "--max-scan-bytes" when long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedMaximum):
+                maximumScanBytes = parsedMaximum;
+                break;
+            default:
+                Console.Error.WriteLine($"Unknown or invalid option: {option} {value}");
+                return 2;
+        }
+    }
+
+    if (sectorSize is not (512 or 1024 or 2048 or 4096) ||
+        (maximumScanBytes.HasValue && maximumScanBytes.Value <= 0))
+    {
+        Console.Error.WriteLine("Sector size must be 512, 1024, 2048, or 4096; scan limit must be positive.");
+        return 2;
+    }
+
+    try
+    {
+        using var image = FileImageReader.Open(args[1]);
+        var mbr = MbrParser.Parse(image, sectorSize);
+        var gpt = GptParser.ParsePrimaryAndBackup(image, checked((uint)sectorSize));
+        var known = new List<KnownPartitionRange>();
+        for (var i = 0; i < mbr.Partitions.Count; i++)
+            known.Add(new("MBR", i + 1, mbr.Partitions[i].ByteOffset, mbr.Partitions[i].ByteLength));
+
+        var selectedGpt = gpt.Primary.HeaderValid ? gpt.Primary : gpt.Backup;
+        for (var i = 0; i < selectedGpt.Partitions.Count; i++)
+            known.Add(new("GPT", i + 1, selectedGpt.Partitions[i].ByteOffset, selectedGpt.Partitions[i].ByteLength));
+
+        var result = FatPartitionScanner.Scan(image, sectorSize, known,
+            maximumScanBytes ?? image.Length);
+        var report = new
+        {
+            product = "DiskRescue Pro",
+            reportVersion = 1,
+            mode = "read-only-fat32-exfat-partition-discovery",
+            source = new { fileName = Path.GetFileName(args[1]), lengthBytes = image.Length, logicalSectorSizeBytes = sectorSize },
+            safety = new
+            {
+                sourceOpenedReadOnly = true,
+                physicalDevicesSupported = false,
+                sourceWriteOperationsAvailable = false,
+                partitionTableChangesAvailable = false,
+                fileRecoveryAvailable = false
+            },
+            partitionDiscovery = new
+            {
+                candidates = result.Candidates.Select(candidate => new
+                {
+                    fileSystem = candidate.FileSystem,
+                    byteOffset = candidate.ByteOffset,
+                    byteLength = candidate.ByteLength,
+                    status = candidate.Status,
+                    backupBootRegionValid = candidate.BackupBootRegionValid,
+                    confidence = candidate.Confidence,
+                    evidence = candidate.Evidence
+                }),
+                bytesScanned = result.BytesScanned,
+                totalBytes = result.TotalBytes,
+                wasCancelled = result.WasCancelled,
+                issues = result.Issues
+            }
+        };
+        Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+        return result.WasCancelled ? 130 : 0;
+    }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+    {
+        Console.Error.WriteLine($"FAT32/exFAT partition discovery stopped safely: {exception.Message}");
         return 1;
     }
 }
@@ -581,6 +688,311 @@ static int RunNtfsExtract(string[] args)
 }
 
 
+static int RunNtfsDeletedExtract(string[] args)
+{
+    if (args.Length < 2)
+    {
+        Console.Error.WriteLine("Usage: diskrescue extract-deleted-ntfs-file <image> --offset <bytes> --length <bytes> --record <number> --output <new-file> --max-bytes <bytes> [--stream-name <name>]");
+        return 2;
+    }
+
+    var imagePath = args[1];
+    long? volumeOffset = null;
+    long? volumeLength = null;
+    ulong? recordNumber = null;
+    ulong? maximumBytes = null;
+    string? outputPath = null;
+    var streamName = string.Empty;
+    var sectorSize = 512;
+
+    for (var i = 2; i < args.Length; i++)
+    {
+        if (i + 1 >= args.Length)
+        {
+            Console.Error.WriteLine($"Missing value for {args[i]}.");
+            return 2;
+        }
+
+        var option = args[i];
+        var value = args[++i];
+        switch (option)
+        {
+            case "--offset" when long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var offset):
+                volumeOffset = offset;
+                break;
+            case "--length" when long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var length):
+                volumeLength = length;
+                break;
+            case "--record" when ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedRecord):
+                recordNumber = parsedRecord;
+                break;
+            case "--max-bytes" when ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedMaximum):
+                maximumBytes = parsedMaximum;
+                break;
+            case "--output" when !string.IsNullOrWhiteSpace(value):
+                outputPath = value;
+                break;
+            case "--stream-name":
+                streamName = value;
+                break;
+            case "--sector-size" when int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedSectorSize):
+                sectorSize = parsedSectorSize;
+                break;
+            default:
+                Console.Error.WriteLine($"Unknown or invalid option: {option} {value}");
+                return 2;
+        }
+    }
+
+    if (volumeOffset is null || volumeLength is null || volumeOffset < 0 || volumeLength <= 0 ||
+        recordNumber is null || maximumBytes is null || outputPath is null)
+    {
+        Console.Error.WriteLine("Provide --offset, --length, --record, --output, and an explicit --max-bytes limit.");
+        return 2;
+    }
+    if (sectorSize is not (512 or 1024 or 2048 or 4096))
+    {
+        Console.Error.WriteLine("NTFS sector size must be 512, 1024, 2048, or 4096 bytes.");
+        return 2;
+    }
+
+    string? temporaryPath = null;
+    string? temporaryManifestPath = null;
+    string? manifestPath = null;
+    try
+    {
+        var fullImagePath = Path.GetFullPath(imagePath);
+        var fullOutputPath = Path.GetFullPath(outputPath);
+        if (string.Equals(fullImagePath, fullOutputPath, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Recovery output must not overwrite the source image.");
+
+        var destinationDirectory = Path.GetDirectoryName(fullOutputPath);
+        if (string.IsNullOrEmpty(destinationDirectory) || !Directory.Exists(destinationDirectory))
+            throw new DirectoryNotFoundException("Recovery output directory must already exist.");
+        if (File.Exists(fullOutputPath) || Directory.Exists(fullOutputPath))
+            throw new IOException("Recovery output already exists; existing files are never overwritten.");
+        manifestPath = fullOutputPath + ".recovery.json";
+        if (File.Exists(manifestPath) || Directory.Exists(manifestPath))
+            throw new IOException("Recovery manifest already exists; existing files are never overwritten.");
+
+        if (!OperatingSystem.IsWindows())
+            throw new IOException("Deleted-image export requires Windows physical-volume mapping to verify a separate destination disk.");
+        if (maximumBytes.Value > long.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(maximumBytes), "Maximum export size exceeds supported destination-capacity checks.");
+
+        var sourceInfo = new FileInfo(fullImagePath);
+        var sourceLastWriteTimeUtc = sourceInfo.LastWriteTimeUtc;
+        var initialVolumeMap = WindowsPhysicalDiskVolumeMap.Enumerate();
+        var initialDestinationAssessment = PhysicalImageDestinationSafety.AssessForImageFile(
+            fullImagePath, fullOutputPath, initialVolumeMap, (long)maximumBytes.Value);
+        if (!initialDestinationAssessment.CanUseAsSeparateDestination)
+            throw new IOException("Recovery destination is not verified as physically separate from the source image: " +
+                string.Join("; ", initialDestinationAssessment.Blockers));
+
+        using var image = FileImageReader.Open(fullImagePath);
+        var boot = NtfsBootSectorParser.Parse(image, volumeOffset.Value, volumeLength.Value);
+        if (!boot.IsValid || boot.BootSector is null)
+            throw new IOException("NTFS boot-sector validation failed: " + string.Join("; ", boot.Issues));
+        if (boot.BootSector.BytesPerSector != sectorSize)
+            throw new IOException($"Requested sector size {sectorSize} does not match NTFS BPB value {boot.BootSector.BytesPerSector}.");
+
+        var opened = NtfsMftReader.Open(image, volumeOffset.Value, volumeLength.Value, boot.BootSector);
+        if (!opened.IsValid || opened.Reader is null)
+            throw new IOException("NTFS MFT validation failed: " + string.Join("; ", opened.Issues));
+
+        using var temporaryLease = DeletedRecoveryTemporaryFileLease.Create(destinationDirectory);
+        temporaryPath = temporaryLease.OutputPath;
+        using var cancellation = new CancellationTokenSource();
+        ConsoleCancelEventHandler handler = (_, eventArgs) =>
+        {
+            eventArgs.Cancel = true;
+            cancellation.Cancel();
+        };
+        Console.CancelKeyPress += handler;
+        try
+        {
+            NtfsDeletedDataStreamCopyOperationResult copied;
+            ulong bytesWritten;
+            using (var destination = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write,
+                FileShare.None, 1024 * 1024, FileOptions.SequentialScan))
+            {
+                var progress = new Progress<ulong>(bytes => Console.Write($"\rDeleted-data read: {bytes:N0} bytes"));
+                copied = opened.Reader.CopyDeletedDataStreamTo(
+                    recordNumber.Value, destination, maximumBytes.Value, streamName, cancellation.Token, progress);
+                if (!copied.IsValid || copied.Copy is null || !copied.Copy.IsValid)
+                    throw new IOException("Deleted-stream recovery was refused or failed: " +
+                        string.Join("; ", copied.Issues.Concat(copied.Assessment?.Warnings ?? Array.Empty<string>())));
+                bytesWritten = copied.Copy.BytesWritten;
+                destination.Flush(true);
+            }
+
+            cancellation.Token.ThrowIfCancellationRequested();
+            string sha256;
+            using (var verification = File.OpenRead(temporaryPath))
+                sha256 = Convert.ToHexString(SHA256.HashData(verification));
+            cancellation.Token.ThrowIfCancellationRequested();
+
+            var deletedAssessment = copied.Assessment!;
+            var sourceInfoAfterRead = new FileInfo(fullImagePath);
+            sourceInfoAfterRead.Refresh();
+            if (sourceInfoAfterRead.Length != image.Length ||
+                sourceInfoAfterRead.LastWriteTimeUtc != sourceLastWriteTimeUtc)
+                throw new IOException("Source image length or last-write timestamp changed during recovery; refusing to publish output and manifest.");
+
+            var manifest = new
+            {
+                product = "DiskRescue Pro",
+                manifestVersion = 1,
+                operation = "bounded-deleted-ntfs-data-stream-export",
+                createdAtUtc = DateTimeOffset.UtcNow,
+                source = new
+                {
+                    fileName = Path.GetFileName(fullImagePath),
+                    fullPath = fullImagePath,
+                    lengthBytes = image.Length,
+                    lastWriteTimeUtcBeforeRead = sourceLastWriteTimeUtc,
+                    lastWriteTimeUtcAfterRead = sourceInfoAfterRead.LastWriteTimeUtc,
+                    volumeOffsetBytes = volumeOffset.Value,
+                    volumeLengthBytes = volumeLength.Value,
+                    logicalSectorSizeBytes = sectorSize
+                },
+                deletedFile = new
+                {
+                    mftRecordNumber = recordNumber.Value,
+                    streamName,
+                    metadataAssessment = deletedAssessment.Metadata.MetadataStatus.ToString(),
+                    preflightStatus = deletedAssessment.Status.ToString(),
+                    clusterAllocation = deletedAssessment.ClusterAllocation?.Status.ToString() ?? "NotApplicableResidentStream"
+                },
+                dataStream = new
+                {
+                    isResident = deletedAssessment.IsResident,
+                    lengthBytes = deletedAssessment.Length,
+                    initializedSizeBytes = deletedAssessment.InitializedSize,
+                    clusterSizeBytes = boot.BootSector.ClusterSizeBytes,
+                    physicalRunCount = deletedAssessment.Runs.Count,
+                    physicalRuns = deletedAssessment.Runs.Select(run => new
+                    {
+                        startingVcn = run.StartingVcn,
+                        clusterCount = run.ClusterCount,
+                        startingLcn = run.StartingLcn
+                    })
+                },
+                export = new
+                {
+                    fileName = Path.GetFileName(fullOutputPath),
+                    fullPath = fullOutputPath,
+                    bytesWritten,
+                    maximumBytes = maximumBytes.Value,
+                    sha256,
+                    contentIntegrityVerified = false,
+                    sha256Meaning = "Hash of exported bytes only; not an original-file hash or proof of content integrity."
+                },
+                safety = new
+                {
+                    sourceOpenedReadOnly = true,
+                    sourceWriteOperationsAvailable = false,
+                    sourceContentHashCompared = false,
+                    contentIntegrityVerified = false,
+                    physicalDiskRecoveryValidated = false
+                },
+                warnings = deletedAssessment.Warnings.Concat(new[]
+                {
+                    "Source length and last-write timestamp were compared before publication; this is not a stable snapshot guarantee and cannot rule out writes through a handle that was already open."
+                }).ToArray()
+            };
+            var manifestBytes = JsonSerializer.SerializeToUtf8Bytes(manifest,
+                new JsonSerializerOptions { WriteIndented = true });
+            temporaryManifestPath = temporaryLease.ManifestPath;
+            using (var manifestStream = new FileStream(temporaryManifestPath, FileMode.CreateNew,
+                FileAccess.Write, FileShare.None, 16 * 1024, FileOptions.SequentialScan))
+            {
+                manifestStream.Write(manifestBytes);
+                manifestStream.Flush(true);
+            }
+
+            cancellation.Token.ThrowIfCancellationRequested();
+            var publicationVolumeMap = WindowsPhysicalDiskVolumeMap.Enumerate();
+            var publicationDestinationAssessment = PhysicalImageDestinationSafety.AssessForImageFile(
+                fullImagePath, fullOutputPath, publicationVolumeMap, (long)maximumBytes.Value);
+            if (!publicationDestinationAssessment.CanUseAsSeparateDestination)
+                throw new IOException("Recovery destination failed its final physical-separation check: " +
+                    string.Join("; ", publicationDestinationAssessment.Blockers));
+
+            DeletedRecoveryOutputPublisher.PublishPair(
+                temporaryPath!, fullOutputPath, temporaryManifestPath!, manifestPath!);
+            temporaryPath = null;
+            temporaryManifestPath = null;
+
+            Console.WriteLine();
+            Console.WriteLine($"Recovered output: {fullOutputPath}");
+            Console.WriteLine($"Recovery manifest: {manifestPath}");
+            Console.WriteLine($"Bytes written: {bytesWritten:N0}");
+            Console.WriteLine($"SHA-256 of exported bytes: {sha256}");
+            Console.WriteLine($"MFT record: {recordNumber.Value}");
+            Console.WriteLine($"Metadata assessment: {deletedAssessment.Metadata.MetadataStatus}");
+            Console.WriteLine($"Cluster allocation: {deletedAssessment.ClusterAllocation?.Status.ToString() ?? "not applicable (resident stream)"}");
+            Console.WriteLine("Content integrity verified: false");
+            Console.WriteLine("The export hash identifies this output only; it is not an original-file integrity check.");
+            foreach (var warning in deletedAssessment.Warnings)
+                Console.WriteLine("WARNING: " + warning);
+            return 0;
+        }
+        finally
+        {
+            Console.CancelKeyPress -= handler;
+        }
+    }
+    catch (OperationCanceledException)
+    {
+        Console.Error.WriteLine("\nDeleted-file read cancelled; incomplete output was discarded when possible.");
+        return 130;
+    }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+    {
+        Console.Error.WriteLine($"Deleted-file read stopped safely: {exception.Message}");
+        return 1;
+    }
+    finally
+    {
+        if (temporaryPath is not null)
+        {
+            try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+        if (temporaryManifestPath is not null)
+        {
+            try { if (File.Exists(temporaryManifestPath)) File.Delete(temporaryManifestPath); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+}
+
+static int RunDeletedExportReconciliation(string[] args)
+{
+    if (args.Length != 2)
+    {
+        Console.Error.WriteLine("Usage: diskrescue reconcile-deleted-ntfs-export <pending-manifest.partial>");
+        return 2;
+    }
+
+    try
+    {
+        var finalManifest = DeletedRecoveryReconciler.FinalizePendingManifest(args[1]);
+        Console.WriteLine("Interrupted deleted-file export finalized after verifying the output length and SHA-256.");
+        Console.WriteLine($"Recovery manifest: {finalManifest}");
+        Console.WriteLine("The SHA-256 verifies the exported bytes against the pending manifest only; original content integrity remains unverified.");
+        return 0;
+    }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException or System.Text.Json.JsonException or InvalidOperationException)
+    {
+        Console.Error.WriteLine($"Reconciliation stopped safely; pending evidence was preserved when possible: {exception.Message}");
+        return 1;
+    }
+}
+
 static int RunPhysicalDiskInventory(string[] args)
 {
     if (args.Length != 1)
@@ -721,18 +1133,25 @@ static void PrintUsage()
     Console.WriteLine("  diskrescue list-physical-disks");
     Console.WriteLine("  diskrescue acquire-physical <disk-number> <exact-serial> <new-destination-image>");
     Console.WriteLine("  diskrescue discover-ntfs <image-file> [--sector-size <bytes>] [--max-scan-bytes <bytes>]");
+    Console.WriteLine("  diskrescue discover-fat <image-file> [--sector-size <bytes>] [--max-scan-bytes <bytes>]");
     Console.WriteLine("  diskrescue scan-ntfs <image-file> --offset <bytes> --length <bytes> [--sector-size <bytes>] [--max-records <count>]");
     Console.WriteLine("  diskrescue extract-ntfs-file <image-file> --offset <bytes> --length <bytes> --record <number> --output <new-file> --max-bytes <bytes> [--stream-name <name>]");
+    Console.WriteLine("  diskrescue extract-deleted-ntfs-file <image-file> --offset <bytes> --length <bytes> --record <number> --output <new-file> --max-bytes <bytes> [--stream-name <name>]");
+    Console.WriteLine("  diskrescue reconcile-deleted-ntfs-export <pending-manifest.partial>");
     Console.WriteLine();
     Console.WriteLine("Examples:");
     Console.WriteLine("  diskrescue inspect sample.img");
     Console.WriteLine("  diskrescue discover-ntfs lost-partition.img");
+    Console.WriteLine("  diskrescue discover-fat lost-fat-partition.img");
     Console.WriteLine("  diskrescue inspect sample-4kn.img --sector-size 4096");
     Console.WriteLine("  diskrescue scan-ntfs sample.img --offset 1048576 --length 1073741824 --max-records 5000");
     Console.WriteLine();
     Console.WriteLine("image-copy copies a regular image file to a new destination and prints SHA-256.");
-    Console.WriteLine("inspect, image-copy, discover-ntfs, scan-ntfs, and extract-ntfs-file operate on regular image files.");
+    Console.WriteLine("inspect, image-copy, discover-ntfs, discover-fat, scan-ntfs, and extract-ntfs-file operate on regular image files.");
     Console.WriteLine("list-physical-disks performs metadata-only Windows discovery. acquire-physical is experimental, guarded, and Windows-only.");
+    Console.WriteLine("discover-fat performs bounded read-only FAT32/exFAT candidate discovery; it does not repair or recover files.");
     Console.WriteLine("NTFS scan returns a bounded partial MFT and directory-tree preview, not file recovery.");
-    Console.WriteLine("extract-ntfs-file exports one validated resident or single-extent data stream to a new file; multi-extent, compressed, and encrypted streams are unsupported.");
+    Console.WriteLine("extract-ntfs-file exports one validated live data stream to a new file.");
+    Console.WriteLine("extract-deleted-ntfs-file requires deleted metadata and $Bitmap preflight; it exports only bounded, currently-free, supported streams and never claims content integrity.");
+    Console.WriteLine("reconcile-deleted-ntfs-export finalizes an interrupted export only after matching the pending manifest, output length, and exported-byte SHA-256; it never overwrites existing files.");
 }
