@@ -57,6 +57,12 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
     public PhysicalDestinationDirectoryIdentity DirectoryIdentity { get; }
     public string VolumeGuidPath { get; }
 
+    public string GetCurrentDirectoryPath()
+    {
+        ThrowIfDisposed();
+        return QueryCurrentDirectoryPath(_directoryHandle);
+    }
+
     /// <summary>
     /// Opens a local drive-letter directory without following any reparse-point
     /// component. UNC paths, mapped/network drives, and volume mount-point components
@@ -397,6 +403,38 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
                 _directoryHandle.DangerousRelease();
             Marshal.FreeHGlobal(buffer);
         }
+    }
+
+    private static string QueryCurrentDirectoryPath(SafeFileHandle handle)
+    {
+        const uint VolumeNameDos = 0x00000000;
+        var buffer = new StringBuilder(1024);
+        var required = GetFinalPathNameByHandleW(
+            handle, buffer, checked((uint)buffer.Capacity), VolumeNameDos);
+        if (required == 0)
+            ThrowLastWin32IOException("Could not resolve the current path of the pinned destination directory");
+        if (required >= buffer.Capacity)
+        {
+            buffer = new StringBuilder(checked((int)required + 1));
+            required = GetFinalPathNameByHandleW(
+                handle, buffer, checked((uint)buffer.Capacity), VolumeNameDos);
+            if (required == 0 || required >= buffer.Capacity)
+                ThrowLastWin32IOException("Could not read the complete current path of the pinned destination directory");
+        }
+
+        var finalPath = buffer.ToString();
+        if (finalPath.StartsWith(@"\\?\\", StringComparison.OrdinalIgnoreCase) &&
+            finalPath.Length > 6 &&
+            char.IsAsciiLetter(finalPath[4]) &&
+            finalPath[5] == ':')
+        {
+            return finalPath[4..];
+        }
+
+        if (finalPath.StartsWith(@"\\?\Volume{", StringComparison.OrdinalIgnoreCase))
+            return finalPath;
+
+        throw new IOException("The pinned destination directory no longer resolves to a supported local volume path.");
     }
 
     private static string QueryVolumeGuidPath(SafeFileHandle handle)
