@@ -1,3 +1,28 @@
+# Current status update — 2026-11-10 (native Windows session CI evidence)
+
+## Native adapter validation
+
+- [x] Windows build passed in CI #1266 at `a2419efe42f515834be6270134c71950e90e1d93`.
+- [x] All 361 tests in the Windows test project passed in CI #1266; one pre-existing disposable-VHDX test was skipped by its opt-in guard.
+- [x] Generated fixture, CLI discovery/extraction/recovery smoke tests passed.
+- [x] WPF build, Windows x64 desktop preview publish, dashboard screenshot capture, and CLI preview publish passed in CI #1266.
+- [x] Follow-up CI #1267 at `1b6de65d12909768f2ad6a2141370c259c957159` passed build, test, generated-fixture checks, CLI/recovery smoke tests, and WPF build; preview publication was still running at last inspection.
+- [ ] Latest code head `32beebebff094ff98acacfac0efb86432ebe0aed` is under CI #1268: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42878590558. This commit adds explicit SafeFileHandle disposal alongside FileStream disposal; do not mark it validated until this exact-head run finishes.
+- [x] The first Win32 rename attempt was rejected by the Windows runner with error 87. The adapter now uses `NtSetInformationFile(FileRenameInformation)`; CI #1266's native publish/no-replace tests passed with that native operation.
+- [ ] No production coordinator integration.
+- [ ] No destination volume-to-physical-disk reconciliation.
+- [ ] No mount-point, junction, UNC, network, or volume-GUID support; unsupported paths remain fail-closed.
+- [ ] No independent security review or broad Windows/filesystem compatibility matrix yet.
+- [ ] Public physical acquisition remains disabled; no physical HDD was opened or read.
+
+## Exact links
+
+- CI #1266: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42878437053
+- CI #1267: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42878535527
+- CI #1268: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42878590558
+
+---
+
 # Current status update — 2026-11-10 (native Windows session first implementation slice)
 
 ## Native adapter work now present on PR #30
