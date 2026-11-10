@@ -56,11 +56,13 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
         try
         {
             await using var session = WindowsPhysicalAcquisitionDestinationSession.Open(original);
+            Assert.Equal(Path.GetFullPath(original), session.GetCurrentDirectoryPath(), StringComparer.OrdinalIgnoreCase);
 
             // The open directory handle allows rename/delete sharing. Replacing the
-            // textual path must not redirect subsequent relative creates.
+            // textual path must not redirect subsequent relative creates or path reporting.
             Directory.Move(original, moved);
             Directory.CreateDirectory(original);
+            Assert.Equal(Path.GetFullPath(moved), session.GetCurrentDirectoryPath(), StringComparer.OrdinalIgnoreCase);
 
             var stream = await session.CreateNewFileAsync("pinned.bin");
             await stream.WriteAsync(new byte[] { 1, 2, 3 });
