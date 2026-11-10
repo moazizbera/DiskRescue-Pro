@@ -9,7 +9,7 @@
   <Setter Property="Template">
     <Setter.Value>
       <ControlTemplate TargetType="{x:Type Control}">
-        <Border BorderBrush="{StaticResource Accent}" BorderThickness="2"
+        <Border BorderBrush="#31C5D8" BorderThickness="2"
                 CornerRadius="4" Background="Transparent">
           <AdornedElementPlaceholder/>
         </Border>
