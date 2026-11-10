@@ -136,6 +136,13 @@ internal static class PhysicalDiskAcquisitionCoordinator
         // already inspected by destination preflight. A changed path cannot silently
         // redirect output to another volume.
         await using var destinationSession = environment.OpenDestinationSession(destinationDirectory);
+        var requestedDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationDirectory));
+        var pinnedDirectory = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(destinationSession.GetCurrentDirectoryPath()));
+        if (!string.Equals(requestedDirectory, pinnedDirectory, StringComparison.OrdinalIgnoreCase))
+            throw new IOException(
+                "The destination directory path no longer resolves to the directory object pinned by the session. No source sectors were read.");
+
         var pinnedMappingIssues = PhysicalImageDestinationSafety.ValidatePinnedDestinationVolume(
             selected.DiskNumber,
             destinationSession.VolumeGuidPath,
