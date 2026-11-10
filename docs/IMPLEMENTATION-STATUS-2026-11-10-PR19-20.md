@@ -23,6 +23,13 @@
   - Exact-head Windows CI: [run 42842659373](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42842659373) — successful.
   - Post-merge mainline Windows CI: [run 42843013119](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42843013119) — successful.
 - [x] Readiness checklist refreshed after PR #26; documentation CI: [run 42843039280](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42843039280) — successful.
+- [x] PR #27 — correct and refresh the HDD readiness checklist evidence after PR #26.
+  - Merge commit: `0da658cae1989e17d7e2dfa613e287c8fb31452a`.
+  - Exact-head Windows CI: [run 42853084992](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42853084992) — successful.
+- [x] PR #28 — internalize the raw physical-disk reader and acquisition environment so external callers cannot pass a public physical source directly to the generic image writer; add an exported-public-API regression test.
+  - Merge commit: `3cbea6a80b766dadc0d2c713c68d6aeb51d239da`.
+  - Exact-head Windows CI: [run 42853278051](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42853278051) — all 19 steps successful, including build, tests, generated fixtures, NTFS recovery smoke tests, WPF build, Windows x64 desktop/CLI publishing, and dashboard screenshot capture.
+  - Post-merge mainline CI: pending; do not treat exact-head CI as post-merge evidence.
 - [ ] Issue #23 — pin and revalidate acquisition destination filesystem identity. Code-path review confirms image and manifest creation, verification, and publication remain path-based after the final pre-read check. A handle-bound destination session is required; no partial path-only mitigation is accepted. See [Issue #23](https://github.com/moazizbera/DiskRescue-Pro/issues/23).
 - [x] Actual WPF dashboard screenshot captured and uploaded. Capture success is automated evidence; human visual review and manual Windows interaction remain separate acceptance activities.
 
