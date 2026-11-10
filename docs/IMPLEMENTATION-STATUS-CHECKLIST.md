@@ -14,9 +14,9 @@ This is the authoritative mainline snapshot. Historical branch notes below are r
 
 ## Current mainline validation
 
-- Main branch head: `5811494bf8e9b10f90b08ef810bc79854a1a0346`.
-- PR #14 exact head `5f34907da2683f9449ff27797b81dbe11f2efd7e): Windows CI [#42765242075](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42765242075) passed.
-- Post-merge mainline CI [#42765478069](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42765478069) is running at this snapshot.
+- Mainline code merge commit: `5811494bf8e9b10f90b08ef810bc79854a1a0346`.
+- PR #14 exact head `5f34907da2683f9449ff27797b81dbe11f2efd7e`: Windows CI [#42765242075](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42765242075) passed.
+- Post-merge mainline CI [#42765478069](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42765478069) passed.
 - All pull requests in the integration chain are closed; no open PRs remain at this snapshot.
 
 ## Current checklist
