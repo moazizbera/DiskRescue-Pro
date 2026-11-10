@@ -167,8 +167,9 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
 
         public PhysicalDestinationDirectoryIdentity DirectoryIdentity =>
             InvalidDirectoryIdentity
-                ? new(@"\\?\Volume{fake-session}\", 0, 0)
-                : new(@"\\?\Volume{fake-session}\", 1, 2);
+                ? new("WINVOL:FAKE", 0, 0)
+                : new("WINVOL:FAKE", 1, 2);
+        public string VolumeGuidPath => @"\\?\Volume{00000000-0000-0000-0000-000000000001}\";
         public bool InvalidDirectoryIdentity { get; init; }
         public bool FirstFileOnDifferentVolume { get; init; }
         public bool FirstFileWithoutId { get; init; }
