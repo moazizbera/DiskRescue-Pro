@@ -1,8 +1,8 @@
 # DiskRescue Pro — Implementation and Release Checklist
 
-# Current status update — 2026-11-10 (mainline integration)
+# Current status update — 2026-11-10 (mainline integration merged)
 
-This is the authoritative status snapshot for the current integration sequence. Historical notes below are retained for traceability and may describe earlier branch states.
+This is the authoritative mainline snapshot. Historical branch notes below are retained for traceability and may describe earlier states.
 
 ## Mainline merges verified
 
@@ -10,27 +10,26 @@ This is the authoritative status snapshot for the current integration sequence. 
 - PR #4 — read-only NTFS lost-partition discovery for regular image files; merge commit `4c3f260b1e943fc487a99f395193a5a5e62969ef`.
 - PR #12 — guarded read-only physical-disk imaging foundation; merge commit `3912d6b3bdc9af4bc093a055f1d0b301842b2e36`.
 - PR #13 — opt-in disposable-VHDX safety smoke harness; merge commit `b73e7c8ae922f374d49c7f0c89c7d1272f201bb8`.
+- PR #14 — desktop redesign, visual partition map, FAT32/exFAT discovery, bounded deleted-NTFS export, and multi-file recovery queue; merge commit `5811494bf8e9b10f90b08ef810bc79854a1a0346`.
 
-## Current integration candidate
+## Current mainline validation
 
-- PR #14: [Desktop inspection, FAT/exFAT discovery, and deleted-file recovery queue](https://github.com/moazizbera/DiskRescue-Pro/pull/14).
-- Branch: `feat/desktop-recovery-queue-mainline`.
-- Combined implementation commit `1e7436aacc81de6f1e9c5f2dec988a6ffc0fda8f` passed Windows CI run [#42764809834](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42764809834), including build, tests, generated-fixture smoke checks, and Windows publish stages.
-- The checklist refresh is documentation-only; its latest branch head has a separate Windows CI run in progress. Do not treat the branch as merged or release-ready until that exact head passes.
-- Includes the screen-aware WPF redesign, visual partition map, FAT32/exFAT discovery, deleted-NTFS safety assessment/export, and multi-file queue with per-file states, progress, cancellation, and destination checks.
+- Main branch head: `5811494bf8e9b10f90b08ef810bc79854a1a0346`.
+- PR #14 exact head `5f34907da2683f9449ff27797b81dbe11f2efd7e): Windows CI [#42765242075](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42765242075) passed.
+- Post-merge mainline CI [#42765478069](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42765478069) is running at this snapshot.
+- All pull requests in the integration chain are closed; no open PRs remain at this snapshot.
 
 ## Current checklist
 
 - [x] Read-only regular image inspection, MBR/GPT validation, and backup-GPT checks.
 - [x] Bounded NTFS lost-partition discovery with backup-boot-sector corroboration and generated fixtures.
 - [x] Bounded in-memory MFT extent-map validation; continuation-record acquisition and full reader integration remain separate work.
-- [x] FAT32/exFAT discovery and backup-region validation in the current integration candidate.
-- [x] Candidate overlap classification, evidence/confidence reporting, and visual partition map in the current integration candidate.
-- [x] Physical-disk discovery and read-only image acquisition foundation; Windows CI passed.
-- [x] Fail-closed source/destination preflight, separate-volume checks, image verification, and manifest publication.
-- [x] Opt-in disposable-VHDX smoke harness; Windows CI passed.
+- [x] FAT32/exFAT discovery and backup-region validation.
+- [x] Candidate overlap classification, evidence/confidence reporting, visual partition map, and candidate comparison.
+- [x] Physical-disk discovery and guarded read-only image acquisition with fail-closed source/destination preflight.
+- [x] Disposable-VHDX policy smoke coverage and opt-in Windows harness.
 - [x] Deleted-NTFS assessment and bounded export safeguards with manifest/hash publication.
-- [x] Multi-file deleted-file queue implementation with per-file status, aggregate progress, cancellation, and safe failure handling; current combined CI pending.
+- [x] Multi-file deleted-file queue with per-file status, sequential progress, cancellation, and safe failure isolation.
 - [ ] P0: Manual Windows desktop smoke test using generated disposable images: partition map, candidate comparison, NTFS file search, queue, cancellation, and JSON report.
 - [ ] P0: Positive deleted-file export on supported Windows storage exposing complete physical identity metadata. Hosted CI intentionally fails closed where that metadata is unavailable.
 - [ ] P1: Run the opt-in VHDX harness on a disposable Windows VHDX host; not claimed as executed.
