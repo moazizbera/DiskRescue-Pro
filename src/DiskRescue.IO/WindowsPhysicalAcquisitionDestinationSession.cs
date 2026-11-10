@@ -347,7 +347,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         }
     }
 
-    private static void RenameRelativeNoReplace(SafeFileHandle fileHandle, string finalLeafName)
+    private void RenameRelativeNoReplace(SafeFileHandle fileHandle, string finalLeafName)
     {
         var nameBytes = System.Text.Encoding.Unicode.GetBytes(finalLeafName);
         var rootOffset = IntPtr.Size;
@@ -361,7 +361,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
                 Marshal.WriteByte(buffer, i, 0);
 
             Marshal.WriteByte(buffer, 0, 0); // ReplaceIfExists = FALSE.
-            _ = _directoryHandle.DangerousAddRef(ref addRef);
+            _directoryHandle.DangerousAddRef(ref addRef);
             Marshal.WriteIntPtr(buffer, rootOffset, _directoryHandle.DangerousGetHandle());
             Marshal.WriteInt32(buffer, lengthOffset, nameBytes.Length);
             Marshal.Copy(nameBytes, 0, IntPtr.Add(buffer, nameOffset), nameBytes.Length);
