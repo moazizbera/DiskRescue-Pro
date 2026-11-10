@@ -84,6 +84,49 @@ public sealed class PhysicalImageDestinationSafetyTests
         Assert.Empty(issues);
     }
 
+    [Fact]
+    public void PinnedVolumeGuidResolvesAgainstCompletePhysicalVolumeMap()
+    {
+        const string destinationVolume = @"\\?\Volume{11111111-1111-1111-1111-111111111111}\";
+        const string otherVolume = @"\\?\Volume{22222222-2222-2222-2222-222222222222}\";
+        var map = new PhysicalVolumeMappingResult(
+            true,
+            new Dictionary<int, IReadOnlyList<string>>
+            {
+                [3] = new[] { destinationVolume },
+                [5] = new[] { destinationVolume },
+                [7] = new[] { otherVolume }
+            },
+            Array.Empty<string>());
+
+        var disks = WindowsPhysicalDiskVolumeMap.ResolveDiskNumbersForVolumeGuidPath(
+            map, destinationVolume.TrimEnd('\\'));
+
+        Assert.Equal(new[] { 3, 5 }, disks);
+    }
+
+    [Fact]
+    public void PinnedVolumeGuidResolutionRejectsIncompleteMapAndMalformedGuid()
+    {
+        var incomplete = new PhysicalVolumeMappingResult(
+            false,
+            new Dictionary<int, IReadOnlyList<string>>(),
+            new[] { "enumeration incomplete" });
+
+        Assert.Throws<InvalidOperationException>(() =>
+            WindowsPhysicalDiskVolumeMap.ResolveDiskNumbersForVolumeGuidPath(
+                incomplete, @"\\?\Volume{11111111-1111-1111-1111-111111111111}\"));
+
+        var complete = new PhysicalVolumeMappingResult(
+            true,
+            new Dictionary<int, IReadOnlyList<string>>(),
+            Array.Empty<string>());
+
+        Assert.Throws<ArgumentException>(() =>
+            WindowsPhysicalDiskVolumeMap.ResolveDiskNumbersForVolumeGuidPath(
+                complete, @"\\?\Volume{not-a-guid}\"));
+    }
+
     private static PhysicalDiskDescriptor PhysicalDisk(int number, string? serial = null, uint? busType = 17) =>
         new(number, $@"\\.\PhysicalDrive{number}", 1024 * 1024, 512,
             SerialNumber: serial ?? $"SERIAL-{number}", BusType: busType, RemovableMedia: false);
