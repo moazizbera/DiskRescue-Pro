@@ -150,6 +150,28 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
     }
 
     [Fact]
+    public async Task DestinationPathReplacementAfterPinningAbortsBeforeFirstSourceRead()
+    {
+        using var folder = new TemporaryFolder();
+        var source = new MemorySource(new byte[128 * 1024]);
+        var environment = new FakeEnvironment
+        {
+            Source = source,
+            PinnedDirectoryPath = Path.Combine(folder.Path, "replacement")
+        };
+
+        var error = await Assert.ThrowsAsync<IOException>(() =>
+            PhysicalDiskAcquisitionCoordinator.AcquireAsync(
+                Descriptor(), folder.File("replaced-directory.img"), environment));
+
+        Assert.Contains("directory object pinned", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, environment.DestinationSessionOpenCalls);
+        Assert.Equal(0, source.ReadAttempts);
+        Assert.Equal(1, source.DisposeCalls);
+        Assert.Empty(Directory.GetFiles(folder.Path));
+    }
+
+    [Fact]
     public async Task SourceReadFailureAbortsAndDoesNotPublishImageOrManifest()
     {
         using var folder = new TemporaryFolder();
@@ -284,6 +306,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         public MemorySource? Source { get; init; }
         public Exception? ManifestException { get; init; }
         public string? PinnedVolumeGuidPath { get; init; }
+        public string? PinnedDirectoryPath { get; init; }
         public int InventoryCalls { get; private set; }
         public int OpenCalls { get; private set; }
         public int DestinationSessionOpenCalls { get; private set; }
@@ -329,7 +352,8 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
             return new FakeDestinationSession(
                 destinationDirectoryPath,
                 ManifestException,
-                PinnedVolumeGuidPath ?? DestinationVolumeGuid);
+                PinnedVolumeGuidPath ?? DestinationVolumeGuid,
+                PinnedDirectoryPath ?? destinationDirectoryPath);
         }
     }
 
@@ -342,17 +366,21 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         private readonly HashSet<Stream> _deleted = new(ReferenceEqualityComparer.Instance);
         private bool _disposed;
 
-        public FakeDestinationSession(string directory, Exception? manifestException, string volumeGuidPath)
+        private readonly string _reportedDirectoryPath;
+
+        public FakeDestinationSession(
+            string directory, Exception? manifestException, string volumeGuidPath, string reportedDirectoryPath)
         {
             _directory = directory;
             _manifestException = manifestException;
             VolumeGuidPath = volumeGuidPath;
+            _reportedDirectoryPath = reportedDirectoryPath;
             DirectoryIdentity = new PhysicalDestinationDirectoryIdentity("WINVOL:COORDINATOR", 0, 2);
         }
 
         public PhysicalDestinationDirectoryIdentity DirectoryIdentity { get; }
         public string VolumeGuidPath { get; }
-        public string GetCurrentDirectoryPath() => _directory;
+        public string GetCurrentDirectoryPath() => _reportedDirectoryPath;
 
         public ValueTask<Stream> CreateNewFileAsync(string leafName, CancellationToken cancellationToken = default)
         {
