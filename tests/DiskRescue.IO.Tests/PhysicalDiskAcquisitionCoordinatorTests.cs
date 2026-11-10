@@ -70,6 +70,31 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
     }
 
     [Fact]
+    public async Task FinalPreReadRevalidationFailureDisposesSourceBeforeAnyRead()
+    {
+        using var folder = new TemporaryFolder();
+        var source = new MemorySource(new byte[128 * 1024]);
+        var environment = new FakeEnvironment
+        {
+            Source = source,
+            InventoryFactory = call => call == 3
+                ? new PhysicalDiskDiscoveryResult(new[] { Descriptor() }, new[] { "destination/source inventory changed" })
+                : Inventory()
+        };
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            PhysicalDiskAcquisitionCoordinator.AcquireAsync(
+                Descriptor(), folder.File("late-change.img"), environment));
+
+        Assert.Contains("final pre-read revalidation failed", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(3, environment.InventoryCalls);
+        Assert.Equal(1, environment.OpenCalls);
+        Assert.Equal(0, source.ReadAttempts);
+        Assert.Equal(1, source.DisposeCalls);
+        Assert.Empty(Directory.GetFiles(folder.Path));
+    }
+
+    [Fact]
     public async Task SourceReadFailureAbortsAndDoesNotPublishImageOrManifest()
     {
         using var folder = new TemporaryFolder();
