@@ -49,6 +49,30 @@ Get-ChildItem $fixtures -File | Get-FileHash -Algorithm SHA256 | Export-Csv (Joi
 | UI-13 | Resize/minimize/restore the window and inspect controls | No clipped essential actions, unreadable labels, or broken layout at supported display scale | |
 | UI-14 | Close and relaunch the app | Clean shutdown and relaunch; no stale scan state or unexpected writes | |
 
+## Deleted-file recovery queue (optional; strict destination gate)
+
+This section is optional and requires a dedicated, disposable secondary physical disk for a positive export. Never use the source disk, an irreplaceable disk, or a virtual VHDX as the destination. The production policy intentionally rejects virtual/ambiguous destination devices.
+
+Generate the synthetic deleted-NTFS image:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\New-DeletedNtfsDataImage.ps1 -OutputPath (Join-Path $fixtures "deleted-ntfs-data.img")
+Get-FileHash (Join-Path $fixtures "deleted-ntfs-data.img") -Algorithm SHA256
+```
+
+| ID | Check | Expected result | Result / notes |
+|---|---|---|---|
+| REC-01 | Inspect the generated deleted-NTFS image and run the bounded NTFS preview | Deleted file metadata is identified as metadata evidence, not proof that original bytes remain intact | |
+| REC-02 | Select two or more eligible deleted file rows using Ctrl/Shift | Multi-selection works; only deleted regular files with bounded nonzero sizes are eligible | |
+| REC-03 | Start the queue and choose a folder on the dedicated disposable secondary physical disk | Every output passes fail-closed physical separation preflight before the first export | |
+| REC-04 | Observe a successful queue run | Items transition Pending → Exporting → Completed; each output has its own manifest and SHA-256 | |
+| REC-05 | Verify an existing output or manifest collision | Queue stops before export; no existing file is overwritten | |
+| REC-06 | Choose a destination on the same physical disk as the image | Preflight rejects the destination; no output or manifest is created | |
+| REC-07 | Cancel during an active export using a larger generated fixture | Active temporary output is discarded; unstarted items are marked cancelled; already completed items remain identified | |
+| REC-08 | Run without a dedicated secondary physical destination available | Do not weaken or bypass the gate. Record that positive export testing is blocked; verify only that unsafe destinations are rejected | |
+
+Do not treat an exported SHA-256 as proof of original file integrity. A successful export means only that the bounded read/export and publication steps completed.
+
 ## Post-test integrity checks
 
 ```powershell
