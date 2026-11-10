@@ -14,6 +14,10 @@
   - Exact-head Windows CI: [run 42800521567](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42800521567) — successful.
   - Post-merge mainline Windows CI: [run 42819949095](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42819949095) — all 22 job steps successful, including build, tests, generated-image fixtures, CLI and NTFS recovery smoke tests, WPF build, Windows x64 desktop/CLI publishes, and dashboard screenshot capture/uploads.
 - [x] Windows x64 desktop preview artifact produced by CI.
+- [x] PR #25 — hard-disable the public physical-acquisition API and WPF Acquire action until the pinned destination session exists. The regression test verifies fail-closed behavior and absence of image/manifest output.
+  - Merge commit: `c23414dde17c503c96ce0f1e74e42b9db974ffa4`.
+  - Exact-head Windows CI: [run 42839029924](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42839029924) — successful.
+  - Post-merge mainline Windows CI: [run 42840092839](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42840092839) — successful.
 - [ ] Issue #23 — pin and revalidate acquisition destination filesystem identity. Code-path review confirmed that image and manifest creation, verification, and publication remain path-based after the final pre-read check. A handle-bound destination session is required; no partial path-only mitigation is accepted. See [Issue #23](https://github.com/moazizbera/DiskRescue-Pro/issues/23).
 - [x] Actual WPF dashboard screenshot captured and uploaded. Capture success is automated evidence; human visual review and manual Windows interaction remain separate acceptance activities.
 
@@ -34,7 +38,7 @@ Explicit limitation:
 
 **Current status: NOT APPROVED for physical HDD partition scanning or recovery.**
 
-The product is an engineering preview. Partition inspection and lost-partition scanning operate on regular disk-image files. Physical-device partition scanning and recovery remain disabled. The separate experimental physical acquisition path has passed automated pre-read revalidation tests on in-memory fixtures, but has not been validated on physical hardware and is not a substitute for a hardware write blocker or forensic acquisition process.
+The product is an engineering preview. Partition inspection and lost-partition scanning operate on regular disk-image files. Physical-device partition scanning and recovery remain disabled. The separate experimental physical acquisition path is now hard-disabled at both the public API and WPF UI until Issue #23 is implemented and validated. It has not been validated on physical hardware and is not a substitute for a hardware write blocker or forensic acquisition process.
 
 ### Stage 1 — Windows application and disposable media
 - [x] Windows x64 WPF and CLI previews published by CI.
@@ -52,7 +56,7 @@ Do not begin until Stage 1 passes and the physical-access code receives a dedica
 - [ ] Verify the device identity and geometry reported by Windows against an independently recorded device label/model/capacity; do not rely on disk number alone.
 - [ ] Verify the source handle requests read access only and every code path rejects write access.
 - [ ] Verify boot-critical disk exclusion, complete volume-to-disk extent mapping, supported non-layered bus identity, and unique reported serial requirements.
-- [ ] Verify source identity/geometry revalidation and destination physical-disk separation before and during acquisition, including the final pre-read revalidation added in PR #22. **Still blocked by Issue #23:** bind image/manifest create, verify, and publish operations to one pinned destination directory/volume identity. PR #22 narrows, but does not eliminate, Windows mount/reparse and concurrent-storage race windows.
+- [ ] Verify source identity/geometry revalidation and destination physical-disk separation before and during acquisition, including the final pre-read revalidation added in PR #22. **Acquisition remains hard-disabled by merged PR #25.** Still blocked by Issue #23: bind image/manifest create, verify, and publish operations to one pinned destination directory/volume identity. PR #22 narrows, but does not eliminate, Windows mount/reparse and concurrent-storage race windows.
 - [ ] Use a hardware write blocker for any irreplaceable or evidentiary source; software read-only access alone is not hardware write protection.
 - [ ] Test only with a spare, non-critical HDD and a separate destination disk. Stop on clicking, repeated disconnects, overheating, or persistent I/O errors.
 - [ ] Record acquisition length, SHA-256, manifest, and source/destination identity evidence; do not interpret the copied-image hash as proof of original file integrity.
