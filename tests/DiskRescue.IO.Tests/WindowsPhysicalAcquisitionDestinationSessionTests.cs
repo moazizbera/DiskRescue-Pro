@@ -15,6 +15,12 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
         try
         {
             await using var session = WindowsPhysicalAcquisitionDestinationSession.Open(directory);
+            Assert.True(session.VolumeGuidPath.StartsWith(@"\\?\Volume{", StringComparison.OrdinalIgnoreCase));
+            Assert.True(session.VolumeGuidPath.EndsWith('\\'));
+            var guidStart = session.VolumeGuidPath.IndexOf('{') + 1;
+            var guidEnd = session.VolumeGuidPath.IndexOf('}');
+            Assert.True(Guid.TryParse(session.VolumeGuidPath.AsSpan(guidStart, guidEnd - guidStart), out _));
+
             var stream = await session.CreateNewFileAsync("capture.partial");
             await stream.WriteAsync(new byte[] { 4, 8, 15, 16, 23, 42 });
 
