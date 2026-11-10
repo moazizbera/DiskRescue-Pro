@@ -5,8 +5,10 @@
 - Added a consistent high-contrast keyboard focus visual to buttons, combo boxes, text boxes, data grids, tabs, and the image navigator tree.
 - Added accessible names and task-specific tooltips to primary image actions, navigator/inventory/candidate grids, NTFS search/results, export controls, recovery queue actions, and experimental acquisition entry point.
 - Marked changing application, scan, and export status text as polite live regions so assistive technology can announce operation progress without interrupting the user.
+- Added explicit UI Automation `LiveRegionChanged` event notifications when application, scan, and recovery queue status text changes; `AutomationProperties.LiveSetting=Polite` alone declares intent but does not guarantee announcements.
 - Kept safety wording explicit: candidate evidence is not restoration; deleted-file export remains gated by separate physical destination checks; experimental physical acquisition is not physical partition recovery.
-- Validation is pending on this exact branch head. Do not claim XAML compilation, tests, or screenshot review until CI completes.
+- Initial PR head `d15ea625eeffac5621845eab064c2cd9a7c758a5` passed full Windows CI run [42777645235](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42777645235), including 307 tests, generated-image recovery smoke tests, WPF build/publish, screenshot capture, and artifact uploads.
+- Follow-up commit `1f37446dfac34119b0714f14e668992525fb2fef` adds explicit live-region event notifications; exact-head CI is running. Do not merge until this exact head passes and its screenshot is reviewed.
 - Manual keyboard-only, screen-reader, high-DPI, and Windows interaction testing remains outstanding.
 
 ### Acceptance still pending
