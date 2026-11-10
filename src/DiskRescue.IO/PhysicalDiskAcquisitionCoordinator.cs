@@ -4,7 +4,7 @@ namespace DiskRescue.IO;
 /// A read-only source opened after the environment's second preflight and final pre-read revalidation. Ownership transfers
 /// to the coordinator for the duration of the copy.
 /// </summary>
-public sealed class PhysicalDiskOpenedSource : IDisposable
+internal sealed class PhysicalDiskOpenedSource : IDisposable
 {
     public PhysicalDiskOpenedSource(IReadOnlyRandomAccessSource source, PhysicalDiskDescriptor descriptor)
     {
@@ -22,7 +22,7 @@ public sealed class PhysicalDiskOpenedSource : IDisposable
 /// Production uses WindowsPhysicalDiskAcquisitionEnvironment; tests can supply deterministic
 /// snapshots and disposable in-memory sources without weakening production policy.
 /// </summary>
-public interface IPhysicalDiskAcquisitionEnvironment
+internal interface IPhysicalDiskAcquisitionEnvironment
 {
     void EnsureSupportedPlatform();
     PhysicalDiskDiscoveryResult EnumeratePhysicalDisks();
@@ -36,7 +36,7 @@ public interface IPhysicalDiskAcquisitionEnvironment
 }
 
 /// <summary>Real Windows implementation. No virtual-device or production policy bypasses are added.</summary>
-public sealed class WindowsPhysicalDiskAcquisitionEnvironment : IPhysicalDiskAcquisitionEnvironment
+internal sealed class WindowsPhysicalDiskAcquisitionEnvironment : IPhysicalDiskAcquisitionEnvironment
 {
     public void EnsureSupportedPlatform() => WindowsPhysicalDiskDiscovery.EnsureWindows();
 
