@@ -1,3 +1,14 @@
+# Current status update — 2026-11-10 (professional workspace implementation in progress)
+
+### Implemented in `feat/pro-workspace-navigator-inspector`
+
+- Added an image navigator tab with a root node for the opened regular image and child nodes for detected MBR/GPT partitions.
+- Added a selected-partition inspector showing table, name, index, start LBA, byte offset, exclusive end, byte length, image identity and read-only interpretation.
+- Synchronized navigator and partition-grid selection; selecting a navigator node scrolls the matching inventory row into view.
+- Added a visible accent outline to the selected partition in the proportional map while retaining unallocated gaps and lost-candidate overlays.
+- Expanded the map lane for clearer reading. No partition mutation or live physical-device partition browsing was added.
+- Validation is pending for this feature branch: do not mark Windows build, automated tests, or visual behavior as passed until CI and Windows review complete.
+
 # Current status update — 2026-11-10 (DiskGenius UX benchmark and professional workspace plan)
 
 This section records the new UX benchmark supplied by the project owner. The DiskGenius screenshots are reference material for information architecture only; DiskRescue Pro must retain its read-only, image-first recovery safety model.
@@ -15,9 +26,9 @@ This section records the new UX benchmark supplied by the project owner. The Dis
 
 ## Professional workspace implementation checklist
 
-- [ ] P0: Add a left-side image/partition navigator; selecting a node must synchronize the partition grid, map highlight and details view.
-- [ ] P0: Add a dedicated selected-partition details inspector (filesystem, byte offset, start LBA, length, sector/cluster geometry where available, identifiers and validation state).
-- [ ] P0: Make the partition map selection-aware and expose exact start/end/length values accessibly; preserve proportional sizing and unallocated gaps.
+- [x] P0: Add an image/partition navigator; selecting a node synchronizes the partition grid and details view. (Feature branch implementation; CI pending.)
+- [x] P0: Add a selected-partition inspector for currently available table/name/index/start-LBA/byte-offset/end/length/image details. Filesystem geometry, identifiers and validation evidence remain follow-up enrichment.
+- [x] P0: Highlight the selected partition in the proportional map; exact start/end/length values are exposed in the inspector and map tooltip. Preserve unallocated gaps.
 - [ ] P0: Keep the workspace usable at common laptop resolutions and Windows work-area sizes; verify resize behavior, minimum dimensions, scrollability and no clipped controls.
 - [ ] P0: Make empty, loading, scanning, cancelled, warning and failed states visually distinct and understandable.
 - [ ] P1: Add safe context actions by selection type (inspect image, preview filesystem metadata, review candidate evidence, inspect file entry, queue eligible deleted-file export).
@@ -29,7 +40,7 @@ This section records the new UX benchmark supplied by the project owner. The Dis
 
 ## UX acceptance and safety criteria
 
-- [ ] Navigator, map, grid and details always refer to the same selected image/partition; stale selection/details are cleared when the image changes.
+- [ ] Navigator, map, grid and details always refer to the same selected image/partition; stale selection/details are cleared when the image changes. (Implemented selection path; verify with CI and Windows manual smoke.)
 - [ ] Selecting a lost-partition candidate never implies that a partition was restored or that the partition table was changed.
 - [ ] Every recovery action remains gated by current metadata validation, byte limits, cancellation, no-overwrite publication and verified separate physical destination.
 - [ ] No destructive DiskGenius menu operation is introduced, even as a disabled or misleadingly available command.
