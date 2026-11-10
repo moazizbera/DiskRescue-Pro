@@ -8,7 +8,9 @@ namespace DiskRescue.IO;
 /// Windows-only destination session. Every path component is opened relative to its
 /// already-pinned parent handle with FILE_OPEN_REPARSE_POINT; reparse components are
 /// rejected rather than followed. File creation, identity, flush, delete, and rename
-/// operate on handles. This class is not wired into physical acquisition yet.
+/// operate on handles. The internal acquisition coordinator consumes this session;
+/// the public acquisition API remains hard-disabled pending independent review and
+/// disposable-VHDX end-to-end acceptance.
 /// </summary>
 internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAcquisitionDestinationSession
 {
