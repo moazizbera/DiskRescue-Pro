@@ -88,6 +88,59 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
     }
 
     [Fact]
+    public async Task WriterRejectsDirectoryWithoutStableIdentityBeforeCreatingFilesOrReadingSource()
+    {
+        using var source = new MemorySource(new byte[4096]);
+        await using var session = new FakeDestinationSession { InvalidDirectoryIdentity = true };
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
+                source, session,
+                "capture.img.partial", "capture.img",
+                "capture.json.partial", "capture.json",
+                new { format = "test" }));
+
+        Assert.Equal(0, source.ReadAttempts);
+        Assert.Equal(0, session.CreatedCount);
+    }
+
+    [Fact]
+    public async Task WriterRejectsImageFileWithoutStableIdBeforeFirstSourceRead()
+    {
+        using var source = new MemorySource(new byte[128 * 1024]);
+        await using var session = new FakeDestinationSession { FirstFileWithoutId = true };
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
+                source, session,
+                "capture.img.partial", "capture.img",
+                "capture.json.partial", "capture.json",
+                new { format = "test" }));
+
+        Assert.Equal(0, source.ReadAttempts);
+        Assert.True(session.WasDeleted("capture.img.partial"));
+        Assert.Equal(0, session.PublishedCount);
+    }
+
+    [Fact]
+    public async Task WriterPreservesImageWhenManifestFileIdentityIsOnAnotherVolume()
+    {
+        using var source = new MemorySource(new byte[96 * 1024]);
+        await using var session = new FakeDestinationSession { SecondFileOnDifferentVolume = true };
+
+        await Assert.ThrowsAsync<PhysicalAcquisitionManifestCommitException>(() =>
+            PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
+                source, session,
+                "capture.img.partial", "capture.img",
+                "capture.json.partial", "capture.json",
+                new { format = "test" }));
+
+        Assert.True(session.IsPublished("capture.img"));
+        Assert.False(session.IsPublished("capture.json"));
+        Assert.True(session.WasDeleted("capture.json.partial"));
+    }
+
+    [Fact]
     public async Task WriterRejectsDuplicateLeafNamesBeforeCreatingFilesOrReadingSource()
     {
         using var source = new MemorySource(new byte[4096]);
@@ -112,9 +165,14 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
         private readonly HashSet<Stream> _publishedStreams = new();
         private bool _disposed;
 
-        public PhysicalDestinationDirectoryIdentity DirectoryIdentity { get; } =
-            new(@"\\?\Volume{fake-session}\", 1, 2);
+        public PhysicalDestinationDirectoryIdentity DirectoryIdentity =>
+            InvalidDirectoryIdentity
+                ? new(@"\\?\Volume{fake-session}\", 0, 0)
+                : new(@"\\?\Volume{fake-session}\", 1, 2);
+        public bool InvalidDirectoryIdentity { get; init; }
         public bool FirstFileOnDifferentVolume { get; init; }
+        public bool FirstFileWithoutId { get; init; }
+        public bool SecondFileOnDifferentVolume { get; init; }
         public bool FailManifestPublication { get; init; }
         public int CreatedCount => _owned.Count;
         public int FlushCount { get; private set; }
@@ -138,10 +196,12 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
             EnsureOwned(file);
             cancellationToken.ThrowIfCancellationRequested();
             var isFirst = ReferenceEquals(file, _owned.Keys.First());
-            var volume = FirstFileOnDifferentVolume && isFirst
+            var volume = (FirstFileOnDifferentVolume && isFirst) ||
+                (SecondFileOnDifferentVolume && !isFirst)
                 ? @"\\?\Volume{unexpected}\"
                 : DirectoryIdentity.VolumeIdentity;
-            return ValueTask.FromResult(new PhysicalDestinationFileIdentity(volume, 0, 1));
+            var fileIdLow = FirstFileWithoutId && isFirst ? 0UL : 1UL;
+            return ValueTask.FromResult(new PhysicalDestinationFileIdentity(volume, 0, fileIdLow));
         }
 
         public ValueTask FlushToDiskAsync(Stream file, CancellationToken cancellationToken = default)
