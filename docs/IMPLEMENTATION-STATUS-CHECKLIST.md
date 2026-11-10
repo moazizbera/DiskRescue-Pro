@@ -1,3 +1,63 @@
+# Current status update — 2026-11-10 (PR #30 integrated pinned-destination coordinator)
+
+This section is the current source of truth for physical acquisition safety. Older dated sections below are retained as historical snapshots and may describe earlier states of PR #30; do not use their old unchecked items as the current implementation status.
+
+## Current candidate
+
+- [PR #30 — managed pinned-destination session contract and coordinator integration](https://github.com/moazizbera/DiskRescue-Pro/pull/30) remains **draft/open**.
+- Branch: `security/managed-destination-session-contract-20261110`.
+- Exact latest code head: `e8fcd11767b8e1ca1627f698bfa2a807c664f7a2`.
+- Related security issue: [Issue #23 — pin and revalidate acquisition destination filesystem identity](https://github.com/moazizbera/DiskRescue-Pro/issues/23).
+
+## Implemented and exact-head validated
+
+- [x] Managed destination-session contract with directory and file identities.
+- [x] Native Windows session opens local fixed-drive path components relative to already-pinned parent handles; rejects reparse points rather than following them.
+- [x] Handle-relative create-new, file-ID query, durable flush, unpublished-file deletion, and no-replace publication.
+- [x] Stream-based image writing and same-open-stream SHA-256/length verification.
+- [x] Image and manifest temporary files are created and published through the same pinned session.
+- [x] Internal coordinator repeats source/boot/volume/destination preflight, opens the source read-only, and revalidates source identity before any source-sector read.
+- [x] Coordinator reconciles the volume GUID obtained from the pinned destination handle against the complete volume map and preflight destination extents.
+- [x] Coordinator checks physical-disk identity separation and aborts if the pinned volume maps to the source disk.
+- [x] Coordinator compares the path resolved from the pinned directory handle with the requested directory and aborts on a path replacement detected before source reads.
+- [x] Regression tests assert zero source reads for pinned-volume mismatch and changed-directory-path cases.
+- [x] Manifest publication failure preserves the committed image and returns an explicit manifest-commit error.
+- [x] Native Windows tests cover normal directory operations, path replacement after pinning, no-overwrite publication, handle deletion, symbolic-link rejection, and junction rejection where fixture creation is permitted.
+- [x] Exact-head Windows CI #1303 passed at `e8fcd11767b8e1ca1627f698bfa2a807c664f7a2`: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42882362142
+- [x] CI #1303 test project result: 367 passed, 0 failed, 1 skipped (368 total).
+- [x] CI #1303 also passed generated fixture creation, CLI smoke tests, deleted-NTFS extraction/recovery-manifest tests, one-command lost-NTFS recovery harness, WPF build, Windows x64 desktop/CLI publishing, dashboard screenshot capture, and artifact uploads.
+
+## Explicit compatibility boundary
+
+- [x] Native destination support is currently limited to local fixed drive-letter paths.
+- [x] UNC/network paths, mapped drives, volume-GUID input paths, volume mount points, junctions, symbolic links, and other reparse points are rejected/fail closed. They are not silently followed.
+- [x] Unsupported file identity or native filesystem operations fail closed.
+- [x] The internal coordinator has no path-based image/manifest fallback.
+- [x] Public physical acquisition remains hard-disabled: `PhysicalDiskImageAcquisition.IsAcquisitionEnabled == false`; the public API rejects before opening a physical source or creating output.
+- [x] No physical HDD was opened or read for this work.
+
+## Remaining release gates — do not bypass
+
+- [ ] Independent security review of native P/Invoke layouts, handle lifetime, reparse handling, no-replace rename, and race assumptions.
+- [ ] Broader Windows/filesystem compatibility matrix; current CI is one hosted Windows runner and is not a compatibility certification.
+- [ ] Disposable-VHDX end-to-end acquisition acceptance using only a newly created, disposable virtual disk and a separate disposable destination.
+- [ ] Prove source bytes remain unchanged and output bytes/hash/manifest are correct throughout the disposable test.
+- [ ] Exercise cancellation, read failure, destination-full, manifest-publication failure, path replacement, and cleanup on disposable media.
+- [ ] Manual review of the captured WPF screenshot and manual keyboard/accessibility/high-DPI interaction checks.
+- [ ] Only after all gates pass, conduct a separate design/security review before any proposal to enable the public acquisition API/UI.
+- [ ] Physical HDD testing remains unauthorized until a separate release decision; never test against an original or valuable disk.
+
+## Operational safety rules
+
+- Never format, initialize, repair, repartition, mount, or write to source media.
+- Never use an original or valuable physical HDD as a test target.
+- Automated tests use generated disk images and explicitly disposable VHDX fixtures only.
+- Keep source handles read-only; software read-only is not a hardware write blocker.
+- Keep acquisition/recovery output on a separately verified physical device.
+- Do not claim physical HDD readiness based on CI, synthetic images, or a WPF screenshot.
+
+---
+
 # Current status update — 2026-11-10 (native Windows session CI evidence)
 
 ## Native adapter validation
