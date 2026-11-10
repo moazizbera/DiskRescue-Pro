@@ -4,6 +4,8 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Shapes;
 using Microsoft.Win32;
 using DiskRescue.Filesystems;
 using DiskRescue.IO;
@@ -18,6 +20,7 @@ public partial class MainWindow : Window
     private string? _lastReportPath;
     private string? _lastImagePath;
     private CancellationTokenSource? _scanCancellation;
+    private long _partitionMapLength;
 
     public MainWindow()
     {
@@ -85,12 +88,14 @@ public partial class MainWindow : Window
             _lastImagePath = imagePath;
             PartitionsGrid.SelectedItem = null;
             ImageSizeText.Text = FormatBytes(result.Length);
+            _partitionMapLength = result.Length;
             PartitionCountText.Text = result.Rows.Count.ToString();
             TableTypeText.Text = result.TableType;
             ValidationText.Text = result.HasWarnings ? "Review findings" : "Checks passed";
             ValidationText.Foreground = (System.Windows.Media.Brush)FindResource(result.HasWarnings ? "Warn" : "Accent");
             _rows.Clear();
             foreach (var row in result.Rows) _rows.Add(row);
+            DrawPartitionMap();
             NtfsTreeView.Items.Clear();
             FindingsBox.Text = result.Findings;
             ExportButton.IsEnabled = true;
@@ -170,8 +175,11 @@ public partial class MainWindow : Window
                 $"Tree roots: {result.Tree.Roots.Count:N0}",
                 $"Orphan roots: {result.Tree.Orphans.Count:N0}",
                 "",
-                "Coverage is limited to the initial validated $MFT::$DATA extent. Additional MFT extents and directory indexes are not followed. No file contents are read or recovered."
+                result.UsedMftContinuation
+                    ? "Validated resident $ATTRIBUTE_LIST continuation extents were included where reachable through the initial MFT map. Non-resident attribute lists, recursive bootstrap discovery, and directory indexes are not followed. No file contents are read or recovered."
+                    : "Coverage is limited to the initial validated $MFT::$DATA extent when continuation discovery was unavailable or unnecessary. Non-resident attribute lists, recursive bootstrap discovery, and directory indexes are not followed. No file contents are read or recovered."
             };
+            notes.AddRange(result.ContinuationIssues.Select(x => "• MFT continuation: " + x));
             notes.AddRange(result.Scan.Issues.Select(x => "• " + x));
             notes.AddRange(result.Tree.Issues.Select(x => "• Tree: " + x));
             FindingsBox.Text = string.Join(Environment.NewLine, notes);
@@ -277,6 +285,7 @@ public partial class MainWindow : Window
             notes.AddRange(result.Issues.Select(issue => "• " + issue));
             FindingsBox.Text = string.Join(Environment.NewLine, notes);
             PartitionCountText.Text = _rows.Count.ToString();
+            DrawPartitionMap();
             StatusText.Text = result.WasCancelled
                 ? $"Partition search cancelled · {result.BytesScanned:N0} bytes scanned"
                 : $"Partition search complete · {result.Candidates.Count:N0} validated NTFS candidates";
@@ -317,11 +326,19 @@ public partial class MainWindow : Window
         if (!opened.IsValid || opened.Reader is null)
             throw new IOException("NTFS MFT validation failed: " + string.Join("; ", opened.Issues));
 
-        var scan = opened.Reader.ScanRecords(maximumRecords: 10000);
+        // Match the CLI's validated resident $ATTRIBUTE_LIST continuation handling
+        // so the desktop preview does not silently show a narrower MFT range.
+        var continuation = opened.Reader.ExtendUsingResidentAttributeList();
+        var scanReader = continuation.IsValid && continuation.Reader is not null
+            ? continuation.Reader
+            : opened.Reader;
+        var scan = scanReader.ScanRecords(maximumRecords: 10000);
         var tree = NtfsDirectoryTreeBuilder.Build(scan.Entries);
         if (!scan.IsValid || !tree.IsValid)
             throw new IOException("NTFS MFT scan could not produce a safe preview.");
-        return new NtfsScanUiResult(boot.BootSector, scan, tree);
+        return new NtfsScanUiResult(boot.BootSector, scan, tree,
+            continuation.IsValid && continuation.Extended,
+            continuation.Issues);
     }
 
     private static TreeViewItem CreateTreeItem(NtfsDirectoryNode node, int depth)
@@ -365,7 +382,7 @@ public partial class MainWindow : Window
 
         var notes = new List<string>
         {
-            $"Image: {Path.GetFileName(path)}",
+            $"Image: {System.IO.Path.GetFileName(path)}",
             $"Length: {image.Length:N0} bytes",
             $"Logical sector size: {sectorSize:N0} bytes",
             "",
@@ -395,7 +412,7 @@ public partial class MainWindow : Window
             product = "DiskRescue Pro",
             reportVersion = 1,
             mode = "read-only-image-inspection",
-            source = new { fileName = Path.GetFileName(path), lengthBytes = image.Length, logicalSectorSizeBytes = sectorSize },
+            source = new { fileName = System.IO.Path.GetFileName(path), lengthBytes = image.Length, logicalSectorSizeBytes = sectorSize },
             safety = new { sourceOpenedReadOnly = true, physicalDevicesSupported = false, sourceWriteOperationsAvailable = false, recoveryAvailable = false },
             mbr = new { signatureValid = mbr.HasValidSignature, protectiveGptEntryDetected = mbr.IsProtectiveMbr, partitions = mbr.Partitions, diagnostics = mbr.Issues },
             gpt = new { primaryHeaderValid = gpt.Primary.HeaderValid, primaryHeader = gpt.Primary.Header, primaryPartitions = gpt.Primary.Partitions, primaryDiagnostics = gpt.Primary.Issues, backupHeaderValid = gpt.Backup.HeaderValid, backupHeader = gpt.Backup.Header, backupPartitions = gpt.Backup.Partitions, selectedPartitionSource = gpt.Primary.HeaderValid ? "primary" : gpt.Backup.HeaderValid ? "backup" : "none", selectedPartitions = selectedGpt.Partitions, backupDiagnostics = gpt.Backup.Issues, consistencyDiagnostics = gpt.ConsistencyIssues }
@@ -409,7 +426,7 @@ public partial class MainWindow : Window
         var dialog = new SaveFileDialog
         {
             Title = "Export inspection report",
-            FileName = Path.GetFileNameWithoutExtension(_lastReportPath) + "-diskrescue-report.json",
+            FileName = System.IO.Path.GetFileNameWithoutExtension(_lastReportPath) + "-diskrescue-report.json",
             Filter = "JSON report (*.json)|*.json",
             AddExtension = true,
             DefaultExt = ".json"
@@ -426,9 +443,132 @@ public partial class MainWindow : Window
         }
     }
 
+    private void PartitionMapCanvas_SizeChanged(object sender, SizeChangedEventArgs e) => DrawPartitionMap();
+
+    private void DrawPartitionMap()
+    {
+        if (PartitionMapCanvas is null) return;
+        PartitionMapCanvas.Children.Clear();
+        var width = PartitionMapCanvas.ActualWidth;
+        var height = PartitionMapCanvas.ActualHeight;
+        if (_partitionMapLength <= 0 || width <= 1 || height <= 1) return;
+
+        const double inset = 4;
+        var usableWidth = Math.Max(1, width - inset * 2);
+        var scale = usableWidth / _partitionMapLength;
+        var cursor = 0L;
+        var laneTop = 16d;
+        var laneHeight = 38d;
+
+        void AddSegment(long start, long length, string label, Brush fill, double top, double segmentHeight, string tooltip)
+        {
+            if (length <= 0) return;
+            var left = inset + Math.Clamp(start * scale, 0, usableWidth);
+            var right = inset + Math.Clamp((start + (double)length) * scale, 0, usableWidth);
+            var segmentWidth = Math.Max(0, right - left);
+            if (segmentWidth <= 0.5) return;
+
+            var rectangle = new Rectangle
+            {
+                Width = segmentWidth,
+                Height = segmentHeight,
+                RadiusX = 3,
+                RadiusY = 3,
+                Fill = fill,
+                Stroke = new SolidColorBrush(Color.FromRgb(11, 18, 32)),
+                StrokeThickness = 1,
+                ToolTip = tooltip
+            };
+            Canvas.SetLeft(rectangle, left);
+            Canvas.SetTop(rectangle, top);
+            PartitionMapCanvas.Children.Add(rectangle);
+
+            if (segmentWidth >= 58 && !string.IsNullOrWhiteSpace(label))
+            {
+                var text = new TextBlock
+                {
+                    Text = label,
+                    Foreground = Brushes.White,
+                    FontSize = 10,
+                    FontWeight = FontWeights.SemiBold,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    IsHitTestVisible = false,
+                    Width = Math.Max(0, segmentWidth - 8),
+                    TextAlignment = TextAlignment.Center
+                };
+                Canvas.SetLeft(text, left + 4);
+                Canvas.SetTop(text, top + (segmentHeight - 14) / 2);
+                PartitionMapCanvas.Children.Add(text);
+            }
+        }
+
+        var knownRows = _rows.Where(row => row.Table != "SCAN" && row.ByteOffset >= 0 && row.ByteLength > 0)
+            .OrderBy(row => row.ByteOffset).ToArray();
+        foreach (var row in knownRows)
+        {
+            var start = Math.Clamp(row.ByteOffset, 0, _partitionMapLength);
+            // Use subtraction before addition so malformed ranges cannot overflow.
+            var length = Math.Min(row.ByteLength, _partitionMapLength - start);
+            var end = start + length;
+            if (start > cursor)
+                AddSegment(cursor, start - cursor, "", new SolidColorBrush(Color.FromRgb(37, 52, 72)), laneTop, laneHeight,
+                    $"Unallocated image space · {FormatBytes(start - cursor)}");
+            // Do not paint duplicate/overlapping ranges on top of earlier validated entries.
+            var visibleStart = Math.Max(start, cursor);
+            if (end > visibleStart)
+            {
+                var color = row.Table == "GPT"
+                    ? new SolidColorBrush(Color.FromRgb(36, 139, 156))
+                    : new SolidColorBrush(Color.FromRgb(55, 111, 176));
+                AddSegment(visibleStart, end - visibleStart, row.Name, color, laneTop, laneHeight,
+                    $"{row.Table} · {row.Name}\nStart: {FormatBytes(start)}\nSize: {FormatBytes(length)}");
+            }
+            cursor = Math.Max(cursor, end);
+        }
+        if (cursor < _partitionMapLength)
+            AddSegment(cursor, _partitionMapLength - cursor, "", new SolidColorBrush(Color.FromRgb(37, 52, 72)), laneTop, laneHeight,
+                $"Unallocated image space · {FormatBytes(_partitionMapLength - cursor)}");
+
+        foreach (var candidate in _rows.Where(row => row.Table == "SCAN" && row.ByteOffset >= 0 && row.ByteLength > 0))
+            AddSegment(candidate.ByteOffset, candidate.ByteLength, "", new SolidColorBrush(Color.FromRgb(242, 166, 90)),
+                3, 9, $"Detected lost-partition candidate · {candidate.Name}\nStart: {FormatBytes(candidate.ByteOffset)}\nSize: {candidate.Size}");
+
+        var legendItems = new (string Label, Color Color)[]
+        {
+            ("GPT", Color.FromRgb(36, 139, 156)),
+            ("MBR", Color.FromRgb(55, 111, 176)),
+            ("Lost candidate", Color.FromRgb(242, 166, 90)),
+            ("Unallocated", Color.FromRgb(37, 52, 72))
+        };
+        var legend = new StackPanel { Orientation = Orientation.Horizontal, IsHitTestVisible = false };
+        foreach (var item in legendItems)
+        {
+            legend.Children.Add(new Rectangle
+            {
+                Width = 7, Height = 7, RadiusX = 1, RadiusY = 1,
+                Fill = new SolidColorBrush(item.Color),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 4, 0)
+            });
+            legend.Children.Add(new TextBlock
+            {
+                Text = item.Label,
+                Foreground = (Brush)FindResource("Muted"),
+                FontSize = 9,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 10, 0)
+            });
+        }
+        Canvas.SetRight(legend, 6);
+        Canvas.SetTop(legend, height - 12);
+        PartitionMapCanvas.Children.Add(legend);
+    }
+
     private void ResetResults()
     {
         _rows.Clear();
+        _partitionMapLength = 0;
+        PartitionMapCanvas.Children.Clear();
         _lastReport = null;
         _lastReportPath = null;
         _lastImagePath = null;
@@ -454,6 +594,6 @@ public partial class MainWindow : Window
     }
 
     private sealed record InspectionResult(long Length, List<PartitionRow> Rows, string TableType, bool HasWarnings, string Findings, string Json);
-    private sealed record NtfsScanUiResult(NtfsBootSector BootSector, NtfsMftScanResult Scan, NtfsDirectoryTreeResult Tree);
+    private sealed record NtfsScanUiResult(NtfsBootSector BootSector, NtfsMftScanResult Scan, NtfsDirectoryTreeResult Tree, bool UsedMftContinuation, IReadOnlyList<string> ContinuationIssues);
     public sealed record PartitionRow(int Index, string Table, string Name, string StartLba, string Size, long ByteOffset, long ByteLength);
 }
