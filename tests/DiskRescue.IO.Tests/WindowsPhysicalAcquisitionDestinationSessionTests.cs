@@ -161,6 +161,44 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
         }
     }
 
+    [Fact]
+    public void NativeSessionRejectsDirectoryJunctionWithoutFollowingIt()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var parent = CreateTemporaryDirectory();
+        var target = Path.Combine(parent, "junction-target");
+        var junction = Path.Combine(parent, "junction");
+        Directory.CreateDirectory(target);
+
+        try
+        {
+            using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c mklink /J \"{junction}\" \"{target}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            });
+
+            if (process is null)
+                return;
+            process.WaitForExit(10000);
+            if (!process.HasExited || process.ExitCode != 0)
+                return; // The runner does not permit creating directory junctions.
+
+            Assert.Throws<NotSupportedException>(() =>
+                WindowsPhysicalAcquisitionDestinationSession.Open(junction));
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(parent);
+        }
+    }
+
     private static string CreateTemporaryDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), $"DiskRescue-NativeSession-{Guid.NewGuid():N}");
