@@ -116,6 +116,9 @@
     </Setter.Value>
   </Setter>
 </Style>
+<Style TargetType="TreeView">
+  <Setter Property="FocusVisualStyle" Value="{StaticResource DiskRescueKeyboardFocus}"/>
+</Style>
 <Style TargetType="DataGridColumnHeader">
   <Setter Property="Background" Value="#17283D"/>
   <Setter Property="Foreground" Value="{StaticResource Muted}"/>
