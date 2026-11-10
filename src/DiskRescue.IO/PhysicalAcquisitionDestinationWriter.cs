@@ -74,7 +74,7 @@ internal static class PhysicalAcquisitionDestinationWriter
         {
             cancellationToken.ThrowIfCancellationRequested();
             imageStream = await session.CreateNewFileAsync(imageTemporaryLeaf, cancellationToken).ConfigureAwait(false);
-            EnsureOwnedVolume(session, imageStream, cancellationToken);
+            await EnsureOwnedVolume(session, imageStream, cancellationToken).ConfigureAwait(false);
             image = await DiskImager.WriteImageAsync(
                 source, imageStream, progress, cancellationToken).ConfigureAwait(false);
             await session.FlushToDiskAsync(imageStream, cancellationToken).ConfigureAwait(false);
@@ -97,7 +97,7 @@ internal static class PhysicalAcquisitionDestinationWriter
         {
             manifestStream = await session.CreateNewFileAsync(
                 manifestTemporaryLeaf, CancellationToken.None).ConfigureAwait(false);
-            EnsureOwnedVolume(session, manifestStream, CancellationToken.None);
+            await EnsureOwnedVolume(session, manifestStream, CancellationToken.None).ConfigureAwait(false);
             await PhysicalDiskManifestPublisher.WriteManifestAsync(
                 manifestStream, manifest, CancellationToken.None).ConfigureAwait(false);
             await session.FlushToDiskAsync(manifestStream, CancellationToken.None).ConfigureAwait(false);
