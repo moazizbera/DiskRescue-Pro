@@ -134,7 +134,7 @@
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="58"/>
+                    <RowDefinition Height="68"/>
                 </Grid.RowDefinitions>
                 <Grid Grid.Row="0" Margin="0,0,0,5">
                     <Grid.ColumnDefinitions>
@@ -152,7 +152,7 @@
                                VerticalAlignment="Center"/>
                 </Grid>
                 <Border Grid.Row="1" Background="#0A1422" CornerRadius="6" Padding="3">
-                    <Canvas x:Name="PartitionMapCanvas" Height="50" ClipToBounds="True"
+                    <Canvas x:Name="PartitionMapCanvas" Height="60" ClipToBounds="True"
                             SizeChanged="PartitionMapCanvas_SizeChanged"/>
                 </Border>
             </Grid>
