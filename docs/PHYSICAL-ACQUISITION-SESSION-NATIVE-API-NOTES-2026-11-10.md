@@ -1,8 +1,22 @@
 # Physical Acquisition Destination Session — Native API Implementation Notes
 
-**Status:** implementation research; not a native implementation or certification  
+**Status:** first native adapter and internal coordinator integration implemented; not a security certification  
 **Related:** [Issue #23](https://github.com/moazizbera/DiskRescue-Pro/issues/23), [PR #30](https://github.com/moazizbera/DiskRescue-Pro/pull/30)  
 **Reviewed:** 2026-11-10
+
+## Current implementation status — 2026-11-10
+
+The first native adapter is now connected to the internal acquisition coordinator on PR #30.
+
+- The directory session exposes the volume-GUID root resolved from the pinned handle using `GetFinalPathNameByHandleW(VOLUME_NAME_GUID)`.
+- It also resolves the current directory name from the same handle using `GetFinalPathNameByHandleW(VOLUME_NAME_DOS)`. After a directory rename, the result path and manifest do not blindly reuse the original caller-supplied path.
+- The native test moves the opened directory, creates a replacement at the old textual path, verifies the pinned handle reports the moved directory, and verifies relative file creation still lands in the moved directory.
+- The coordinator opens the source read-only, performs final pre-read preflight, opens the pinned destination session, maps the handle-derived volume GUID through the complete Windows volume map, compares mapped disk numbers with destination extent numbers from preflight, and validates source/destination physical-disk identities before the first source read.
+- The coordinator uses only the session writer for image and manifest create/verify/flush/no-replace publication. It no longer calls the path-based image or manifest writers.
+- The manifest records the handle-derived volume GUID, directory file ID, and directory path resolved from the pinned handle at manifest creation; returned image and manifest paths are resolved from the pinned handle after publication.
+
+This is an internal, gated implementation. The public physical-acquisition entry point remains hard-disabled. Passing CI on one Windows runner is not broad compatibility certification.
+
 
 ## 1. Confirmed Windows API semantics
 
