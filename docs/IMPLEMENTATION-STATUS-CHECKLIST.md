@@ -1,3 +1,32 @@
+# Current status update — 2026-11-10 (PR #17 merged: responsive inspector)
+
+### Mainline result
+
+- [x] Merged [PR #17](https://github.com/moazizbera/DiskRescue-Pro/pull/17) using squash merge. Merge commit: `12ef98db88811442df86a9844414da44f5d40e10`.
+- [x] Exact PR head `317f0de01cff64ae61a60c855a49d26135a5419c` passed Windows CI [run 42775484075](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42775484075): solution restore/build, 307 tests, generated-image CLI/recovery smoke tests, WPF build, Windows x64 desktop/CLI publishing, screenshot capture, and artifact uploads.
+- [x] Downloaded and visually reviewed the screenshot artifact from that exact run. The inspector is wider and the details TextBox has an explicit vertical scrollbar; the visible viewport remains compact so metadata can be reached without expanding over the findings workspace.
+- [x] PR #17 preserves the existing screen-aware window bounds and short-work-area map-collapse behavior.
+- [ ] Manual Windows resize/interaction testing remains outstanding. The CI screenshot is a captured preview, not proof of interactive behavior at multiple display resolutions.
+- [ ] Compare generated fixture SHA-256 values before/after manual interaction tests.
+- [ ] Physical-device partition scanning/recovery remains disabled; no physical HDD recovery is validated or claimed.
+
+### Current desktop workspace acceptance
+
+- [x] Image navigator, validated MBR/GPT partition nodes, synchronized partition grid and selected-item inspector.
+- [x] Proportional partition map and selected-partition highlight.
+- [x] Inspector geometry: table, index, start LBA, byte offset, exclusive end, byte length, image identity and read-only interpretation.
+- [x] Responsive inspector width and explicit internal vertical scrolling.
+- [ ] Verify common laptop resolutions, constrained work areas, minimum dimensions, and no clipped controls through manual Windows testing.
+- [ ] Verify empty/loading/scanning/cancelled/warning/failed states.
+- [ ] Keyboard navigation, visible focus, accessibility names/tooltips, and high-DPI checks.
+- [ ] Capture visual baselines at 1366×768, 1920×1080, and a constrained work area.
+
+### Safety boundary
+
+All automated validation uses generated disk images. Source images remain read-only. No formatting, initialization, repair, repartitioning, mounting, partition-table writes, or source-media writes. Recovery output must remain on separately verified physical storage. A software read-only handle is not a hardware write blocker. Passing CI and screenshot review do not establish physical HDD recovery capability.
+
+---
+
 # Current status update — 2026-11-10 (responsive inspector follow-up)
 
 ### Implemented on `feat/inspector-responsive-layout`
