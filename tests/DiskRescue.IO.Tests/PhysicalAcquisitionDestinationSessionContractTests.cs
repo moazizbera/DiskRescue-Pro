@@ -113,6 +113,7 @@ public sealed class PhysicalAcquisitionDestinationSessionContractTests
 
         public PhysicalDestinationDirectoryIdentity DirectoryIdentity { get; } =
             new(@"\\?\Volume{fake-destination}\", 0xAUL, 0xBUL);
+        public string VolumeGuidPath => DirectoryIdentity.VolumeIdentity;
 
         public int CreatedCount => _owned.Count;
         public int FlushCount { get; private set; }
