@@ -74,7 +74,7 @@ public partial class App : Application
             return;
 
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        var discoveryImagePath = Environment.GetEnvironmentVariable("DISKRESCUE_DISCOVERY_SCREENSHOT_IMAGE");
+        var discoveryImagePath = Environment.GetEnvironmentVariable("DISKRESCUE_WORKSPACE_SCREENSHOT_IMAGE");
         Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(async () =>
         {
             try
@@ -91,7 +91,7 @@ public partial class App : Application
                 {
                     if (window is not MainWindow mainWindow)
                         throw new InvalidOperationException("Discovery screenshot requires the DiskRescue main window.");
-                    await mainWindow.CaptureDiscoveryScenarioAsync(discoveryImagePath);
+                    await mainWindow.CaptureWorkspaceScenarioAsync(discoveryImagePath);
                 }
 
                 window.UpdateLayout();
