@@ -68,7 +68,7 @@ Get-FileHash (Join-Path $fixtures "deleted-ntfs-data.img") -Algorithm SHA256
 | REC-04 | Observe a successful queue run | Items transition Pending → Exporting → Completed; each output has its own manifest and SHA-256 | |
 | REC-05 | Verify an existing output or manifest collision | Queue stops before export; no existing file is overwritten | |
 | REC-06 | Choose a destination on the same physical disk as the image | Preflight rejects the destination; no output or manifest is created | |
-| REC-07 | Cancel during an active export using a larger generated fixture | Active temporary output is discarded; unstarted items are marked cancelled; already completed items remain identified | |
+| REC-07 | Cancel during an active export using a suitably large synthetic fixture or controlled test build | Active temporary output is discarded; unstarted items are marked cancelled; already completed items remain identified. The small stock fixture may complete too quickly for a reliable manual timing test | |
 | REC-08 | Run without a dedicated secondary physical destination available | Do not weaken or bypass the gate. Record that positive export testing is blocked; verify only that unsafe destinations are rejected | |
 
 Do not treat an exported SHA-256 as proof of original file integrity. A successful export means only that the bounded read/export and publication steps completed.
