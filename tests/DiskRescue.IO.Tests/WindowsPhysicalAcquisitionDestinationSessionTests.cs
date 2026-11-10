@@ -186,8 +186,12 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
 
             if (process is null)
                 return;
-            process.WaitForExit(10000);
-            if (!process.HasExited || process.ExitCode != 0)
+            if (!process.WaitForExit(10000))
+            {
+                process.Kill(entireProcessTree: true);
+                return;
+            }
+            if (process.ExitCode != 0)
                 return; // The runner does not permit creating directory junctions.
 
             Assert.Throws<NotSupportedException>(() =>
