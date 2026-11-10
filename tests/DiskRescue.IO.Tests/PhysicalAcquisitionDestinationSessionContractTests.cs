@@ -112,8 +112,9 @@ public sealed class PhysicalAcquisitionDestinationSessionContractTests
         private bool _disposed;
 
         public PhysicalDestinationDirectoryIdentity DirectoryIdentity { get; } =
-            new(@"\\?\Volume{fake-destination}\", 0xAUL, 0xBUL);
-        public string VolumeGuidPath => DirectoryIdentity.VolumeIdentity;
+            new("WINVOL:FAKE", 0xAUL, 0xBUL);
+        public string VolumeGuidPath => @"\\?\Volume{00000000-0000-0000-0000-000000000001}\";
+
 
         public int CreatedCount => _owned.Count;
         public int FlushCount { get; private set; }
