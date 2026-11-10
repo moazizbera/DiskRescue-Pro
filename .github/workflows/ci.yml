@@ -124,6 +124,15 @@ jobs:
             throw "The WPF screenshot is not a valid PNG."
           }
           Write-Output "Captured actual DiskRescue Pro WPF dashboard screenshot: $screenshot ($($png.Length) bytes)."
+      - name: Upload WPF startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiskRescue-Pro-WPF-Startup-Diagnostics
+          path: |
+            artifacts/DiskRescue-Pro-Desktop-Screenshot.png.error.txt
+            artifacts/DiskRescue-Pro-Desktop-Screenshot.png.trace.txt
+          if-no-files-found: warn
       - name: Upload Windows x64 desktop preview
         uses: actions/upload-artifact@v4
         with:
