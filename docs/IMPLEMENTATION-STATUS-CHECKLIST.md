@@ -1,3 +1,28 @@
+# Current status update — 2026-11-10 (desktop accessibility and operation feedback)
+
+### Implemented on `feat/desktop-accessibility-focus-states`
+
+- Added a consistent high-contrast keyboard focus visual to buttons, combo boxes, text boxes, data grids, tabs, and the image navigator tree.
+- Added accessible names and task-specific tooltips to primary image actions, navigator/inventory/candidate grids, NTFS search/results, export controls, recovery queue actions, and experimental acquisition entry point.
+- Marked changing application, scan, and export status text as polite live regions so assistive technology can announce operation progress without interrupting the user.
+- Kept safety wording explicit: candidate evidence is not restoration; deleted-file export remains gated by separate physical destination checks; experimental physical acquisition is not physical partition recovery.
+- Validation is pending on this exact branch head. Do not claim XAML compilation, tests, or screenshot review until CI completes.
+- Manual keyboard-only, screen-reader, high-DPI, and Windows interaction testing remains outstanding.
+
+### Acceptance still pending
+
+- [ ] Confirm focus indicators are visible against all dark surfaces and do not obscure control content.
+- [ ] Verify tab, tree, grid, button, and cancellation workflows using keyboard only.
+- [ ] Verify live announcements with Windows Narrator or another screen reader.
+- [ ] Verify 100%, 125%, 150%, and 200% display scaling and common work-area sizes.
+- [ ] Complete the manual Windows smoke-test procedure and compare source fixture SHA-256 values before/after.
+
+### Safety boundary
+
+All automated tests must continue using generated images and disposable VHDX only. Physical-device partition scanning/recovery remains disabled. Manual physical acquisition remains experimental and is not part of this accessibility change.
+
+---
+
 # Current status update — 2026-11-10 (PR #17 merged: responsive inspector)
 
 ### Mainline result
