@@ -286,7 +286,7 @@ public static class WindowsPhysicalDiskDiscovery
 /// Opening requires an elevated process on many systems. The handle requests GENERIC_READ,
 /// shares read/write access with other processes, and never requests write access.
 /// </summary>
-public sealed class WindowsPhysicalDiskReader : IReadOnlyRandomAccessSource
+internal sealed class WindowsPhysicalDiskReader : IReadOnlyRandomAccessSource
 {
     private const uint GenericRead = 0x80000000;
     private const uint ShareRead = 0x00000001;
