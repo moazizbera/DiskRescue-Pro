@@ -51,7 +51,7 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
     [Fact]
     public async Task WriterDeletesPartialImageWhenSourceReadFails()
     {
-        using var source = new MemorySource(new byte[128 * 1024], failAfterFirstRead: true);
+        using var source = new MemorySource(new byte[5 * 1024 * 1024], failAfterFirstRead: true);
         await using var session = new FakeDestinationSession();
 
         await Assert.ThrowsAsync<IOException>(() =>
@@ -108,7 +108,7 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
     {
         private readonly Dictionary<Stream, string> _owned = new();
         private readonly Dictionary<string, byte[]> _published = new(StringComparer.OrdinalIgnoreCase);
-        private readonly HashSet<string> _deleted = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _deleted = new(StringComparer.OrdinalIgnoreCase);\n        private readonly HashSet<Stream> _publishedStreams = new();
         private bool _disposed;
 
         public PhysicalDestinationDirectoryIdentity DirectoryIdentity { get; } =
@@ -169,7 +169,7 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
         {
             EnsureOwned(file);
             cancellationToken.ThrowIfCancellationRequested();
-            if (_published.Values.Any(bytes => bytes.SequenceEqual(((MemoryStream)file).ToArray())))
+            if (_publishedStreams.Contains(file))
                 throw new InvalidOperationException("Published files cannot be deleted.");
             _deleted.Add(_owned[file]);
             _owned.Remove(file);
