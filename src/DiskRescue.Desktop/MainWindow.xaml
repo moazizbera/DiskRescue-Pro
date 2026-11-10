@@ -66,7 +66,7 @@
                              Text="Choose a disk image (.img, .bin, .dd, .raw)"
                              VerticalContentAlignment="Center" MinHeight="34"
                              Margin="0,0,10,0"/>
-                    <Button Grid.Column="1" x:Name="BrowseButton" Content="Browse files…"
+                    <Button Grid.Column="1" x:Name="BrowseButton" AutomationProperties.Name="Browse for a disk image" ToolTip="Choose a regular disk-image file. Physical disks cannot be selected here." Content="Browse files…"
                             Click="Browse_Click" MinWidth="120" MinHeight="34"/>
                 </Grid>
                 <Grid Grid.Row="2" Margin="0,7,0,0">
@@ -84,10 +84,10 @@
                             <ComboBoxItem Content="4 KB" Tag="4096"/>
                         </ComboBox>
                     </StackPanel>
-                    <Button Grid.Column="1" x:Name="InspectButton" Content="Inspect image"
+                    <Button Grid.Column="1" x:Name="InspectButton" AutomationProperties.Name="Inspect selected disk image read-only" ToolTip="Validate partition metadata without modifying the source image." Content="Inspect image"
                             Click="Inspect_Click" Padding="16,7" Margin="12,0,0,0"
                             MinHeight="32"/>
-                    <Button Grid.Column="2" x:Name="DiscoverButton" Content="Find lost partitions"
+                    <Button Grid.Column="2" x:Name="DiscoverButton" AutomationProperties.Name="Find lost partitions in the selected image" ToolTip="Search the regular image file for filesystem candidates; candidates are evidence, not restored partitions." Content="Find lost partitions"
                             Click="Discover_Click" Padding="15,7" Margin="8,0,0,0" MinHeight="32"
                             Background="#8A5526" Foreground="#FFF1DF"/>
                 </Grid>
@@ -178,7 +178,7 @@
                                            Foreground="{StaticResource Muted}" FontSize="11"
                                            TextWrapping="Wrap" Margin="0,4,0,0"/>
                             </StackPanel>
-                            <TreeView x:Name="ImageNavigatorTree" Background="#0C1726"
+                            <TreeView x:Name="ImageNavigatorTree" AutomationProperties.Name="Image and validated partition navigator" ToolTip="Use the arrow keys to navigate the image hierarchy; select a validated partition to synchronize the workspace." Background="#0C1726"
                                       Foreground="{StaticResource Text}" BorderThickness="1"
                                       BorderBrush="#263A52" Padding="8"
                                       SelectedItemChanged="ImageNavigatorTree_SelectedItemChanged">
@@ -194,7 +194,7 @@
                                 <TextBlock Text="Select a partition to inspect its available read-only metadata."
                                            Foreground="{StaticResource Muted}" FontSize="11" Margin="0,4,0,0"/>
                             </StackPanel>
-                            <DataGrid x:Name="PartitionsGrid" AlternationCount="2"
+                            <DataGrid x:Name="PartitionsGrid" AutomationProperties.Name="Validated partition inventory" ToolTip="Read-only partition inventory. Select a row to update the map and inspector." AlternationCount="2"
                                       SelectionChanged="PartitionsGrid_SelectionChanged">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="42"/>
@@ -222,7 +222,7 @@
                                      VerticalScrollBarVisibility="Auto" BorderThickness="1"
                                      BorderBrush="#263A52" Background="#0C1726" Padding="10"
                                      Text="Select a candidate to review its validation evidence."/>
-                            <DataGrid x:Name="CandidatesGrid" ItemsSource="{Binding}"
+                            <DataGrid x:Name="CandidatesGrid" AutomationProperties.Name="Lost partition candidate evidence" ToolTip="Candidates are unconfirmed filesystem evidence; selecting one does not restore or modify a partition." ItemsSource="{Binding}"
                                       AutoGenerateColumns="False" IsReadOnly="True"
                                       SelectionMode="Extended" SelectionUnit="FullRow"
                                       SelectionChanged="CandidatesGrid_SelectionChanged">
@@ -248,27 +248,26 @@
                                 <TextBlock Text="Bounded MFT metadata preview. Filenames and attributes only; this is not file-content recovery."
                                            Foreground="{StaticResource Muted}" FontSize="11"
                                            TextWrapping="Wrap" Margin="0,4,0,9"/>
-                                <TextBox x:Name="NtfsEntrySearchBox"
-                                         ToolTip="Search names, record numbers, parent references, and attributes"
+                                <TextBox x:Name="NtfsEntrySearchBox" AutomationProperties.Name="Filter NTFS file-entry metadata" ToolTip="Filter the bounded metadata preview by filename, record number, parent reference, or attributes"
                                          TextChanged="NtfsEntrySearchBox_TextChanged"
                                          Height="34" Padding="9,6"/>
                                 <WrapPanel Margin="0,9,0,0">
-                                    <Button x:Name="CheckRecoveryDestinationButton"
+                                    <Button x:Name="CheckRecoveryDestinationButton" AutomationProperties.Name="Check recovery destination safety" ToolTip="Preflight a destination on separate physical storage; virtual or ambiguous destinations fail closed."
                                             Content="Check destination…" Click="CheckRecoveryDestination_Click"
                                             IsEnabled="False" Margin="0,0,7,6"/>
-                                    <Button x:Name="RecoverDeletedFileButton"
+                                    <Button x:Name="RecoverDeletedFileButton" AutomationProperties.Name="Queue selected eligible deleted files" ToolTip="Export eligible deleted files only after the separate-physical-destination safety gate passes."
                                             Content="Queue selected deleted files…" Click="RecoverDeletedFile_Click"
                                             IsEnabled="False" Margin="0,0,7,6"/>
-                                    <Button x:Name="CancelRecoveryButton" Content="Cancel export"
+                                    <Button x:Name="CancelRecoveryButton" AutomationProperties.Name="Cancel active recovery export queue" ToolTip="Request cancellation of the active export; already completed items remain recorded." Content="Cancel export"
                                             Click="CancelRecovery_Click" IsEnabled="False"
                                             Margin="0,0,7,6" Background="#30445D"
                                             Foreground="{StaticResource Text}"/>
                                 </WrapPanel>
                             </StackPanel>
                             <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
-                                <ProgressBar x:Name="RecoveryProgressBar" Height="7"
+                                <ProgressBar x:Name="RecoveryProgressBar" AutomationProperties.Name="Deleted-file export progress" AutomationProperties.LiveSetting="Polite" Height="7"
                                              Minimum="0" Maximum="100" Value="0"/>
-                                <TextBlock x:Name="RecoveryProgressText"
+                                <TextBlock x:Name="RecoveryProgressText" AutomationProperties.Name="Deleted-file export queue progress" AutomationProperties.LiveSetting="Polite"
                                            Text="No export operation running."
                                            Foreground="{StaticResource Muted}" FontSize="10" Margin="0,4,0,0"/>
                             </StackPanel>
@@ -278,8 +277,8 @@
                                      VerticalScrollBarVisibility="Auto" BorderThickness="1"
                                      BorderBrush="#263A52" Background="#0C1726" Padding="10"
                                      Text="Run an NTFS preview, then select an entry to inspect its metadata."/>
-                            <DataGrid x:Name="RecoveryQueueGrid" DockPanel.Dock="Bottom" Height="115" Margin="0,8,0,0" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"><DataGrid.Columns><DataGridTextColumn Header="QUEUED FILE" Binding="{Binding FileName}" Width="2*"/><DataGridTextColumn Header="MFT RECORD" Binding="{Binding RecordNumber}" Width="95"/><DataGridTextColumn Header="MAX BYTES" Binding="{Binding MaximumBytes}" Width="110"/><DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="*"/></DataGrid.Columns></DataGrid>
-<DataGrid x:Name="NtfsEntriesGrid" AutoGenerateColumns="False"
+                            <DataGrid x:Name="RecoveryQueueGrid" AutomationProperties.Name="Deleted-file export queue status" ToolTip="Shows each queued item and its current export state." DockPanel.Dock="Bottom" Height="115" Margin="0,8,0,0" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"><DataGrid.Columns><DataGridTextColumn Header="QUEUED FILE" Binding="{Binding FileName}" Width="2*"/><DataGridTextColumn Header="MFT RECORD" Binding="{Binding RecordNumber}" Width="95"/><DataGridTextColumn Header="MAX BYTES" Binding="{Binding MaximumBytes}" Width="110"/><DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="*"/></DataGrid.Columns></DataGrid>
+<DataGrid x:Name="NtfsEntriesGrid" AutomationProperties.Name="NTFS file-entry metadata results" ToolTip="Bounded filename and attribute metadata only; this is not a complete directory listing or content recovery." AutoGenerateColumns="False"
                                       IsReadOnly="True" CanUserSortColumns="True"
                                       SelectionMode="Single"
                                       SelectionChanged="NtfsEntriesGrid_SelectionChanged">
@@ -303,7 +302,7 @@
                                 <TextBlock Text="Scans a bounded number of MFT records from the selected partition. It does not recover file contents."
                                            Foreground="{StaticResource Muted}" FontSize="11"
                                            TextWrapping="Wrap" Margin="0,4,0,10"/>
-                                <Button x:Name="ScanNtfsButton" Content="Scan selected partition"
+                                <Button x:Name="ScanNtfsButton" AutomationProperties.Name="Scan selected partition for bounded NTFS metadata" ToolTip="Read a bounded set of initialized MFT records from the selected image partition." Content="Scan selected partition"
                                         Click="ScanNtfs_Click" IsEnabled="False"
                                         HorizontalAlignment="Left"/>
                             </StackPanel>
@@ -328,7 +327,7 @@
                                    FontSize="10" FontWeight="Bold"/>
                         <TextBlock Text="Partition inspector" Foreground="{StaticResource Text}"
                                    FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0"/>
-                        <TextBox x:Name="SelectedPartitionDetailsBox" IsReadOnly="True"
+                        <TextBox x:Name="SelectedPartitionDetailsBox" AutomationProperties.Name="Selected partition geometry and interpretation" IsReadOnly="True"
                                  TextWrapping="Wrap" AcceptsReturn="True"
                                  VerticalScrollBarVisibility="Visible" Height="126" MinHeight="104"
                                  Margin="0,8,0,12" BorderThickness="1"
@@ -355,7 +354,7 @@
                             </Grid>
                         </Border>
                     </StackPanel>
-                    <TextBox x:Name="FindingsBox" IsReadOnly="True" TextWrapping="Wrap"
+                    <TextBox x:Name="FindingsBox" AutomationProperties.Name="Inspection findings, warnings, and limitations" IsReadOnly="True" TextWrapping="Wrap"
                              AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
                              BorderThickness="1" BorderBrush="#263A52"
                              Background="#0C1726" Padding="12"
@@ -373,25 +372,25 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center">
-                <TextBlock x:Name="StatusText" Text="Ready · Image inspection"
+                <TextBlock x:Name="StatusText" AutomationProperties.Name="Application operation status" AutomationProperties.LiveSetting="Polite" Text="Ready · Image inspection"
                            Foreground="{StaticResource Muted}" FontSize="11"/>
                 <TextBlock Text="Image inspection is read-only. Physical partition scanning, repair, and recovery are disabled."
                            Foreground="#71869D" FontSize="9" Margin="0,2,0,0"/>
             </StackPanel>
             <StackPanel Grid.Column="1" Width="150" Margin="12,0" VerticalAlignment="Center">
-                <TextBlock x:Name="ScanProgressText" Text="Ready"
+                <TextBlock x:Name="ScanProgressText" AutomationProperties.Name="Partition discovery progress status" AutomationProperties.LiveSetting="Polite" Text="Ready"
                            Foreground="{StaticResource Muted}" FontSize="10"/>
-                <ProgressBar x:Name="ScanProgressBar" Height="5" Minimum="0"
+                <ProgressBar x:Name="ScanProgressBar" AutomationProperties.Name="Partition discovery progress" AutomationProperties.LiveSetting="Polite" Height="5" Minimum="0"
                              Maximum="100" Value="0" Margin="0,5,0,0"/>
-                <Button x:Name="CancelScanButton" Content="Cancel scan"
+                <Button x:Name="CancelScanButton" AutomationProperties.Name="Cancel partition discovery scan" ToolTip="Request safe cancellation of the current image scan." Content="Cancel scan"
                         Click="CancelScan_Click" IsEnabled="False" Padding="7,2"
                         Margin="0,3,0,0" HorizontalAlignment="Left"
                         Background="#30445D" Foreground="{StaticResource Text}"/>
             </StackPanel>
-            <Button Grid.Column="2" x:Name="ExportButton" Content="Export JSON report"
+            <Button Grid.Column="2" x:Name="ExportButton" AutomationProperties.Name="Export inspection report as JSON" ToolTip="Save the current inspection report to a separate user-selected path." Content="Export JSON report"
                     Click="Export_Click" IsEnabled="False" Margin="8,0,0,0"
                     Background="#22354B" Foreground="{StaticResource Text}"/>
-            <Button Grid.Column="3" x:Name="PhysicalDiskButton"
+            <Button Grid.Column="3" x:Name="PhysicalDiskButton" AutomationProperties.Name="Open experimental physical disk acquisition tools" ToolTip="Experimental read-only image acquisition only; not physical partition scanning or recovery."
                     Content="Advanced device tools…"
                     Click="PhysicalDiskInventory_Click" Padding="12,9"
                     Margin="8,0,0,0" Background="#183B3E" Foreground="#A7F0D5"/>

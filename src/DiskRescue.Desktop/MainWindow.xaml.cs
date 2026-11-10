@@ -4,6 +4,9 @@ using System.Text.Json;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
+using System.ComponentModel;
+using System.Windows.Automation;
+using System.Windows.Automation.Peers;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
@@ -35,6 +38,12 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        // LiveSetting declares polite announcement intent; raise the UIA event when
+        // status text changes so Narrator and other clients receive the update.
+        RegisterLiveRegion(StatusText);
+        RegisterLiveRegion(ScanProgressText);
+        RegisterLiveRegion(RecoveryProgressText);
+
         // Apply work-area limits after XAML initialization so its design-time
         // dimensions cannot overwrite the screen-aware runtime sizing.
         var workArea = SystemParameters.WorkArea;
@@ -55,6 +64,20 @@ public partial class MainWindow : Window
         NtfsEntriesGrid.ItemsSource = _ntfsEntryRows;
         RecoveryQueueGrid.ItemsSource = _recoveryQueueRows;
         ScanNtfsButton.IsEnabled = false;
+    }
+
+    private static void RegisterLiveRegion(TextBlock element)
+    {
+        var descriptor = DependencyPropertyDescriptor.FromProperty(TextBlock.TextProperty, typeof(TextBlock));
+        descriptor?.AddValueChanged(element, (_, _) =>
+        {
+            if (!element.IsLoaded)
+                return;
+
+            var peer = UIElementAutomationPeer.FromElement(element)
+                ?? UIElementAutomationPeer.CreatePeerForElement(element);
+            peer?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+        });
     }
 
     private void PhysicalDiskInventory_Click(object sender, RoutedEventArgs e)
