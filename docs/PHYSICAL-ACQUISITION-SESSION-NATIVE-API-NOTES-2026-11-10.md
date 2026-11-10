@@ -20,15 +20,17 @@ Reference: https://learn.microsoft.com/windows/win32/api/winternl/nf-winternl-nt
 
 ### Handle-relative no-replace rename
 
-- `SetFileInformationByHandle` accepts `FileRenameInfo` and `FILE_RENAME_INFO`.
-- `FILE_RENAME_INFO.RootDirectory` may be a directory handle when the target name is relative.
-- `ReplaceIfExists = FALSE` means an existing target causes the rename to fail rather than being replaced.
-- The native buffer layout must be constructed with correct x86/x64 alignment and byte length; do not assume a managed sequential struct with an inline one-character filename is automatically safe.
-- The adapter must retain the root directory handle until image and manifest publication are complete.
+- The Win32 documentation says `FILE_RENAME_INFO.RootDirectory` may be a directory handle for a relative target name and `ReplaceIfExists = FALSE` prevents replacement.
+- The first implementation used `SetFileInformationByHandle(FileRenameInfo)`; the Windows CI runner returned `ERROR_INVALID_PARAMETER (87)` for a non-null `RootDirectory`, despite a correctly sized x64 buffer. This is a reproduced implementation failure, not a reason to fall back to a path-based rename.
+- The adapter now uses the native `NtSetInformationFile` entry point with `FileRenameInformation` (information class 10), a directory-relative `RootDirectory`, and `ReplaceIfExists = FALSE`. It handles `STATUS_OBJECT_NAME_COLLISION` as a no-replace conflict.
+- This native call is an implementation dependency that requires direct Windows tests across the supported filesystem/Windows matrix. Do not treat the API note or a single CI runner as broad compatibility certification.
+- The variable-length buffer uses the documented union/handle/length/name offsets; x86 still requires explicit validation before x86 support can be claimed.
+- The adapter retains the root directory handle until image and manifest publication are complete.
 
 References:
 - https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-setfileinformationbyhandle
 - https://learn.microsoft.com/windows/win32/api/winbase/ns-winbase-file_rename_info
+- https://learn.microsoft.com/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_rename_information
 
 ### Directory and file identity
 
@@ -56,12 +58,12 @@ References:
 
 1. Open the requested destination directory with directory-capable handle semantics; retain the handle.
 2. Capture final resolved path and `FILE_ID_INFO` from the open handle.
-3. Inspect every relevant reparse component, recording tag and resolved target. Preserve only explicitly supported and validated volume mount points.
+3. Open each path component relative to the already-pinned parent with `FILE_OPEN_REPARSE_POINT`; inspect the opened component's attributes and reject every reparse point in this first implementation. Volume mount points, symlinks, and junctions are currently unsupported; no transparent redirection is followed.
 4. Reconcile the pinned directory's volume identity with the existing physical volume map and reject a source/destination physical-disk overlap.
 5. Create a unique temporary leaf using `NtCreateFile` with `OBJECT_ATTRIBUTES.RootDirectory` set to the pinned handle and `FILE_CREATE` disposition.
 6. Query `FILE_ID_INFO` from the created file handle and compare its volume serial with the pinned directory before permitting any source read.
 7. Stream, hash, and verify through the same open file handle; call `FlushFileBuffers` before publication.
-8. Publish with `SetFileInformationByHandle(FileRenameInfo)`, relative `RootDirectory`, and `ReplaceIfExists = FALSE`.
+8. Publish with `NtSetInformationFile(FileRenameInformation)`, relative `RootDirectory`, and `ReplaceIfExists = FALSE`; preserve native NTSTATUS for diagnostics.
 9. Repeat the same session-bound create/serialize/flush/publish sequence for the manifest.
 10. Keep directory and file handles alive until both commits finish; dispose all remaining temporary handles on every failure path.
 
@@ -71,7 +73,7 @@ References:
 - Normal directory: open, identity capture, relative create, identity match, write, flush, rename.
 - Existing temporary/final name: create/rename fails without modifying the existing entry.
 - Directory renamed or original path replaced after pinning: all operations remain attached to the pinned directory object; no replacement-path output appears.
-- Symlink/junction and volume mount point: tag and target classification is explicit; only verified mount points are accepted.
+- Symlink/junction and volume mount point: each reparse component is opened without following and rejected; any future mount-point support needs separate target-volume/physical-map validation.
 - Destination file volume mismatch or missing file ID: fail before the first source read.
 - Inject failure at every native boundary and assert zero source reads before the read gate, no unexpected published files, and deterministic handle disposal.
 - Manifest failure after image publication preserves the image and reports its name/hash.
@@ -79,6 +81,6 @@ References:
 
 ## 4. Explicit non-goals and gate
 
-This document does not authorize coordinator integration with a path-based fallback, physical acquisition, physical partition scanning, or recovery. The native adapter must be isolated, injectable, reviewed, and tested on the supported Windows/filesystem matrix before the production coordinator can use it. If any required primitive or filesystem identity cannot be proven, keep the public acquisition gate disabled.
+This document does not authorize coordinator integration with a path-based fallback, physical acquisition, physical partition scanning, or recovery. The current native adapter is a first implementation slice only: it is limited to local fixed drive-letter paths, rejects all reparse points, and is not wired into the coordinator. It must be reviewed and tested on the supported Windows/filesystem matrix before production use. If any required primitive or filesystem identity cannot be proven, keep the public acquisition gate disabled.
 
 The managed session writer in PR #30 is only the orchestration layer. It does not implement these native primitives and does not close the path-replacement/reparse race by itself.
