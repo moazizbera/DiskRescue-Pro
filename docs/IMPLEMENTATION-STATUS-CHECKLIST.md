@@ -1,3 +1,56 @@
+# Current status update — 2026-11-10 (PR #30 destination-session foundation and CI verification)
+
+## Current candidate
+
+- [PR #30 — managed pinned-destination session contract](https://github.com/moazizbera/DiskRescue-Pro/pull/30) remains **draft/open**.
+- Branch: `security/managed-destination-session-contract-20261110`.
+- Current implementation head before this checklist refresh: `2527c6793ba1565e10a6160e82ff77bfe321d272`.
+- Related blocking security investigation: [Issue #23 — pin and revalidate acquisition destination filesystem identity](https://github.com/moazizbera/DiskRescue-Pro/issues/23).
+
+## Implemented in PR #30
+
+- [x] Internal managed destination-session contract with immutable directory and file identities (volume identity + 128-bit file ID).
+- [x] Validated leaf-name boundary; the session API accepts leaf names, not arbitrary paths.
+- [x] Stream-based image writer and same-open-stream SHA-256/length verifier.
+- [x] Caller-owned stream manifest serialization.
+- [x] Path-free writer orchestration for image and manifest through one session.
+- [x] Fail closed on missing directory/file identities and wrong-volume file identities before source reads.
+- [x] No-replace publication contract; cleanup of unpublished files; preserve committed image and report explicit manifest-commit failure.
+- [x] Fake-session lifecycle and failure-injection tests for collisions, foreign streams, zero-read failures, cleanup, disposal, wrong-volume manifest, and manifest-failure preservation.
+- [x] Native Windows API research notes for directory-relative create-new, handle-relative no-replace rename, file IDs, and reparse-point inspection.
+
+## Exact-head CI evidence
+
+- [x] CI #1247 passed at `d619f2ca4bbe3f907098b7d29064964c0fa9dbc3`: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42867771919
+- [x] CI #1253 passed at `e668d10ae4cd0c597284b7d2903d8363ba5b977b`: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42872475814
+- [x] CI #1254 passed at `e720b49ae1b65b252960b3d97d6860b57d729eb8`: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42873048910
+- [x] Final branch-head CI #1255 passed at `2527c6793ba1565e10a6160e82ff77bfe321d272`: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42873137979
+- [x] Final #1255 Windows job completed all 22 steps successfully, including build, tests, generated fixtures, CLI/recovery smoke tests, WPF build, Windows x64 preview publish, screenshot capture, and artifact uploads.
+
+## Still blocked — do not mark complete
+
+- [ ] Implement a native Windows pinned-directory session; the current PR contains no P/Invoke adapter.
+- [ ] Correctly implement and test x86/x64 native structure layouts and handle ownership.
+- [ ] Implement directory-relative create-new, same-handle identity/flush/delete, and handle-relative no-replace rename.
+- [ ] Classify reparse tags and targets; support only validated volume mount points and reject unsafe/unvalidated redirections.
+- [ ] Reconcile the pinned destination handle's volume identity with the existing volume-to-physical-disk extent map; volume serial alone is not a physical-disk identity.
+- [ ] Add deterministic Windows tests for directory path replacement, symlink/junction/mount-point behavior, no-replace collisions, missing IDs, wrong-volume rejection, zero source reads, and handle disposal.
+- [ ] Integrate the native session into the production coordinator only after the adapter and tests pass; no path-based fallback.
+- [ ] Run disposable-VHDX safety smoke tests and independent review before any gate change.
+- [ ] Complete manual Windows UI/accessibility checks and screenshot review separately from CI.
+
+## Safety boundary
+
+- Public physical acquisition remains hard-disabled (`IsAcquisitionEnabled == false`); the public API rejects before opening a source handle or creating output.
+- The coordinator is not wired to the new session writer.
+- No physical HDD was opened or read for PR #30.
+- Continue using generated images and disposable VHDX only. Never test against an original or valuable HDD.
+- Never format, initialize, repair, repartition, mount, or write to source media.
+- Recovery/acquisition output must be on separately verified physical storage.
+- A passing CI run validates only the exact tested commit and does not prove native handle safety or physical HDD readiness.
+
+---
+
 # Current status update — 2026-11-10 (desktop accessibility and operation feedback)
 
 ### Implemented on `feat/desktop-accessibility-focus-states`
