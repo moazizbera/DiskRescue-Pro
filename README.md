@@ -81,6 +81,14 @@ dotnet run --project src/DiskRescue.Cli -- acquire-physical 2 "EXACT-REPORTED-SE
 
 The destination directory must already exist and be on a verified separate physical disk. The command repeats source and destination preflight, displays the selected device identity and warnings, and requires typing the exact phrase ACQUIRE PHYSICALDRIVE2 before opening the source. It aborts on read errors without zero-filling and publishes a verified image plus a JSON sidecar manifest. This is a live, non-resumable acquisition—not a hardware write-blocked forensic image or a point-in-time snapshot. Do not use it on the only copy of valuable data before disposable virtual-disk and Windows hardware validation. Prefer a hardware write blocker for irreplaceable media.
 
+Search a regular disk-image file for NTFS volumes missing from its MBR/GPT partition tables:
+
+```powershell
+dotnet run --project src/DiskRescue.Cli -- discover-ntfs "C:\Images\sample.img" --max-scan-bytes 4294967296
+```
+
+The scanner reads the image only, checks NTFS boot-sector geometry and the backup boot sector, and reports candidate offsets and confidence evidence. The default scan limit is 4 GiB; increase it explicitly for larger images. It does not scan a live physical disk or modify partition tables.
+
 Preview NTFS metadata after obtaining a volume byte offset and length from a trusted partition report:
 
 ```powershell

@@ -56,7 +56,6 @@ These fixtures test metadata inspection and a narrow NTFS MFT parser path only. 
 
 Never choose a physical disk or the damaged source drive. Do not initialize, format, repair, repartition, mount, or write to the source. If the drive is clicking, overheating, repeatedly disconnecting, or returning repeated I/O errors, stop and consider professional recovery.
 
-
 ## Lost NTFS partition discovery fixture
 
 Generate a disposable image containing a valid NTFS volume that is deliberately absent from the MBR partition table:
@@ -65,6 +64,51 @@ Generate a disposable image containing a valid NTFS volume that is deliberately 
 .\tools\New-LostNtfsPartitionImage.ps1 -OutputPath "$env:USERPROFILE\Documents\lost-ntfs-partition.img"
 ```
 
-Open the image in DiskRescue Pro, click **Inspect image**, then **Find lost partitions**. The scanner should report one **Lost partition candidate** at byte offset 1,048,576, with a corroborating backup boot sector and high confidence. Select the candidate to attempt the existing bounded NTFS metadata preview; this fixture carries the synthetic `Report.txt` entry.
+### One-command recovery-path test
+
+From the repository root in PowerShell, run:
+
+```powershell
+.\tools\Test-LostNtfsRecovery.ps1
+```
+
+The script creates a uniquely named test folder under Documents, generates the disposable lost-partition image, runs discovery and bounded preview, extracts the synthetic resident file, and verifies its exact contents and SHA-256. It refuses to overwrite an existing image or recovered file. It uses only the generated image file and does not enumerate or access physical disks.
+
+To choose another output folder:
+
+```powershell
+.\tools\Test-LostNtfsRecovery.ps1 -OutputDirectory "$env:USERPROFILE\Documents\DiskRescue-Recovery-Test"
+```
+
+### First end-to-end CLI test
+
+This is the recommended first recovery-path test. It uses only the generated image file and writes the recovered test file to a separate output folder.
+
+```powershell
+$image = "$env:USERPROFILE\Documents\lost-ntfs-partition.img"
+$out = "$env:USERPROFILE\Documents\DiskRescue-Recovered"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+# 1. Discover the lost NTFS volume. This reads the image only.
+dotnet run --project src/DiskRescue.Cli -- discover-ntfs $image --max-scan-bytes 4294967296
+
+# 2. Preview the candidate at the reported byte offset and bounded length.
+dotnet run --project src/DiskRescue.Cli -- scan-ntfs $image --offset 1048576 --length 65024 --max-records 4
+
+# 3. Extract the synthetic resident file to a new destination.
+dotnet run --project src/DiskRescue.Cli -- extract-ntfs-file $image --offset 1048576 --length 65024 --record 1 --output "$out\Report-recovered.txt" --max-bytes 1024
+
+# 4. Verify the recovered test payload.
+Get-Content "$out\Report-recovered.txt" -Raw
+```
+
+Expected results:
+- Discovery reports one **Lost partition candidate** at byte offset `1,048,576`, with a valid corroborating backup boot sector and confidence score 95.
+- The bounded metadata preview returns one entry named `Report.txt`.
+- Extraction creates `Report-recovered.txt` in the separate output folder. Its expected contents are `DiskRescue synthetic recovered content`.
+
+If the output file already exists, choose a new filename; extraction deliberately does not overwrite. The fixture and expected payload are synthetic test data. This test does not establish that arbitrary files on a damaged real disk can be recovered.
+
+The desktop flow is also available: open the image, click **Inspect image**, then **Find lost partitions**. The scanner should report the same candidate. Select it to attempt the existing bounded NTFS metadata preview.
 
 The fixture is a regular image file, not a physical disk. The scanner reads it only and does not update its MBR or GPT. The confidence score is evidence-based triage, not a probability of successful file recovery.
