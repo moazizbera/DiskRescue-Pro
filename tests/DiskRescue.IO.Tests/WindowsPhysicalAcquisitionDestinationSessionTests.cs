@@ -24,7 +24,7 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
 
             await session.FlushToDiskAsync(stream);
             await session.PublishNoReplaceAsync(stream, "capture.img");
-            await stream.DisposeAsync();
+            await session.DisposeAsync();
 
             Assert.Equal(
                 new byte[] { 4, 8, 15, 16, 23, 42 },
