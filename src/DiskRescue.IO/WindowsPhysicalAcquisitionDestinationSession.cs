@@ -433,6 +433,13 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
 
         if (finalPath.StartsWith(@"\\?\Volume{", StringComparison.OrdinalIgnoreCase))
             return finalPath;
+        if (finalPath.Length > 2 &&
+            char.IsAsciiLetter(finalPath[0]) &&
+            finalPath[1] == ':' &&
+            Path.IsPathFullyQualified(finalPath))
+        {
+            return finalPath;
+        }
 
         throw new IOException("The pinned destination directory no longer resolves to a supported local volume path.");
     }
