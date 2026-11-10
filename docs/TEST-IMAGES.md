@@ -55,3 +55,16 @@ These fixtures test metadata inspection and a narrow NTFS MFT parser path only. 
 ## Safety
 
 Never choose a physical disk or the damaged source drive. Do not initialize, format, repair, repartition, mount, or write to the source. If the drive is clicking, overheating, repeatedly disconnecting, or returning repeated I/O errors, stop and consider professional recovery.
+
+
+## Lost NTFS partition discovery fixture
+
+Generate a disposable image containing a valid NTFS volume that is deliberately absent from the MBR partition table:
+
+```powershell
+.\tools\New-LostNtfsPartitionImage.ps1 -OutputPath "$env:USERPROFILE\Documents\lost-ntfs-partition.img"
+```
+
+Open the image in DiskRescue Pro, click **Inspect image**, then **Find lost partitions**. The scanner should report one **Lost partition candidate** at byte offset 1,048,576, with a corroborating backup boot sector and high confidence. Select the candidate to attempt the existing bounded NTFS metadata preview; this fixture carries the synthetic `Report.txt` entry.
+
+The fixture is a regular image file, not a physical disk. The scanner reads it only and does not update its MBR or GPT. The confidence score is evidence-based triage, not a probability of successful file recovery.
