@@ -100,7 +100,7 @@ DiskRescue Pro is being delivered in safety-gated increments. A roadmap checkbox
 - [x] Display discovered FAT32/exFAT candidates in the WPF discovery UI and findings panel (automated integration/build validation complete)
 - [ ] Add deeper candidate comparison tools
 - [ ] Search, filter, sort, and metadata inspection for file entries
-- [ ] Accessible progress, cancellation, and clear failure states
+- [~] Accessible progress, cancellation, and clear failure states — named controls, keyboard focus cues, and polite live status regions implemented on `feat/desktop-accessibility-focus-states`; exact-head CI and manual keyboard/screen-reader validation pending.
 - [ ] Recovery destination verification and extraction queue
 - [ ] Signed installer, versioning, release notes, and reproducible release workflow
 - [ ] Manual usability, accessibility, and Windows-version testing
