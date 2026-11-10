@@ -1,3 +1,14 @@
+# Current status update — 2026-11-10 (responsive inspector follow-up)
+
+### Implemented on `feat/inspector-responsive-layout`
+
+- Widened the selected-item inspector proportionally and reduced the navigator workspace share so long metadata values have more room.
+- Reduced inspector card padding slightly to preserve usable content width.
+- Tuned the partition-details viewport for compact work areas and made its internal vertical scrollbar explicit so the final metadata lines remain reachable without consuming the findings panel.
+- Kept the existing screen-aware window bounds and short-work-area map collapse behavior.
+- Validation is pending: do not claim build, automated tests, screenshot, or Windows manual resize checks passed until CI and visual review complete.
+- Safety boundary unchanged: regular image files only for partition inspection; physical-device partition scanning/recovery remains disabled.
+
 # Current status update — 2026-11-10 (professional workspace implementation in progress)
 
 ### Implemented in `feat/pro-workspace-navigator-inspector`

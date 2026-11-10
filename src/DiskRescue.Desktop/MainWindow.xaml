@@ -161,9 +161,9 @@
         <!-- Main work area -->
         <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2.15*" MinWidth="420"/>
+                <ColumnDefinition Width="1.85*" MinWidth="390"/>
                 <ColumnDefinition Width="6"/>
-                <ColumnDefinition Width="0.95*" MinWidth="260"/>
+                <ColumnDefinition Width="1.15*" MinWidth="300"/>
             </Grid.ColumnDefinitions>
 
             <Border Background="{StaticResource Panel}" BorderBrush="#263A52"
@@ -321,8 +321,8 @@
 
             <!-- Findings panel is a readable report surface, not a console -->
             <Border Grid.Column="2" Background="{StaticResource Panel}" BorderBrush="#263A52"
-                    BorderThickness="1" CornerRadius="11" Padding="15">
-                <DockPanel>
+                    BorderThickness="1" CornerRadius="11" Padding="12">
+                <DockPanel LastChildFill="True">
                     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,11">
                         <TextBlock Text="03  /  SELECTED ITEM" Foreground="{StaticResource Muted}"
                                    FontSize="10" FontWeight="Bold"/>
@@ -330,7 +330,7 @@
                                    FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0"/>
                         <TextBox x:Name="SelectedPartitionDetailsBox" IsReadOnly="True"
                                  TextWrapping="Wrap" AcceptsReturn="True"
-                                 VerticalScrollBarVisibility="Auto" Height="150"
+                                 VerticalScrollBarVisibility="Visible" Height="126" MinHeight="104"
                                  Margin="0,8,0,12" BorderThickness="1"
                                  BorderBrush="#263A52" Background="#0C1726" Padding="10"
                                  Text="Inspect an image and select a partition to review its geometry and validation context."/>
