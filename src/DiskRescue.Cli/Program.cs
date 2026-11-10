@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.Json;
 using DiskRescue.Filesystems;
 using DiskRescue.IO;
@@ -16,6 +17,18 @@ static int Run(string[] args)
 
     if (string.Equals(args[0], "scan-ntfs", StringComparison.OrdinalIgnoreCase))
         return RunNtfsScan(args);
+
+    if (string.Equals(args[0], "extract-ntfs-file", StringComparison.OrdinalIgnoreCase))
+        return RunNtfsExtract(args);
+
+    if (string.Equals(args[0], "image-copy", StringComparison.OrdinalIgnoreCase))
+        return RunImageCopy(args);
+
+    if (string.Equals(args[0], "list-physical-disks", StringComparison.OrdinalIgnoreCase))
+        return RunPhysicalDiskInventory(args);
+
+    if (string.Equals(args[0], "acquire-physical", StringComparison.OrdinalIgnoreCase))
+        return RunPhysicalDiskAcquisition(args);
 
     if (!string.Equals(args[0], "inspect", StringComparison.OrdinalIgnoreCase) || args.Length < 2)
     {
@@ -106,6 +119,57 @@ static int Run(string[] args)
     }
 }
 
+
+static int RunImageCopy(string[] args)
+{
+    if (args.Length != 3)
+    {
+        Console.Error.WriteLine("Usage: diskrescue image-copy <source-image> <new-destination-image>");
+        return 2;
+    }
+
+    try
+    {
+        using var source = FileImageReader.Open(args[1]);
+        using var cancellation = new CancellationTokenSource();
+        ConsoleCancelEventHandler handler = (_, eventArgs) =>
+        {
+            eventArgs.Cancel = true;
+            cancellation.Cancel();
+        };
+        Console.CancelKeyPress += handler;
+        try
+        {
+            var progress = new Progress<DiskImageProgress>(value =>
+            {
+                var percent = value.Percent.ToString("F1", CultureInfo.InvariantCulture);
+                Console.Write($"\\rImaging: {percent}% · {value.BytesCopied:N0}/{value.TotalBytes:N0} bytes");
+            });
+            var result = DiskImager.CreateImageAsync(
+                source, args[2], progress, cancellation.Token).GetAwaiter().GetResult();
+            Console.WriteLine();
+            Console.WriteLine($"Image created: {result.ImagePath}");
+            Console.WriteLine($"Bytes copied: {result.BytesCopied:N0}");
+            Console.WriteLine($"SHA-256: {result.Sha256}");
+            return 0;
+        }
+        finally
+        {
+            Console.CancelKeyPress -= handler;
+        }
+    }
+    catch (OperationCanceledException)
+    {
+        Console.Error.WriteLine("\\nImaging cancelled. The incomplete temporary image was removed when possible.");
+        return 130;
+    }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+    {
+        Console.Error.WriteLine($"Imaging stopped safely: {exception.Message}");
+        return 1;
+    }
+}
+
 static int RunNtfsScan(string[] args)
 {
     if (args.Length < 2)
@@ -189,7 +253,11 @@ static int RunNtfsScan(string[] args)
             return 1;
         }
 
-        var scan = mftResult.Reader.ScanRecords(maximumRecords);
+        var continuation = mftResult.Reader.ExtendUsingResidentAttributeList();
+        var scanReader = continuation.IsValid && continuation.Reader is not null
+            ? continuation.Reader
+            : mftResult.Reader;
+        var scan = scanReader.ScanRecords(maximumRecords);
         var tree = NtfsDirectoryTreeBuilder.Build(scan.Entries);
         var report = new
         {
@@ -215,7 +283,14 @@ static int RunNtfsScan(string[] args)
                 sourceWriteOperationsAvailable = false,
                 directoryTreePreviewGenerated = true,
                 completeDirectoryTreeAvailable = false,
-                fileRecoveryAvailable = false
+                fileRecoveryAvailable = false,
+                mftContinuationDiscovery = new
+                {
+                    continuation.IsValid,
+                    continuation.Extended,
+                    usedExtendedReader = !ReferenceEquals(scanReader, mftResult.Reader),
+                    issues = continuation.Issues
+                }
             },
             scan = new
             {
@@ -226,7 +301,9 @@ static int RunNtfsScan(string[] args)
                 scan.Entries,
                 directoryTree = new { tree.Roots, tree.Orphans, diagnostics = tree.Issues },
                 diagnostics = scan.Issues,
-                scope = "Initial validated $MFT::$DATA extent only; additional extents and directory indexes are not followed."
+                scope = continuation.IsValid && continuation.Extended
+                    ? "Validated resident $ATTRIBUTE_LIST continuation extents are included when referenced FILE records are reachable through the initial MFT map; non-resident attribute lists, recursive bootstrap discovery, and directory indexes are not followed."
+                    : "Initial validated $MFT::$DATA extent only; continuation discovery was unavailable or unnecessary, and directory indexes are not followed."
             }
         };
 
@@ -240,19 +317,320 @@ static int RunNtfsScan(string[] args)
     }
 }
 
+static int RunNtfsExtract(string[] args)
+{
+    if (args.Length < 2)
+    {
+        Console.Error.WriteLine("Usage: diskrescue extract-ntfs-file <image> --offset <bytes> --length <bytes> --record <number> --output <new-file> --max-bytes <bytes>");
+        return 2;
+    }
+
+    var imagePath = args[1];
+    long? volumeOffset = null;
+    long? volumeLength = null;
+    ulong? recordNumber = null;
+    ulong? maximumBytes = null;
+    string? outputPath = null;
+    var streamName = string.Empty;
+    var sectorSize = 512;
+
+    for (var i = 2; i < args.Length; i++)
+    {
+        if (i + 1 >= args.Length)
+        {
+            Console.Error.WriteLine($"Missing value for {args[i]}.");
+            return 2;
+        }
+
+        var option = args[i];
+        var value = args[++i];
+        switch (option)
+        {
+            case "--offset" when long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var offset):
+                volumeOffset = offset;
+                break;
+            case "--length" when long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var length):
+                volumeLength = length;
+                break;
+            case "--record" when ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedRecord):
+                recordNumber = parsedRecord;
+                break;
+            case "--max-bytes" when ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedMaximum):
+                maximumBytes = parsedMaximum;
+                break;
+            case "--output" when !string.IsNullOrWhiteSpace(value):
+                outputPath = value;
+                break;
+            case "--stream-name":
+                streamName = value;
+                break;
+            case "--sector-size" when int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedSectorSize):
+                sectorSize = parsedSectorSize;
+                break;
+            default:
+                Console.Error.WriteLine($"Unknown or invalid option: {option} {value}");
+                return 2;
+        }
+    }
+
+    if (volumeOffset is null || volumeLength is null || volumeOffset < 0 || volumeLength <= 0 ||
+        recordNumber is null || maximumBytes is null || outputPath is null)
+    {
+        Console.Error.WriteLine("Provide --offset, --length, --record, --output, and an explicit --max-bytes limit.");
+        return 2;
+    }
+    if (sectorSize is not (512 or 1024 or 2048 or 4096))
+    {
+        Console.Error.WriteLine("NTFS sector size must be 512, 1024, 2048, or 4096 bytes.");
+        return 2;
+    }
+
+    string fullImagePath;
+    string fullOutputPath;
+    string? temporaryPath = null;
+    try
+    {
+        fullImagePath = Path.GetFullPath(imagePath);
+        fullOutputPath = Path.GetFullPath(outputPath);
+        if (string.Equals(fullImagePath, fullOutputPath, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Recovery output must not overwrite the source image.");
+        var destinationDirectory = Path.GetDirectoryName(fullOutputPath);
+        if (string.IsNullOrEmpty(destinationDirectory) || !Directory.Exists(destinationDirectory))
+            throw new DirectoryNotFoundException("Recovery output directory must already exist.");
+        if (File.Exists(fullOutputPath) || Directory.Exists(fullOutputPath))
+            throw new IOException("Recovery output already exists; existing files are never overwritten.");
+
+        using var image = FileImageReader.Open(fullImagePath);
+        var boot = NtfsBootSectorParser.Parse(image, volumeOffset.Value, volumeLength.Value);
+        if (!boot.IsValid || boot.BootSector is null)
+            throw new IOException("NTFS boot-sector validation failed: " + string.Join("; ", boot.Issues));
+        if (boot.BootSector.BytesPerSector != sectorSize)
+            throw new IOException($"Requested sector size {sectorSize} does not match NTFS BPB value {boot.BootSector.BytesPerSector}.");
+
+        var opened = NtfsMftReader.Open(image, volumeOffset.Value, volumeLength.Value, boot.BootSector);
+        if (!opened.IsValid || opened.Reader is null)
+            throw new IOException("NTFS MFT validation failed: " + string.Join("; ", opened.Issues));
+        var continuation = opened.Reader.ExtendUsingResidentAttributeList();
+        if (!continuation.IsValid || continuation.Reader is null)
+            throw new IOException("MFT continuation validation failed: " + string.Join("; ", continuation.Issues));
+
+        var stream = continuation.Reader.OpenDataStream(recordNumber.Value, streamName);
+        if (!stream.IsValid || stream.Reader is null)
+            throw new IOException("NTFS file-data stream validation failed: " + string.Join("; ", stream.Issues));
+        if (stream.Length > maximumBytes.Value)
+            throw new IOException($"File stream length {stream.Length} exceeds --max-bytes {maximumBytes.Value}.");
+
+        var fileName = Path.GetFileName(fullOutputPath);
+        temporaryPath = Path.Combine(destinationDirectory, $".{fileName}.{Guid.NewGuid():N}.partial");
+        using var cancellation = new CancellationTokenSource();
+        ConsoleCancelEventHandler handler = (_, eventArgs) =>
+        {
+            eventArgs.Cancel = true;
+            cancellation.Cancel();
+        };
+        Console.CancelKeyPress += handler;
+        try
+        {
+            using (var destination = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write,
+                FileShare.None, 1024 * 1024, FileOptions.SequentialScan))
+            {
+                var progress = new Progress<ulong>(bytes => Console.Write($"\rRecovered: {bytes:N0}/{stream.Length:N0} bytes"));
+                var copied = stream.Reader.CopyTo(destination, maximumBytes.Value, cancellation.Token, progress);
+                if (!copied.IsValid || copied.BytesWritten != stream.Length)
+                    throw new IOException("File-data export failed: " + string.Join("; ", copied.Issues));
+                destination.Flush(true);
+            }
+            cancellation.Token.ThrowIfCancellationRequested();
+            string sha256;
+            using (var verification = File.OpenRead(temporaryPath))
+                sha256 = Convert.ToHexString(SHA256.HashData(verification));
+            cancellation.Token.ThrowIfCancellationRequested();
+            File.Move(temporaryPath, fullOutputPath, overwrite: false);
+            temporaryPath = null;
+            Console.WriteLine();
+            Console.WriteLine($"Recovered file: {fullOutputPath}");
+            Console.WriteLine($"Bytes written: {stream.Length:N0}");
+            Console.WriteLine($"SHA-256: {sha256}");
+            Console.WriteLine($"MFT record: {recordNumber.Value}");
+            return 0;
+        }
+        finally
+        {
+            Console.CancelKeyPress -= handler;
+        }
+    }
+    catch (OperationCanceledException)
+    {
+        Console.Error.WriteLine("\nFile recovery cancelled; incomplete output was discarded when possible.");
+        return 130;
+    }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+    {
+        Console.Error.WriteLine($"File recovery stopped safely: {exception.Message}");
+        return 1;
+    }
+    finally
+    {
+        if (temporaryPath is not null)
+        {
+            try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+}
+
+
+static int RunPhysicalDiskInventory(string[] args)
+{
+    if (args.Length != 1)
+    {
+        Console.Error.WriteLine("Usage: diskrescue list-physical-disks");
+        return 2;
+    }
+
+    try
+    {
+        var inventory = WindowsPhysicalDiskDiscovery.Enumerate();
+        var volumeMap = WindowsPhysicalDiskVolumeMap.Enumerate();
+        var bootMap = WindowsBootDeviceMap.Enumerate(volumeMap);
+        Console.WriteLine("Physical disks · metadata only · no sector reads");
+        foreach (var disk in inventory.Disks)
+        {
+            var assessment = PhysicalDiskImageAcquisition.Assess(disk, inventory, volumeMap, bootMap);
+            Console.WriteLine();
+            Console.WriteLine($"PhysicalDrive{disk.DiskNumber} · {disk.DisplayIdentity}");
+            Console.WriteLine($"  Capacity: {disk.LengthBytes:N0} bytes · Sector: {disk.BytesPerSector:N0} bytes");
+            Console.WriteLine($"  Serial: {disk.SerialNumber ?? "not reported"} · Bus: {disk.BusType?.ToString() ?? "unknown"} · Removable: {disk.RemovableMedia?.ToString() ?? "unknown"}");
+            Console.WriteLine($"  Acquisition preflight: {(assessment.CanAcquire ? "SOURCE CHECKS PASSED" : "BLOCKED")}");
+            foreach (var blocker in assessment.Blockers) Console.WriteLine("  BLOCKER: " + blocker);
+            foreach (var warning in assessment.Warnings) Console.WriteLine("  WARNING: " + warning);
+        }
+        foreach (var issue in inventory.Issues) Console.WriteLine("DISK ENUMERATION: " + issue);
+        foreach (var issue in volumeMap.Issues) Console.WriteLine("VOLUME MAP: " + issue);
+        foreach (var issue in bootMap.Issues) Console.WriteLine("BOOT MAP: " + issue);
+        Console.WriteLine();
+        Console.WriteLine("Inventory is not an acquisition. A read-only handle cannot prevent Windows or other processes writing through mounted volumes.");
+        return inventory.Issues.Count == 0 && volumeMap.IsComplete && bootMap.IsComplete ? 0 : 1;
+    }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or PlatformNotSupportedException or System.ComponentModel.Win32Exception)
+    {
+        Console.Error.WriteLine($"Physical-disk inventory failed safely: {exception.Message}");
+        return 1;
+    }
+}
+
+static int RunPhysicalDiskAcquisition(string[] args)
+{
+    if (args.Length != 4 ||
+        !int.TryParse(args[1], NumberStyles.None, CultureInfo.InvariantCulture, out var diskNumber) ||
+        diskNumber < 0 ||
+        string.IsNullOrWhiteSpace(args[2]) ||
+        string.IsNullOrWhiteSpace(args[3]))
+    {
+        Console.Error.WriteLine("Usage: diskrescue acquire-physical <disk-number> <exact-serial> <new-destination-image>");
+        return 2;
+    }
+
+    try
+    {
+        var inventory = WindowsPhysicalDiskDiscovery.Enumerate();
+        var selected = inventory.Disks.SingleOrDefault(d => d.DiskNumber == diskNumber);
+        if (selected is null)
+            throw new IOException($"PhysicalDrive{diskNumber} is not present in the current inventory.");
+        if (!string.Equals(selected.SerialNumber?.Trim(), args[2].Trim(), StringComparison.OrdinalIgnoreCase))
+            throw new IOException("The supplied serial does not exactly match the currently reported source serial. Re-run list-physical-disks.");
+
+        var volumeMap = WindowsPhysicalDiskVolumeMap.Enumerate();
+        var bootMap = WindowsBootDeviceMap.Enumerate(volumeMap);
+        var assessment = PhysicalDiskImageAcquisition.Assess(selected, inventory, volumeMap, bootMap);
+        if (!assessment.CanAcquire)
+            throw new IOException("Source preflight blocked acquisition: " + string.Join(" ", assessment.Blockers));
+
+        var destination = PhysicalImageDestinationSafety.Assess(diskNumber, args[3], volumeMap);
+        if (!destination.CanUseAsSeparateDestination)
+            throw new IOException("Destination preflight blocked acquisition: " + string.Join(" ", destination.Blockers));
+
+        Console.WriteLine("SOURCE DEVICE");
+        Console.WriteLine($"  PhysicalDrive{selected.DiskNumber} · {selected.DisplayIdentity}");
+        Console.WriteLine($"  Capacity: {selected.LengthBytes:N0} bytes");
+        Console.WriteLine($"  Serial: {selected.SerialNumber}");
+        Console.WriteLine($"  Destination: {Path.GetFullPath(args[3])}");
+        Console.WriteLine($"  Destination volume: {destination.VolumeGuidPath}");
+        Console.WriteLine($"  Destination physical disk(s): {string.Join(", ", destination.DestinationDiskNumbers)}");
+        foreach (var warning in assessment.Warnings) Console.WriteLine("WARNING: " + warning);
+        Console.WriteLine();
+        Console.WriteLine("This copies every readable sector to a new image. It does not repair the source.");
+        Console.WriteLine("A read-only handle does not prevent writes through mounted volumes. A hardware write blocker is recommended.");
+        Console.WriteLine("Read errors abort the copy; no unreadable sectors are silently replaced. Resume is not supported.");
+        Console.WriteLine();
+        Console.Write($"Type ACQUIRE PHYSICALDRIVE{diskNumber} to continue: ");
+        var confirmation = Console.ReadLine();
+        if (!string.Equals(confirmation, $"ACQUIRE PHYSICALDRIVE{diskNumber}", StringComparison.Ordinal))
+        {
+            Console.WriteLine("Confirmation did not match. No source handle was opened and no image was created.");
+            return 2;
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        ConsoleCancelEventHandler handler = (_, eventArgs) =>
+        {
+            eventArgs.Cancel = true;
+            cancellation.Cancel();
+        };
+        Console.CancelKeyPress += handler;
+        try
+        {
+            var progress = new Progress<DiskImageProgress>(value =>
+            {
+                Console.Write($"\rAcquiring: {value.Percent:F1}% · {value.BytesCopied:N0}/{value.TotalBytes:N0} bytes");
+            });
+            var result = PhysicalDiskImageAcquisition.AcquireAsync(
+                selected, args[3], progress, cancellation.Token).GetAwaiter().GetResult();
+            Console.WriteLine();
+            Console.WriteLine($"Image: {result.Image.ImagePath}");
+            Console.WriteLine($"Bytes copied: {result.Image.BytesCopied:N0}");
+            Console.WriteLine($"SHA-256: {result.Image.Sha256}");
+            Console.WriteLine($"Manifest: {result.ManifestPath}");
+            return 0;
+        }
+        finally
+        {
+            Console.CancelKeyPress -= handler;
+        }
+    }
+    catch (OperationCanceledException)
+    {
+        Console.Error.WriteLine("\nPhysical acquisition cancelled. The incomplete temporary image was removed when possible.");
+        return 130;
+    }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or OverflowException or InvalidOperationException or PlatformNotSupportedException or System.ComponentModel.Win32Exception)
+    {
+        Console.Error.WriteLine($"Physical acquisition stopped safely: {exception.Message}");
+        return 1;
+    }
+}
+
 static void PrintUsage()
 {
     Console.WriteLine("DiskRescue Pro — read-only disk-image inspector");
     Console.WriteLine();
     Console.WriteLine("Usage:");
     Console.WriteLine("  diskrescue inspect <image-file> [--sector-size <bytes>]");
+    Console.WriteLine("  diskrescue image-copy <source-image> <new-destination-image>");
+    Console.WriteLine("  diskrescue list-physical-disks");
+    Console.WriteLine("  diskrescue acquire-physical <disk-number> <exact-serial> <new-destination-image>");
     Console.WriteLine("  diskrescue scan-ntfs <image-file> --offset <bytes> --length <bytes> [--sector-size <bytes>] [--max-records <count>]");
+    Console.WriteLine("  diskrescue extract-ntfs-file <image-file> --offset <bytes> --length <bytes> --record <number> --output <new-file> --max-bytes <bytes> [--stream-name <name>]");
     Console.WriteLine();
     Console.WriteLine("Examples:");
     Console.WriteLine("  diskrescue inspect sample.img");
     Console.WriteLine("  diskrescue inspect sample-4kn.img --sector-size 4096");
     Console.WriteLine("  diskrescue scan-ntfs sample.img --offset 1048576 --length 1073741824 --max-records 5000");
     Console.WriteLine();
-    Console.WriteLine("Only regular image files are supported. Physical disks are not opened.");
+    Console.WriteLine("image-copy copies a regular image file to a new destination and prints SHA-256.");
+    Console.WriteLine("inspect, image-copy, scan-ntfs, and extract-ntfs-file operate on regular image files.");
+    Console.WriteLine("list-physical-disks performs metadata-only Windows discovery. acquire-physical is experimental, guarded, and Windows-only.");
     Console.WriteLine("NTFS scan returns a bounded partial MFT and directory-tree preview, not file recovery.");
+    Console.WriteLine("extract-ntfs-file exports one validated resident or single-extent data stream to a new file; multi-extent, compressed, and encrypted streams are unsupported.");
 }
