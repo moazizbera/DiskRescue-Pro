@@ -1,3 +1,25 @@
+# Current status update — 2026-11-10 (native Windows session first implementation slice)
+
+## Native adapter work now present on PR #30
+
+- [x] Added `WindowsPhysicalAcquisitionDestinationSession` as an internal, Windows-only adapter.
+- [x] Opens a local fixed-drive root and traverses each directory component using directory-handle-relative `NtCreateFile` opens with `FILE_OPEN_REPARSE_POINT`; checks the opened handle and rejects reparse-point components instead of following them.
+- [x] Creates temporary files relative to the pinned destination directory handle with `FILE_CREATE` (create-only).
+- [x] Queries `FILE_ID_INFO` from the directory and each created file handle.
+- [x] Flushes through the existing file stream/handle, marks unpublished files for deletion by handle, and keeps streams owned by the session.
+- [x] Adds native Windows tests for create/identity/flush/publish, destination path replacement after pinning, no-overwrite publication, unpublished deletion, and symbolic-link rejection where runner permissions allow.
+- [ ] No passing native-adapter CI result recorded yet. CI #1263 is running against adapter commit `97beeec84da67f779a5e973a226ccd53384ca10e`: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42878101418
+- [ ] A previous `SetFileInformationByHandle(FileRenameInfo)` implementation returned `ERROR_INVALID_PARAMETER (87)` on the Windows runner. The current code switches to `NtSetInformationFile(FileRenameInformation)` with a relative directory handle and no-replace semantics; this replacement is awaiting CI validation.
+- [ ] Current adapter is deliberately limited to local fixed drive-letter paths. UNC/network paths, volume-GUID paths, volume mount points, symlinks, and junctions are rejected/unsupported.
+- [ ] Adapter is not connected to the production coordinator. It does not yet reconcile the pinned volume with the physical volume-to-disk map.
+- [ ] No physical acquisition gate change; `IsAcquisitionEnabled` remains false.
+
+## Native adapter safety boundary
+
+This is an early native implementation slice, not a completed acquisition pipeline. The only passing evidence remains the earlier managed-contract/fake-session CI. The native path must pass its Windows tests, then receive review and additional filesystem/race tests. Do not use an original or valuable physical HDD.
+
+---
+
 # Current status update — 2026-11-10 (PR #30 destination-session foundation and CI verification)
 
 ## Current candidate
