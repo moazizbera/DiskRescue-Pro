@@ -44,6 +44,10 @@ public partial class MainWindow : Window
         MaxHeight = workArea.Height;
         Width = Math.Min(1440, workArea.Width * 0.94);
         Height = Math.Min(900, workArea.Height * 0.92);
+        // Preserve usable space for the navigator and inspector on short displays.
+        // The partition map remains available on normal-height work areas.
+        if (workArea.Height < 760)
+            PartitionMapPanel.Visibility = Visibility.Collapsed;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
         PartitionsGrid.ItemsSource = _rows;
@@ -192,7 +196,15 @@ public partial class MainWindow : Window
         if (imageNode.Items.Count == 0)
             imageNode.Items.Add(new TreeViewItem { Header = "No validated partitions detected", IsEnabled = false });
         ImageNavigatorTree.Items.Add(imageNode);
-        imageNode.IsSelected = true;
+        // Give the workspace a useful initial focus when a validated partition exists.
+        // For images without table entries, keep the image node selected and do not
+        // promote unvalidated scan candidates into the partition hierarchy.
+        var firstValidatedPartition = imageNode.Items.OfType<TreeViewItem>()
+            .FirstOrDefault(item => item.Tag is PartitionRow);
+        if (firstValidatedPartition is not null)
+            firstValidatedPartition.IsSelected = true;
+        else
+            imageNode.IsSelected = true;
         SelectedPartitionDetailsBox.Text =
             $"Image: {System.IO.Path.GetFileName(imagePath)}\n" +
             $"Size: {FormatBytes(new FileInfo(imagePath).Length)}\n" +
