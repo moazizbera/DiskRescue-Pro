@@ -119,6 +119,8 @@ public partial class MainWindow : Window
             ValidationText.Foreground = (System.Windows.Media.Brush)FindResource(result.HasWarnings ? "Warn" : "Accent");
             _rows.Clear();
             foreach (var row in result.Rows) _rows.Add(row);
+            PopulateImageNavigator(imagePath, result.Rows);
+            SelectedPartitionDetailsBox.Text = "Select a partition in the navigator or inventory to inspect its geometry.";
             DrawPartitionMap();
             NtfsTreeView.Items.Clear();
             FindingsBox.Text = result.Findings;
@@ -144,6 +146,18 @@ public partial class MainWindow : Window
 
     private void PartitionsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (PartitionsGrid.SelectedItem is PartitionRow selectedPartition)
+        {
+            UpdateSelectedPartitionDetails(selectedPartition);
+            SyncImageNavigatorSelection(selectedPartition);
+        }
+        else
+        {
+            SelectedPartitionDetailsBox.Text = _lastImagePath is null
+                ? "No image loaded."
+                : $"Image: {System.IO.Path.GetFileName(_lastImagePath)}\nSelect a partition to inspect its geometry.";
+        }
+
         if (PartitionsGrid.SelectedItem is not PartitionRow selected || !IsCurrentNtfsPreview(selected))
         {
             _lastNtfsPreviewImagePath = null;
@@ -156,6 +170,84 @@ public partial class MainWindow : Window
                 NtfsEntryDetailsBox.Text = "Select a partition and run the NTFS preview before reviewing file entries.";
         }
         UpdateNtfsButtonState();
+    }
+
+    private void PopulateImageNavigator(string imagePath, IReadOnlyList<PartitionRow> partitions)
+    {
+        ImageNavigatorTree.Items.Clear();
+        var imageNode = new TreeViewItem
+        {
+            Header = $"IMAGE · {System.IO.Path.GetFileName(imagePath)}",
+            IsExpanded = true
+        };
+        foreach (var partition in partitions.Where(item => item.Table != "SCAN"))
+        {
+            imageNode.Items.Add(new TreeViewItem
+            {
+                Header = $"{partition.Table} · {partition.Name}",
+                Tag = partition,
+                ToolTip = $"Start LBA: {partition.StartLba} · Offset: {partition.ByteOffset:N0} bytes · Length: {partition.ByteLength:N0} bytes"
+            });
+        }
+        if (imageNode.Items.Count == 0)
+            imageNode.Items.Add(new TreeViewItem { Header = "No validated partitions detected", IsEnabled = false });
+        ImageNavigatorTree.Items.Add(imageNode);
+        imageNode.IsSelected = true;
+        SelectedPartitionDetailsBox.Text =
+            $"Image: {System.IO.Path.GetFileName(imagePath)}\n" +
+            $"Size: {FormatBytes(new FileInfo(imagePath).Length)}\n" +
+            $"Partitions detected: {partitions.Count(item => item.Table != "SCAN")}\n" +
+            "Source: regular image file · opened read-only";
+    }
+
+    private void ImageNavigatorTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    {
+        if (e.NewValue is TreeViewItem { Tag: PartitionRow partition })
+        {
+            if (!ReferenceEquals(PartitionsGrid.SelectedItem, partition))
+                PartitionsGrid.SelectedItem = partition;
+            PartitionsGrid.ScrollIntoView(partition);
+            UpdateSelectedPartitionDetails(partition);
+        }
+        else if (e.NewValue is TreeViewItem { Tag: null } && _lastImagePath is not null)
+        {
+            SelectedPartitionDetailsBox.Text =
+                $"Image: {System.IO.Path.GetFileName(_lastImagePath)}\n" +
+                $"Size: {FormatBytes(new FileInfo(_lastImagePath).Length)}\n" +
+                "Source: regular image file · opened read-only";
+        }
+    }
+
+    private void SyncImageNavigatorSelection(PartitionRow selected)
+    {
+        foreach (var root in ImageNavigatorTree.Items.OfType<TreeViewItem>())
+        foreach (var child in root.Items.OfType<TreeViewItem>())
+        {
+            if (ReferenceEquals(child.Tag, selected))
+            {
+                if (!child.IsSelected) child.IsSelected = true;
+                return;
+            }
+        }
+    }
+
+    private void UpdateSelectedPartitionDetails(PartitionRow partition)
+    {
+        var endExclusive = partition.ByteOffset <= long.MaxValue - partition.ByteLength
+            ? partition.ByteOffset + partition.ByteLength
+            : long.MaxValue;
+        SelectedPartitionDetailsBox.Text = string.Join(Environment.NewLine, new[]
+        {
+            $"{partition.Table} · {partition.Name}",
+            $"Partition index: {partition.Index}",
+            $"Start LBA: {partition.StartLba}",
+            $"Byte offset: {partition.ByteOffset:N0}",
+            $"End (exclusive): {endExclusive:N0}",
+            $"Length: {partition.ByteLength:N0} bytes ({FormatBytes(partition.ByteLength)})",
+            $"Image: {(_lastImagePath is null ? "Not loaded" : System.IO.Path.GetFileName(_lastImagePath))}",
+            "Interpretation: read-only partition-table metadata; no partition was modified."
+        });
+        DrawPartitionMap();
     }
 
     private bool IsCurrentNtfsPreview(PartitionRow? partition) =>
@@ -991,10 +1083,10 @@ public partial class MainWindow : Window
         var usableWidth = Math.Max(1, width - inset * 2);
         var scale = usableWidth / _partitionMapLength;
         var cursor = 0L;
-        var laneTop = 16d;
-        var laneHeight = 38d;
+        var laneTop = 12d;
+        var laneHeight = 32d;
 
-        void AddSegment(long start, long length, string label, Brush fill, double top, double segmentHeight, string tooltip)
+        void AddSegment(long start, long length, string label, Brush fill, double top, double segmentHeight, string tooltip, bool selected = false)
         {
             if (length <= 0) return;
             var left = inset + Math.Clamp(start * scale, 0, usableWidth);
@@ -1009,8 +1101,8 @@ public partial class MainWindow : Window
                 RadiusX = 3,
                 RadiusY = 3,
                 Fill = fill,
-                Stroke = new SolidColorBrush(Color.FromRgb(11, 18, 32)),
-                StrokeThickness = 1,
+                Stroke = selected ? (Brush)FindResource("Accent") : new SolidColorBrush(Color.FromRgb(11, 18, 32)),
+                StrokeThickness = selected ? 3 : 1,
                 ToolTip = tooltip
             };
             Canvas.SetLeft(rectangle, left);
@@ -1054,8 +1146,9 @@ public partial class MainWindow : Window
                 var color = row.Table == "GPT"
                     ? new SolidColorBrush(Color.FromRgb(36, 139, 156))
                     : new SolidColorBrush(Color.FromRgb(55, 111, 176));
+                var isSelected = ReferenceEquals(PartitionsGrid.SelectedItem, row);
                 AddSegment(visibleStart, end - visibleStart, row.Name, color, laneTop, laneHeight,
-                    $"{row.Table} · {row.Name}\nStart: {FormatBytes(start)}\nSize: {FormatBytes(length)}");
+                    $"{row.Table} · {row.Name}\nStart: {FormatBytes(start)}\nSize: {FormatBytes(length)}", isSelected);
             }
             cursor = Math.Max(cursor, end);
         }
@@ -1110,6 +1203,9 @@ public partial class MainWindow : Window
         _lastNtfsPreviewPartitionOffset = null;
         _lastNtfsPreviewPartitionLength = null;
         PartitionsGrid.SelectedItem = null;
+        ImageNavigatorTree.Items.Clear();
+        ImageNavigatorTree.Items.Add(new TreeViewItem { Header = "No image loaded", IsEnabled = false });
+        SelectedPartitionDetailsBox.Text = "Inspect an image and select a partition to review its geometry and validation context.";
         NtfsTreeView.Items.Clear();
         _allNtfsEntryRows.Clear();
         _ntfsEntryRows.Clear();
