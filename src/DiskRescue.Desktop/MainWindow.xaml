@@ -266,9 +266,9 @@
                                 </WrapPanel>
                             </StackPanel>
                             <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
-                                <ProgressBar x:Name="RecoveryProgressBar" Height="7"
+                                <ProgressBar x:Name="RecoveryProgressBar" AutomationProperties.Name="Deleted-file export progress" AutomationProperties.LiveSetting="Polite" Height="7"
                                              Minimum="0" Maximum="100" Value="0"/>
-                                <TextBlock x:Name="RecoveryProgressText"
+                                <TextBlock x:Name="RecoveryProgressText" AutomationProperties.Name="Deleted-file export queue progress" AutomationProperties.LiveSetting="Polite"
                                            Text="No export operation running."
                                            Foreground="{StaticResource Muted}" FontSize="10" Margin="0,4,0,0"/>
                             </StackPanel>
@@ -373,13 +373,13 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center">
-                <TextBlock x:Name="StatusText" AutomationProperties.Name="Application operation status" Text="Ready · Image inspection"
+                <TextBlock x:Name="StatusText" AutomationProperties.Name="Application operation status" AutomationProperties.LiveSetting="Polite" Text="Ready · Image inspection"
                            Foreground="{StaticResource Muted}" FontSize="11"/>
                 <TextBlock Text="Image inspection is read-only. Physical partition scanning, repair, and recovery are disabled."
                            Foreground="#71869D" FontSize="9" Margin="0,2,0,0"/>
             </StackPanel>
             <StackPanel Grid.Column="1" Width="150" Margin="12,0" VerticalAlignment="Center">
-                <TextBlock x:Name="ScanProgressText" AutomationProperties.Name="Partition discovery progress status" Text="Ready"
+                <TextBlock x:Name="ScanProgressText" AutomationProperties.Name="Partition discovery progress status" AutomationProperties.LiveSetting="Polite" Text="Ready"
                            Foreground="{StaticResource Muted}" FontSize="10"/>
                 <ProgressBar x:Name="ScanProgressBar" AutomationProperties.Name="Partition discovery progress" AutomationProperties.LiveSetting="Polite" Height="5" Minimum="0"
                              Maximum="100" Value="0" Margin="0,5,0,0"/>
