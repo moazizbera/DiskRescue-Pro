@@ -1,5 +1,52 @@
 # DiskRescue Pro — Implementation and Release Checklist
 
+# Current status update — 2026-11-10 (mainline integration)
+
+This is the authoritative status snapshot for the current integration sequence. Historical notes below are retained for traceability and may describe earlier branch states.
+
+## Mainline merges verified
+
+- PR #3 — bounded in-memory NTFS MFT extent-map validation; merge commit `87a20c65de76256a5a1c28e116da344223fdb4ca`.
+- PR #4 — read-only NTFS lost-partition discovery for regular image files; merge commit `4c3f260b1e943fc487a99f395193a5a5e62969ef`.
+- PR #12 — guarded read-only physical-disk imaging foundation; merge commit `3912d6b3bdc9af4bc093a055f1d0b301842b2e36`.
+- PR #13 — opt-in disposable-VHDX safety smoke harness; merge commit `b73e7c8ae922f374d49c7f0c89c7d1272f201bb8`.
+
+## Current integration candidate
+
+- PR #14: [Desktop inspection, FAT/exFAT discovery, and deleted-file recovery queue](https://github.com/moazizbera/DiskRescue-Pro/pull/14).
+- Branch: `feat/desktop-recovery-queue-mainline`.
+- Candidate head at this snapshot: `1e7436aacc81de6f1e9c5f2dec988a6ffc0fda8f`.
+- Windows CI on the combined candidate is running; do not treat the branch as merged or release-ready until the exact final head passes.
+- Includes the screen-aware WPF redesign, visual partition map, FAT32/exFAT discovery, deleted-NTFS safety assessment/export, and multi-file queue with per-file states, progress, cancellation, and destination checks.
+
+## Current checklist
+
+- [x] Read-only regular image inspection, MBR/GPT validation, and backup-GPT checks.
+- [x] Bounded NTFS lost-partition discovery with backup-boot-sector corroboration and generated fixtures.
+- [x] Bounded in-memory MFT extent-map validation; continuation-record acquisition and full reader integration remain separate work.
+- [x] FAT32/exFAT discovery and backup-region validation in the current integration candidate.
+- [x] Candidate overlap classification, evidence/confidence reporting, and visual partition map in the current integration candidate.
+- [x] Physical-disk discovery and read-only image acquisition foundation; Windows CI passed.
+- [x] Fail-closed source/destination preflight, separate-volume checks, image verification, and manifest publication.
+- [x] Opt-in disposable-VHDX smoke harness; Windows CI passed.
+- [x] Deleted-NTFS assessment and bounded export safeguards with manifest/hash publication.
+- [x] Multi-file deleted-file queue implementation with per-file status, aggregate progress, cancellation, and safe failure handling; current combined CI pending.
+- [ ] P0: Manual Windows desktop smoke test using generated disposable images: partition map, candidate comparison, NTFS file search, queue, cancellation, and JSON report.
+- [ ] P0: Positive deleted-file export on supported Windows storage exposing complete physical identity metadata. Hosted CI intentionally fails closed where that metadata is unavailable.
+- [ ] P1: Run the opt-in VHDX harness on a disposable Windows VHDX host; not claimed as executed.
+- [ ] P1: Inspect the latest WPF screenshot and verify resizing, work-area bounds, queue visibility, and readable controls.
+- [ ] P2: Signed installer, versioned release workflow, and broader Windows-version/usability testing.
+
+## Safety gates
+
+- Never test against an original, damaged, or irreplaceable HDD. Use generated images and disposable VHDX only.
+- Source media and source images remain read-only. No formatting, initialization, repair, repartitioning, mounting, or partition-table writes.
+- Physical-disk acquisition is an image-copy operation, not validated physical-device partition recovery.
+- A software read-only handle is not a hardware write blocker; use a hardware write blocker for evidentiary/irreplaceable media.
+- Recovered output must be on a separately verified physical destination.
+- Exported SHA-256 identifies the exported bytes; it does not prove original file integrity without a known original hash.
+- A green CI run validates the exact tested commit only. Manual hardware and desktop checks must be recorded separately.
+
 # Current status update — 2026-11-09 (file-entry search CI verified)
 
 This snapshot supersedes conflicting historical status notes below.
