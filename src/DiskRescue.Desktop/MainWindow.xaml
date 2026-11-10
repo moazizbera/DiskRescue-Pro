@@ -330,7 +330,7 @@
                                    FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0"/>
                         <TextBox x:Name="SelectedPartitionDetailsBox" IsReadOnly="True"
                                  TextWrapping="Wrap" AcceptsReturn="True"
-                                 VerticalScrollBarVisibility="Auto" Height="180" MinHeight="130"
+                                 VerticalScrollBarVisibility="Visible" Height="126" MinHeight="104"
                                  Margin="0,8,0,12" BorderThickness="1"
                                  BorderBrush="#263A52" Background="#0C1726" Padding="10"
                                  Text="Inspect an image and select a partition to review its geometry and validation context."/>
