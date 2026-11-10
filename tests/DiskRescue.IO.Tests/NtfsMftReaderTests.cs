@@ -26,6 +26,23 @@ public sealed class NtfsMftReaderTests
     }
 
     [Fact]
+    public void RejectsSparseRunInInitialMftDataStream()
+    {
+        using var image = CreateImage();
+        // Replace the first mapping-pairs run with a sparse VCN 0..2 run.
+        // Sparse runs are not valid for the MFT stream and must fail closed.
+        var sparseMappingPairs = new byte[] { 0x01, 0x03, 0x11, 0x05, 0x08, 0x00 };
+        image.WriteFixtureBytes(4 * 512 + 120, sparseMappingPairs);
+
+        var opened = NtfsMftReader.Open(image, 0, image.Length, CreateBootSector());
+
+        Assert.False(opened.IsValid);
+        Assert.Null(opened.Reader);
+        Assert.Contains(opened.Issues, issue =>
+            issue.Contains("Sparse runs", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void DeletedFileNameMetadataIsOptInAndExplicitlyMarked()
     {
         using var image = CreateImage(deletedRecordOne: true);
@@ -671,6 +688,8 @@ public sealed class NtfsMftReaderTests
     private sealed class MemoryImage(byte[] bytes) : IReadOnlyRandomAccessSource
     {
         public long Length => bytes.LongLength;
+        public void WriteFixtureBytes(long offset, ReadOnlySpan<byte> source) =>
+            source.CopyTo(bytes.AsSpan(checked((int)offset), source.Length));
         public void ReadExactlyAt(long offset, Span<byte> destination)
         {
             if (offset < 0 || offset > bytes.LongLength || destination.Length > bytes.LongLength - offset)
