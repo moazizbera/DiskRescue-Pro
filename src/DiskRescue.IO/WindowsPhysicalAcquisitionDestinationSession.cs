@@ -159,7 +159,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
     {
         cancellationToken.ThrowIfCancellationRequested();
         var owned = GetOwned(file);
-        return ValueTask.FromResult(QueryIdentity(owned.Stream.SafeFileHandle));
+        return ValueTask.FromResult(QueryIdentityForFile(owned.Stream.SafeFileHandle));
     }
 
     public ValueTask FlushToDiskAsync(
@@ -392,9 +392,6 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
             BitConverter.ToUInt64(info.FileId, 0),
             BitConverter.ToUInt64(info.FileId, 8));
     }
-
-    private static PhysicalDestinationFileIdentity QueryIdentity(SafeFileHandle handle, bool file) =>
-        QueryIdentityForFile(handle);
 
     private static FileIdInfo QueryFileIdInfo(SafeFileHandle handle)
     {
