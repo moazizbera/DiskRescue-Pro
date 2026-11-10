@@ -69,7 +69,7 @@ public sealed class WindowsPhysicalDiskAcquisitionEnvironment : IPhysicalDiskAcq
 /// recheck before the first source read, read-only imaging, SHA-256 verification, and
 /// non-cancellable sidecar publication after image commit.
 /// </summary>
-public static class PhysicalDiskAcquisitionCoordinator
+internal static class PhysicalDiskAcquisitionCoordinator
 {
     public static async Task<PhysicalDiskAcquisitionResult> AcquireAsync(
         PhysicalDiskDescriptor selected,
