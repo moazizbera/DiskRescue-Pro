@@ -19,6 +19,13 @@ public sealed record PhysicalDiskAcquisitionResult(
 /// </summary>
 public static class PhysicalDiskImageAcquisition
 {
+    /// <summary>
+    /// Physical acquisition remains disabled until image and manifest I/O are bound to a
+    /// verified, handle-pinned Windows destination session. Do not enable by changing this
+    /// flag alone; the native session implementation and its Windows race tests are required.
+    /// </summary>
+    public static bool IsAcquisitionEnabled => false;
+
     private const uint BusTypeUnknown = 0;
     private const uint BusTypeRaid = 8;
     private const uint BusTypeVirtual = 14;
@@ -92,12 +99,19 @@ public static class PhysicalDiskImageAcquisition
         PhysicalDiskDescriptor selected,
         string destinationImagePath,
         IProgress<DiskImageProgress>? progress = null,
-        CancellationToken cancellationToken = default) =>
-        PhysicalDiskAcquisitionCoordinator.AcquireAsync(
-            selected,
-            destinationImagePath,
-            new WindowsPhysicalDiskAcquisitionEnvironment(),
-            progress,
-            cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(selected);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationImagePath);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Fail closed at the public API boundary as well as in the desktop UI. The
+        // current path-based image/manifest writers cannot prove that the destination
+        // directory object remains the same object checked during preflight.
+        return Task.FromException<PhysicalDiskAcquisitionResult>(
+            new NotSupportedException(
+                "Physical disk acquisition is disabled until a verified handle-pinned Windows destination session " +
+                "is implemented and its directory-replacement, reparse-point, same-volume, and no-replace publication tests pass."));
+    }
 
 }
