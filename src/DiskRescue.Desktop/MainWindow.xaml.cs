@@ -695,12 +695,14 @@ public partial class MainWindow : Window
         var completed = 0;
         var failed = 0;
         var cancelled = false;
+        var activeQueueIndex = -1;
         var failures = new List<string>();
         try
         {
             for (var index = 0; index < queue.Count; index++)
             {
                 _recoveryCancellation.Token.ThrowIfCancellationRequested();
+                activeQueueIndex = index;
                 var item = queue[index];
                 SetRecoveryQueueStatus(queueStart + index, "Exporting");
                 RecoveryProgressText.Text = $"File {index + 1} of {queue.Count} · {item.Entry.Name}";
@@ -719,6 +721,7 @@ public partial class MainWindow : Window
                     completedBytes = checked(completedBytes + result.BytesWritten);
                     completed++;
                     SetRecoveryQueueStatus(queueStart + index, $"Completed · {result.BytesWritten:N0} bytes");
+                    activeQueueIndex = -1;
                 }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
@@ -726,12 +729,15 @@ public partial class MainWindow : Window
                     failed++;
                     failures.Add($"{item.Entry.Name} (record {item.Entry.RecordNumber}): {ex.Message}");
                     SetRecoveryQueueStatus(queueStart + index, "Failed safely");
+                    activeQueueIndex = -1;
                 }
             }
         }
         catch (OperationCanceledException)
         {
             cancelled = true;
+            if (activeQueueIndex >= 0 && _recoveryQueueRows[queueStart + activeQueueIndex].Status == "Exporting")
+                SetRecoveryQueueStatus(queueStart + activeQueueIndex, "Cancelled · temporary output discarded");
             for (var index = 0; index < queue.Count; index++)
                 if (_recoveryQueueRows[queueStart + index].Status == "Pending")
                     SetRecoveryQueueStatus(queueStart + index, "Cancelled · not started");
