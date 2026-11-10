@@ -8,25 +8,26 @@ The WPF application is a Windows front end over the read-only image and filesyst
 2. Choose the logical sector size (512 bytes or 4096 bytes).
 3. Inspect MBR/GPT metadata through the bounded image reader.
 4. Review partition geometry and validation findings.
-5. Select a partition and open **NTFS file preview**.
-6. Request a bounded scan of up to 10,000 initialized MFT records covered by the initial validated `$MFT::$DATA` extent.
-7. Review the partial tree and unlinked/orphan entries, then export the inspection JSON report if needed.
+5. Select a partition and run the bounded NTFS metadata preview.
+6. Review the partial directory tree, file-entry grid, filters, and selected-entry metadata. The scan is limited to initialized MFT records covered by the currently validated MFT mapping.
+7. For supported eligible deleted NTFS entries, use the separate destination preflight and queued export workflow. The destination must resolve to physical storage separate from every disk backing the source image; unknown or virtual destinations fail closed.
+8. Export the inspection JSON report to a separate user-selected path when needed.
 
 ## NTFS preview limitations
 
-- It does not follow additional MFT extents through `$ATTRIBUTE_LIST`.
+- The desktop preview does not recursively discover MFT continuation records or guarantee complete MFT coverage.
 - It does not traverse `$INDEX_ROOT` or `$INDEX_ALLOCATION` directory indexes.
 - It does not guarantee a complete directory tree or identify all deleted files.
-- It does not read or recover file contents.
-- The separate `NtfsAttributeListParser` and `NtfsAttributeListMatcher` parse resident list values and match entries only against records already supplied in memory. They are not wired into the desktop scan, do not read continuation records, and do not extend MFT coverage.
+- The deleted-NTFS export path supports only explicitly validated, bounded resident or supported non-resident streams and validated deleted continuation extents reachable through the current validated MFT mapping. Unsupported cases fail closed.
+- A successful export and its SHA-256 describe the exported bytes; they do not prove the original content was never overwritten or is intact.
 
 ## Safety boundaries
 
-- The picker selects regular files, not physical disks or volumes.
-- The current IO implementation opens images read-only and has no write API.
-- No mounting, repair, initialization, formatting, repartitioning, or file recovery is available.
-- JSON export writes to a user-selected report path, never to the source image.
-- Use generated fixtures or disposable copies only. Do not test on a damaged source or the only copy of important data.
+- The primary image picker selects regular files, not physical disks or volumes. The separate physical-acquisition window is experimental and is an image-copy workflow only; it is not physical-device partition scanning or recovery.
+- Image inspection and discovery are read-only. No mounting, repair, initialization, formatting, repartitioning, or partition-table writes are available.
+- Deleted-NTFS export is a separate, narrowly scoped recovery workflow. It requires a fail-closed destination preflight and a destination on physical storage separate from the source image. Do not bypass this gate.
+- JSON report export writes to a user-selected report path, never to the source image.
+- Use generated fixtures or disposable copies only. Do not test on a damaged source or the only copy of important data. A hardware write blocker is recommended for irreplaceable/evidentiary media.
 
 ## Build and run
 
