@@ -13,7 +13,8 @@ The current `.NET 10` solution includes:
 - A bounded, read-only random-access image reader for regular files.
 - MBR parsing with signature, entry, bounds, sector-size, protective-MBR, and overlap checks.
 - Independent GPT primary/backup validation, header and partition-array CRC checks, geometry checks, and validated-backup fallback.
-- A WPF Windows desktop preview for image selection, partition overview, findings, JSON report export, selected-partition NTFS preview, and cancellable progress-reporting lost-NTFS discovery over image files.\n- A bounded, chunked NTFS boot-sector scanner that validates primary BPB geometry, corroborates the backup boot sector, and classifies candidates as existing, overlapping, or lost relative to validated MBR/GPT partition ranges. Lost candidates can be selected for the current bounded NTFS metadata preview.
+- A WPF Windows desktop preview for image selection, partition overview, findings, JSON report export, selected-partition NTFS preview, and cancellable progress-reporting lost-NTFS discovery over image files.
+- A bounded, chunked NTFS boot-sector scanner that validates primary BPB geometry, corroborates the backup boot sector, and classifies candidates as existing, overlapping, or lost relative to validated MBR/GPT partition ranges. Lost candidates can be selected for the current bounded NTFS metadata preview.
 - NTFS boot-sector geometry validation, FILE record update-sequence-array fixups, bounded attribute parsing, and mapping-pairs decoding.
 - MFT record reads through the initial validated unnamed `$MFT::$DATA` extent, including records crossing fragmented physical runs.
 - Resident `$FILE_NAME` parsing, bounded MFT scanning, and a conservative partial directory-tree preview with parent-sequence validation, cycle detection, and orphan reporting.
