@@ -174,9 +174,11 @@ public partial class PhysicalAcquisitionWindow : Window
                 {
                     _destinationAssessment = PhysicalImageDestinationSafety.Assess(
                         choice.Descriptor.DiskNumber, fullPath, _volumeMap, choice.Descriptor.LengthBytes);
-                    DestinationStatusText.Text = _destinationAssessment.CanUseAsSeparateDestination
-                        ? $"SEPARATE DESTINATION VERIFIED · {_destinationAssessment.VolumeGuidPath} · Physical disk(s): {string.Join(", ", _destinationAssessment.DestinationDiskNumbers)}"
-                        : "BLOCKED · " + string.Join(" ", _destinationAssessment.Blockers);
+                    DestinationStatusText.Text = !_destinationAssessment.CanUseAsSeparateDestination
+                        ? "BLOCKED · " + string.Join(" ", _destinationAssessment.Blockers)
+                        : !PhysicalDiskImageAcquisition.IsAcquisitionEnabled
+                            ? "PREFLIGHT ONLY · Separate volume appears distinct, but acquisition is DISABLED until the handle-pinned destination session and Windows race tests are complete."
+                            : $"SEPARATE DESTINATION VERIFIED · {_destinationAssessment.VolumeGuidPath} · Physical disk(s): {string.Join(", ", _destinationAssessment.DestinationDiskNumbers)}";
                 }
             }
             catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
@@ -206,6 +208,7 @@ public partial class PhysicalAcquisitionWindow : Window
             ? $"ACQUIRE PHYSICALDRIVE{choice.Descriptor.DiskNumber}"
             : string.Empty;
         AcquireButton.IsEnabled = !_busy &&
+            PhysicalDiskImageAcquisition.IsAcquisitionEnabled &&
             _sourceAssessment?.CanAcquire == true &&
             _destinationAssessment?.CanUseAsSeparateDestination == true &&
             string.Equals(ConfirmationBox.Text, phrase, StringComparison.Ordinal);
@@ -215,7 +218,8 @@ public partial class PhysicalAcquisitionWindow : Window
 
     private async void Acquire_Click(object sender, RoutedEventArgs e)
     {
-        if (DiskCombo.SelectedItem is not DiskChoice choice ||
+        if (!PhysicalDiskImageAcquisition.IsAcquisitionEnabled ||
+            DiskCombo.SelectedItem is not DiskChoice choice ||
             _sourceAssessment?.CanAcquire != true ||
             _destinationAssessment?.CanUseAsSeparateDestination != true)
             return;

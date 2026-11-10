@@ -72,6 +72,7 @@ Do not begin until Stage 1 passes and the physical-access code receives a dedica
 - [ ] Manual generated-image smoke tests with before/after SHA-256.
 - [ ] Disposable Windows VHDX host validation.
 - [ ] Physical-device preflight review and spare-HDD acquisition test.
+- [x] Hard-gate the public physical-acquisition API and WPF Acquire action while the pinned destination session is absent; the UI now labels destination checks as preflight-only. Regression test asserts the public entry point fails closed without creating an image or manifest. This is a safety disablement, not implementation of the native session.
 - [ ] Resolve Issue #23 with handle-bound destination identity, deterministic Windows reparse/path-replacement tests, and exact-head plus post-merge CI.
 - [ ] Positive deleted-file export on supported Windows storage with complete physical identity metadata.
 
@@ -80,6 +81,7 @@ Do not begin until Stage 1 passes and the physical-access code receives a dedica
 - Automated CI uses generated images and disposable fixtures; it does not validate physical HDD recovery.
 - Physical-device partition scanning and recovery remain disabled.
 - The experimental physical acquisition workflow is a guarded read-only image-copy foundation, not a validated hardware recovery feature.
+- Physical acquisition is currently hard-disabled at the public API and desktop UI until a verified handle-pinned Windows destination session and deterministic Windows race tests are implemented; a successful path-based preflight is not authorization to copy.
 - A read-only raw handle does not prevent Windows or another process from writing through mounted filesystems. Hardware write blocking is strongly recommended for irreplaceable/evidentiary media.
 - The $Bitmap allocation state is not proof that old file bytes remain intact or were never overwritten.
 - A successful export hash identifies exported bytes only; without a known original hash it is not an original-integrity verdict.

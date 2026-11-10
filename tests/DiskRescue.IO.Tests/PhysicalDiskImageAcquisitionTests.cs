@@ -13,6 +13,23 @@ public sealed class PhysicalDiskImageAcquisitionTests
         new(new[] { descriptor ?? Descriptor() }, Array.Empty<string>());
 
     [Fact]
+    public async Task PublicAcquisitionEntryPointFailsClosedUntilPinnedDestinationSessionExists()
+    {
+        Assert.False(PhysicalDiskImageAcquisition.IsAcquisitionEnabled);
+
+        var destination = Path.Combine(
+            Path.GetTempPath(),
+            $"diskrescue-gated-{Guid.NewGuid():N}.img");
+
+        var error = await Assert.ThrowsAsync<NotSupportedException>(() =>
+            PhysicalDiskImageAcquisition.AcquireAsync(Descriptor(), destination));
+
+        Assert.Contains("handle-pinned Windows destination session", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(File.Exists(destination));
+        Assert.False(File.Exists(destination + ".diskrescue.json"));
+    }
+
+    [Fact]
     public void AssessmentAllowsVerifiedNonBootSourceWithSeparateVolumeMap()
     {
         var assessment = PhysicalDiskImageAcquisition.Assess(
