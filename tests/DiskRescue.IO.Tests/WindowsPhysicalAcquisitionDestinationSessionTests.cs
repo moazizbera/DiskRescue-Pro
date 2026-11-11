@@ -43,6 +43,48 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
     }
 
     [Fact]
+    public async Task NativeSessionDeniesCompetingWriteAndDeleteOpensForOwnedFiles()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var directory = CreateTemporaryDirectory();
+        var temporaryPath = Path.Combine(directory, "protected.partial");
+        var renamedPath = Path.Combine(directory, "competing-rename.partial");
+        try
+        {
+            await using var session = WindowsPhysicalAcquisitionDestinationSession.Open(directory);
+            var stream = await session.CreateNewFileAsync("protected.partial");
+            await stream.WriteAsync(new byte[] { 1, 2, 3 });
+
+            Assert.Throws<IOException>(() =>
+                new FileStream(
+                    temporaryPath,
+                    FileMode.Open,
+                    FileAccess.Write,
+                    FileShare.ReadWrite | FileShare.Delete));
+
+            Assert.Throws<IOException>(() =>
+                File.Move(temporaryPath, renamedPath));
+
+            // The owning stream remains writable and can still be durably published.
+            stream.Position = stream.Length;
+            await stream.WriteAsync(new byte[] { 4, 5, 6 });
+            await session.FlushToDiskAsync(stream);
+            await session.PublishNoReplaceAsync(stream, "protected.img");
+
+            Assert.Equal(
+                new byte[] { 1, 2, 3, 4, 5, 6 },
+                await File.ReadAllBytesAsync(Path.Combine(directory, "protected.img")));
+            Assert.False(File.Exists(renamedPath));
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
+    [Fact]
     public async Task NativeSessionUsesPinnedDirectoryAfterItsPathIsReplaced()
     {
         if (!OperatingSystem.IsWindows())
