@@ -1,3 +1,32 @@
+# Current status update — 2026-11-11 (publication durability contract review)
+
+## Documented Windows API review
+
+- [x] Reviewed Microsoft's `NtCreateFile` contract: `FILE_WRITE_THROUGH` requires requested file write operations to transfer data before completion. This is a data-write contract; it does not explicitly specify a durable parent-directory name binding after a later handle-relative `NtSetInformationFile(FileRenameInformation)` operation.
+- [x] Reviewed Microsoft's `CreateFileW` `FILE_FLAG_WRITE_THROUGH` remarks: the Win32 contract says NTFS flushes metadata changes (including rename operations) resulting from processing the request. The current implementation uses `NtCreateFile` plus a separate handle-relative native rename, so the Win32 statement must not be assumed to prove the same contract for this different call sequence.
+- [x] Reviewed `FlushFileBuffers`: it flushes buffered information for the specified file handle; the published user-mode contract does not provide a supported, precise directory-handle access/flush sequence for the pinned directory handles used here.
+- [x] Reviewed `MoveFileExW(MOVEFILE_WRITE_THROUGH)`: its documented statement is strongest for copy-and-delete moves; switching from the current handle-relative, no-replace rename to path-based movement would change the security/race model and is not an acceptable unreviewed substitution.
+- [x] Decision: **no native code change** in this review. Do not add `FILE_WRITE_THROUGH` and claim full namespace/power-loss durability based only on the available `NtCreateFile` documentation. Do not replace the handle-relative no-replace operation with a path-based move without a separate threat-model and race review.
+- [ ] Obtain a supported, explicit durability contract for the exact Windows API sequence and supported filesystems/storage stacks, or formally scope the product guarantee to content flush + atomic no-replace publication without claiming parent-directory power-loss durability.
+- [ ] If a candidate implementation is proposed, validate crash/power-cut behavior on disposable test media and document hardware/controller cache limitations; successful API return alone is not proof of every device's physical persistence behavior.
+
+## Primary references
+
+- Microsoft Learn — `NtCreateFile`: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntcreatefile
+- Microsoft Learn — `CreateFileA/W` and `FILE_FLAG_WRITE_THROUGH`: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea
+- Microsoft Learn — `FlushFileBuffers`: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers
+- Microsoft Learn — `MoveFileExW`: https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw
+- Microsoft Learn — `FILE_RENAME_INFORMATION`: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_rename_information
+
+## Validation and safety
+
+- [x] Documentation commit `dc2bcbb1322ed901e22bc53f017e74a50472e039` passed Windows workflow run **43067705645**: https://github.com/DiskRescue-Pro/actions/runs/43067705645.
+- [ ] Publication namespace/power-loss durability remains an open acceptance gate.
+- PR #30 remains draft/open/unmerged; public physical acquisition remains hard-disabled.
+- Physical HDD testing remains unauthorized. All storage integration evidence remains generated-fixture and disposable-VHDX evidence.
+
+---
+
 # Current status update — 2026-11-11 (directory handle-contention compatibility check)
 
 ## Existing DELETE-capable directory handle
