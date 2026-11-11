@@ -129,6 +129,107 @@ public sealed class WindowsVhdxSafetySmokeTests(ITestOutputHelper output)
         }
     }
 
+
+    [WindowsVhdxFact]
+    [Trait("Category", "WindowsVhdxIntegration")]
+    public async Task UndersizedNtfsDestinationVhdxProducesRealDiskFullAndCleansPartialImage()
+    {
+        Assert.True(OperatingSystem.IsWindows(), "The VHDX integration test requires Windows.");
+        var diskNumberText = Environment.GetEnvironmentVariable("DISKRESCUE_TEST_VHDX_DISK_NUMBER");
+        Assert.True(int.TryParse(diskNumberText, out var diskNumber), "The VHDX source disk number is invalid.");
+
+        var destinationRoot = Environment.GetEnvironmentVariable("DISKRESCUE_TEST_DESTINATION_ROOT");
+        Assert.False(string.IsNullOrWhiteSpace(destinationRoot), "The disposable NTFS destination root was not supplied.");
+        var fullDestinationRoot = Path.GetFullPath(destinationRoot!);
+        var root = Path.GetPathRoot(fullDestinationRoot);
+        Assert.False(string.IsNullOrWhiteSpace(root));
+        Assert.Equal(root, fullDestinationRoot, StringComparer.OrdinalIgnoreCase);
+
+        var destinationDrive = new DriveInfo(root!);
+        Assert.True(destinationDrive.IsReady, "The disposable destination volume is not ready.");
+        Assert.Equal("NTFS", destinationDrive.DriveFormat, ignoreCase: true);
+        Assert.Equal(DriveType.Fixed, destinationDrive.DriveType);
+
+        var inventory = WindowsPhysicalDiskDiscovery.Enumerate();
+        var virtualDescriptor = Assert.Single(inventory.Disks, disk => disk.DiskNumber == diskNumber);
+        Assert.True(virtualDescriptor.BusType is 14 or 15,
+            "The source must be the disposable virtual VHDX.");
+        Assert.True(virtualDescriptor.LengthBytes > 0);
+
+        var availableBytesBefore = destinationDrive.AvailableFreeSpace;
+        Assert.True(availableBytesBefore < virtualDescriptor.LengthBytes,
+            $"The destination is not undersized: {availableBytesBefore:N0} free bytes for a {virtualDescriptor.LengthBytes:N0}-byte source.");
+
+        var outputDirectory = Path.Combine(
+            fullDestinationRoot, $"DiskRescue-Enospc-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(outputDirectory);
+        var imagePath = Path.Combine(outputDirectory, "must-not-publish.img");
+        var manifestPath = imagePath + ".diskrescue.json";
+
+        try
+        {
+            string sourceHashBefore;
+            using (var before = new ReadOnlyPhysicalDriveSource(diskNumber, virtualDescriptor.LengthBytes))
+                sourceHashBefore = HashSource(before);
+
+            // This existing internal seam intentionally supplies synthetic inventory and
+            // a permissive destination assessment. The actual output is a real, small NTFS
+            // volume, so the native FileStream write must encounter the OS volume limit.
+            var syntheticSource = new PhysicalDiskDescriptor(
+                2, @"\\.\PhysicalDrive2", virtualDescriptor.LengthBytes,
+                virtualDescriptor.BytesPerSector, "DiskRescue Test", "Disposable VHDX Source",
+                "DISKRESCUE-TEST-SOURCE-0002", 3, false);
+            var environment = new VhdxCoordinatorTestEnvironment(
+                syntheticSource, diskNumber, virtualDescriptor.LengthBytes);
+
+            var failure = await Record.ExceptionAsync(() =>
+                PhysicalDiskAcquisitionCoordinator.AcquireAsync(
+                    syntheticSource, imagePath, environment));
+
+            Assert.NotNull(failure);
+            Assert.True(IsDiskFullException(failure),
+                $"Expected a genuine Windows disk-full error (112 or 39), but received {failure.GetType().FullName}, HResult=0x{failure.HResult:X8}: {failure}");
+
+            string sourceHashAfter;
+            using (var after = new ReadOnlyPhysicalDriveSource(diskNumber, virtualDescriptor.LengthBytes))
+                sourceHashAfter = HashSource(after);
+
+            Assert.Equal(sourceHashBefore, sourceHashAfter);
+            Assert.False(File.Exists(imagePath));
+            Assert.False(File.Exists(manifestPath));
+            Assert.Empty(Directory.GetFiles(outputDirectory, "*", SearchOption.AllDirectories));
+
+            output.WriteLine($"Destination free bytes before copy: {availableBytesBefore:N0}.");
+            output.WriteLine($"Source image length: {virtualDescriptor.LengthBytes:N0}.");
+            output.WriteLine($"Native disk-full failure: HResult 0x{failure.HResult:X8}.");
+            output.WriteLine($"Source SHA-256 remained unchanged: {sourceHashAfter}.");
+            output.WriteLine("No final image, manifest, or temporary acquisition file remained after cleanup.");
+        }
+        finally
+        {
+            if (Directory.Exists(outputDirectory))
+                Directory.Delete(outputDirectory, recursive: true);
+        }
+    }
+
+    private static bool IsDiskFullException(Exception? failure)
+    {
+        for (var current = failure; current is not null; current = current.InnerException)
+        {
+            if (current is System.ComponentModel.Win32Exception win32 &&
+                win32.NativeErrorCode is 112 or 39)
+                return true;
+
+            var hresult = current.HResult;
+            var lowWord = hresult & 0xFFFF;
+            if ((hresult & unchecked((int)0xFFFF0000)) == unchecked((int)0x80070000) &&
+                lowWord is 112 or 39)
+                return true;
+        }
+
+        return false;
+    }
+
     private sealed class VhdxCoordinatorTestEnvironment(
         PhysicalDiskDescriptor sourceDescriptor,
         int virtualDiskNumber,
