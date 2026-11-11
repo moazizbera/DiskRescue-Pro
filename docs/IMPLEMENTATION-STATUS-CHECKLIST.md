@@ -1,3 +1,27 @@
+# Current status update — 2026-11-11 (directory-chain rename exclusion implementation)
+
+This is an implementation candidate, not a release approval. Windows CI must validate the new sharing contract before it can be accepted. Keep public physical acquisition hard-disabled.
+
+## Change made
+
+- [x] The native destination session now retains every opened directory component from the local drive root through the requested destination for the session lifetime.
+- [x] Non-root directory components are opened without `FILE_SHARE_DELETE`; the handles remain open until session disposal. This is intended to prevent a concurrent rename/delete of the final destination directory or any ancestor while acquisition is active, rather than relying on repeated point-in-time path checks.
+- [x] The root volume handle remains retained too; the volume root is not an ordinary renameable directory component.
+- [x] Replaced the prior test that deliberately renamed the pinned directory with a deterministic Windows test that attempts to rename both the final directory and an ancestor, expects both attempts to fail while the session is active, verifies publication remains at the requested path, and verifies rename works again after disposal.
+- [ ] Exact-head Windows CI for these source/test changes is pending. Do not mark the behavior validated until the Windows native test actually executes and passes.
+- [ ] Compatibility remains a deliberate open gate: a directory component may fail to open if an existing process holds a conflicting handle that requested DELETE access. Evaluate behavior with common antivirus/indexer/backup software and on supported Windows/filesystem combinations. Fail closed; do not fall back to share-delete behavior.
+- [ ] Verify cleanup/disposal under all constructor and partial-open failure paths, plus cancellation and acquisition failure paths.
+- [ ] Independent review must confirm Windows directory rename/share semantics for both final and ancestor components, including filesystem-specific behavior.
+- [ ] Do not infer filesystem durability from rename exclusion. The separate power-loss publication durability gate remains open.
+
+## Safety boundary
+
+- PR #30 remains draft/open/unmerged.
+- Public physical acquisition remains hard-disabled.
+- No original or valuable physical HDD has been opened or read. No physical HDD test is authorized.
+
+---
+
 # Current status update — 2026-11-11 (directory-name stability race review)
 
 This is a source-review finding, not a confirmed exploit and not a code change. Keep the physical-acquisition release gate closed pending design and tests.
