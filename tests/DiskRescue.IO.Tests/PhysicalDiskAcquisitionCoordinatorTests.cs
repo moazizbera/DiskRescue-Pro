@@ -208,6 +208,34 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
     }
 
     [Fact]
+    public async Task CleanupFailurePreservesBothAcquisitionAndCleanupErrors()
+    {
+        using var folder = new TemporaryFolder();
+        using var cancellation = new CancellationTokenSource();
+        var source = new MemorySource(new byte[128 * 1024]);
+        var environment = new FakeEnvironment
+        {
+            Source = source,
+            CleanupException = new IOException("synthetic destination cleanup failure")
+        };
+        var progress = new InlineProgress<DiskImageProgress>(_ => cancellation.Cancel());
+
+        var error = await Assert.ThrowsAsync<AggregateException>(() =>
+            PhysicalDiskAcquisitionCoordinator.AcquireAsync(
+                Descriptor(), folder.File("cleanup-failure.img"), environment,
+                progress, cancellation.Token));
+
+        Assert.Contains(error.InnerExceptions, exception => exception is OperationCanceledException);
+        Assert.Contains(error.InnerExceptions, exception =>
+            exception.Message.Contains("synthetic destination cleanup failure", StringComparison.OrdinalIgnoreCase));
+        Assert.False(File.Exists(folder.File("cleanup-failure.img")));
+        Assert.False(File.Exists(folder.File("cleanup-failure.img.diskrescue.json")));
+        Assert.Contains(Directory.GetFiles(folder.Path), path =>
+            Path.GetFileName(path).Contains("partial", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(1, source.DisposeCalls);
+    }
+
+    [Fact]
     public async Task DestinationOverlapBlocksBeforeOpeningSource()
     {
         using var folder = new TemporaryFolder();
@@ -306,6 +334,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         public PhysicalDiskDescriptor? OpenedDescriptor { get; init; }
         public MemorySource? Source { get; init; }
         public Exception? ManifestException { get; init; }
+        public Exception? CleanupException { get; init; }
         public string? PinnedVolumeGuidPath { get; init; }
         public string? PinnedDirectoryPath { get; init; }
         public int InventoryCalls { get; private set; }
@@ -353,6 +382,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
             return new FakeDestinationSession(
                 destinationDirectoryPath,
                 ManifestException,
+                CleanupException,
                 PinnedVolumeGuidPath ?? DestinationVolumeGuid,
                 PinnedDirectoryPath ?? destinationDirectoryPath);
         }
@@ -362,6 +392,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
     {
         private readonly string _directory;
         private readonly Exception? _manifestException;
+        private readonly Exception? _cleanupException;
         private readonly Dictionary<Stream, string> _paths = new(ReferenceEqualityComparer.Instance);
         private readonly HashSet<Stream> _published = new(ReferenceEqualityComparer.Instance);
         private readonly HashSet<Stream> _deleted = new(ReferenceEqualityComparer.Instance);
@@ -370,10 +401,11 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         private readonly string _reportedDirectoryPath;
 
         public FakeDestinationSession(
-            string directory, Exception? manifestException, string volumeGuidPath, string reportedDirectoryPath)
+            string directory, Exception? manifestException, Exception? cleanupException, string volumeGuidPath, string reportedDirectoryPath)
         {
             _directory = directory;
             _manifestException = manifestException;
+            _cleanupException = cleanupException;
             VolumeGuidPath = volumeGuidPath;
             _reportedDirectoryPath = reportedDirectoryPath;
             DirectoryIdentity = new PhysicalDestinationDirectoryIdentity("WINVOL:COORDINATOR", 0, 2);
@@ -441,6 +473,8 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
             cancellationToken.ThrowIfCancellationRequested();
             if (_published.Contains(file))
                 throw new InvalidOperationException("Published file cannot be deleted as an unpublished temporary.");
+            if (_cleanupException is not null)
+                throw _cleanupException;
             if (File.Exists(_paths[file]))
                 File.Delete(_paths[file]);
             _deleted.Add(file);
