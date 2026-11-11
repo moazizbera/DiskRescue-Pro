@@ -6,9 +6,9 @@ This is the current status snapshot for PR #30. Earlier dated sections are histo
 
 - PR #30 remains **draft/open**: https://github.com/moazizbera/DiskRescue-Pro/pull/30
 - Branch: `security/managed-destination-session-contract-20261110`
-- Exact PR head verified: `133305a9377b5ddb75829c4b3200f250e92a80d6`.
-- Exact-head Windows CI #1318 passed on this exact head: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42996738462
-- Test result on exact head: **370 passed, 0 failed, 1 skipped (371 total)** in `DiskRescue.IO.Tests.dll`.
+- Code head validated by Windows CI #1318: `133305a9377b5ddb75829c4b3200f250e92a80d6` (the implementation head immediately before this checklist-only refresh): https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42996738462
+- Checklist refresh commit: `f92b9e48fe2fe6524dd5bea8924b59094c061dd0`. This documentation-only commit is now the PR branch head; its own CI run has not yet been verified.
+- Test result on implementation head `133305a9`: **370 passed, 0 failed, 1 skipped (371 total)** in `DiskRescue.IO.Tests.dll`.
 - CI #1318 also completed the workflow's generated disk-image fixtures, CLI discovery/recovery smoke tests, deleted-NTFS extraction and manifest checks, one-command lost-NTFS harness, WPF build, Windows x64 desktop/CLI publishing, dashboard screenshot capture, and artifact uploads.
 - CI #1317 passed on the immediately preceding checklist/session-evidence commit `6a36ef759aead0cad0abc380b21eaf28d34be4f2`: **370 passed, 0 failed, 1 skipped (371 total)**. https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42996617539
 - CI #1316 also passed on its earlier exact head with the same 370/0/1 result. The latest exact-head run #1318 is the current acceptance evidence.
