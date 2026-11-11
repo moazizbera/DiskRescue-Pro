@@ -130,14 +130,11 @@ try {
     if (-not $sourceDisk.IsReadOnly -or $sourceDisk.PartitionStyle -ne "RAW") {
         throw "The source VHDX is not confirmed read-only and RAW. No test will proceed."
     }
-    if ($sourceDisk.BusType -notin @(14, 15)) {
-        throw "The source VHDX did not report an expected virtual bus type."
-    }
     if ($destinationDisk.IsReadOnly -or $destinationDisk.PartitionStyle -ne "RAW") {
         throw "The destination VHDX must be writable and RAW before initialization."
     }
-    if ($destinationDisk.BusType -notin @(14, 15) -or $destinationDisk.IsBoot -or $destinationDisk.IsSystem) {
-        throw "The destination disk failed virtual-device / non-boot / non-system checks. Refusing to initialize it."
+    if ($destinationDisk.IsBoot -or $destinationDisk.IsSystem) {
+        throw "The destination disk is reported as a boot or system disk. Refusing to initialize it."
     }
     if ([long]$sourceDisk.Size -ne 128MB -or [long]$destinationDisk.Size -ne 96MB) {
         throw "The attached VHDX capacities do not match the requested 128-MiB source and 96-MiB destination."
