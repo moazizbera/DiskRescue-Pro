@@ -1,3 +1,45 @@
+# Current status update — 2026-11-11 (latest native-session verification)
+
+This is the current status snapshot for PR #30. Earlier dated sections are historical evidence and must not override this section.
+
+## Candidate and exact-head CI
+
+- PR #30 remains **draft/open**: https://github.com/moazizbera/DiskRescue-Pro/pull/30
+- Branch: `security/managed-destination-session-contract-20261110`
+- Exact PR head verified: `476c641a1cb235ce4cf5e509987581ad8cd60f38`
+- Exact-head Windows CI #1316 passed: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42994209381
+- Test result: **370 passed, 0 failed, 1 skipped (371 total)** in `DiskRescue.IO.Tests.dll`.
+- The same workflow passed generated disk-image fixtures, CLI discovery/recovery smoke tests, deleted-NTFS extraction and manifest checks, the one-command lost-NTFS harness, WPF build, Windows x64 desktop/CLI publishing, dashboard screenshot capture, and artifact uploads.
+- CI #1315 also passed on the preceding test-fix commit `ccbf0cc2e8ca3c1a75968e32899d46da627c957c`; latest-head CI #1316 supersedes it as the current acceptance evidence.
+
+## Native destination writer evidence
+
+- [x] Native Windows session ABI layout regression tests pass in exact-head CI.
+- [x] Native session + destination writer integration test publishes a generated 384-KiB in-memory source fixture, then verifies the committed image bytes/hash and manifest after disposing the session.
+- [x] SafeHandle lifetime ordering is covered by the corrected add-reference-before-get-handle implementation.
+- [x] Session file handles deny competing write/delete opens while the owning session is active.
+- [ ] The native writer integration test is **not** a VHDX source-device test and does not constitute a complete physical acquisition coordinator end-to-end test.
+
+## Remaining release gates — still blocking
+
+- [ ] Independent security review of native P/Invoke layouts, handle lifetime, reparse handling, no-replace rename, and race assumptions.
+- [ ] Disposable-VHDX coordinator end-to-end acceptance using a newly created disposable virtual disk and a separate disposable destination; do not bypass production virtual-device rejection.
+- [ ] Prove disposable source bytes remain unchanged and output bytes/hash/manifest are correct.
+- [ ] Exercise destination-full/insufficient-space behavior and cleanup on disposable media.
+- [ ] Exercise cancellation, source read failure, manifest-publication failure, path replacement, and cleanup on the full disposable-VHDX path. Existing coordinator unit tests cover cancellation, read failure, manifest failure, and path replacement with test doubles; this is not the same as VHDX end-to-end evidence.
+- [ ] Manual keyboard-only, accessibility/Narrator, high-DPI, and multi-work-area interaction checks remain outstanding.
+- [ ] Only after all gates pass, conduct a separate design/security review before any proposal to enable the public acquisition API/UI.
+
+## Non-negotiable safety boundary
+
+- Public physical acquisition remains hard-disabled.
+- No original or valuable physical HDD has been opened or read.
+- Never format, initialize, repair, repartition, mount, or write to source media.
+- Automated tests use generated disk images and explicitly disposable VHDX fixtures only.
+- Do not claim physical HDD readiness based on CI, synthetic images, or a WPF screenshot.
+
+---
+
 # Current status update — 2026-11-10 (PR #30 integrated pinned-destination coordinator)
 
 This section is the current source of truth for physical acquisition safety. Older dated sections below are retained as historical snapshots and may describe earlier states of PR #30; do not use their old unchecked items as the current implementation status.
