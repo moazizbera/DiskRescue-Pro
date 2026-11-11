@@ -26,13 +26,20 @@ $attached = $false
 $testExitCode = 1
 
 try {
-    # The VHDX is deliberately left RAW: no partition table, filesystem, or volume is created.
-    @"
-create vdisk file="$vhdPath" maximum=128
-select vdisk file="$vhdPath"
-attach vdisk readonly
-exit
-"@ | Set-Content -LiteralPath $diskpartPath -Encoding Unicode
+    # DiskPart script files use the active Windows ANSI code page. UTF-16LE
+    # input is parsed as invalid commands and produces the DiskPart help screen.
+    # The CI runner temp path is ASCII; reject unrepresentable paths rather than
+    # silently changing a path that DiskPart would receive.
+    $commands = @(
+        "create vdisk file=`"$vhdPath`" maximum=128"
+        "select vdisk file=`"$vhdPath`""
+        "attach vdisk readonly"
+        "exit"
+    ) -join "`r`n"
+    if ([System.Text.Encoding]::ASCII.GetString([System.Text.Encoding]::ASCII.GetBytes($commands)) -cne $commands) {
+        throw "The temporary VHDX path contains non-ASCII characters that cannot be represented safely in the DiskPart script."
+    }
+    [System.IO.File]::WriteAllText($diskpartPath, $commands + "`r`n", [System.Text.Encoding]::ASCII)
 
     $diskpartOutput = & diskpart.exe /s $diskpartPath 2>&1
     $diskpartExitCode = $LASTEXITCODE
@@ -83,11 +90,12 @@ finally {
     }
 
     if ($attached) {
-        @"
-select vdisk file="$vhdPath"
-detach vdisk
-exit
-"@ | Set-Content -LiteralPath $diskpartPath -Encoding Unicode
+        $detachCommands = @(
+            "select vdisk file=`"$vhdPath`""
+            "detach vdisk"
+            "exit"
+        ) -join "`r`n"
+        [System.IO.File]::WriteAllText($diskpartPath, $detachCommands + "`r`n", [System.Text.Encoding]::ASCII)
         & diskpart.exe /s $diskpartPath
         $detachExitCode = $LASTEXITCODE
         $imageState = Get-DiskImage -ImagePath $vhdPath -ErrorAction SilentlyContinue
