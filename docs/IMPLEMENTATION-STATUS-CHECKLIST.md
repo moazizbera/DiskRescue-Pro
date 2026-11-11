@@ -1,3 +1,25 @@
+# Current status update — 2026-11-11 (directory handle-contention compatibility check)
+
+## Existing DELETE-capable directory handle
+
+- [x] Added `NativeSessionFailsClosedWhenExistingDirectoryHandleRequestsDeleteAccess` using a generated temporary directory and a native read-only test handle requesting DELETE access.
+- [x] The test verifies the pinned session refuses the conflicting open rather than falling back to a weaker share mode, then opens successfully after the conflicting handle is released.
+- [x] Exact-head Windows CI run **43067171706** passed all 24 workflow steps on `e9e23698b2eead2cc1513ca678582e8b71e9840e`: https://github.com/DiskRescue-Pro/actions/runs/43067171706.
+- [x] Latest test artifact: **377 passed, 0 failed, 3 skipped (380 total)**. All executed tests passed (377/377); three tests were skipped.
+- [x] Disposable VHDX read-only and NTFS ENOSPC integrations, generated fixture/CLI/recovery smoke tests, WPF build, dashboard screenshot, Windows x64 desktop/CLI publishing, and artifact uploads passed.
+
+## Compatibility interpretation
+
+This is one deterministic share-mode contention test on the hosted Windows runner. It does not certify compatibility with every antivirus, indexing, backup, synchronization, or filesystem filter driver, nor across every supported Windows/filesystem combination. The required policy remains fail closed; do not fall back to `FILE_SHARE_DELETE`.
+
+## Safety boundary
+
+- PR #30 remains draft/open/unmerged.
+- Public physical acquisition remains hard-disabled.
+- No original or valuable physical HDD has been opened or read. No physical HDD testing is authorized.
+
+---
+
 # Current status update — 2026-11-11 (constructor and cancellation cleanup gates)
 
 ## Constructor failure and cancellation review
