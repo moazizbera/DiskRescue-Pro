@@ -1128,3 +1128,12 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] Add a deterministic fault-injection test proving later resources are still closed when an earlier resource's Dispose throws. Current native integration tests cover ordinary session disposal and release of the directory chain, but do not inject a failing Dispose implementation into this concrete adapter.
 - [ ] Await exact-head Windows CI for the disposal hardening commit; do not treat the previous successful run as validation of this change.
 - [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested.
+
+### Destination-session disposal fault-injection test — 2026-11-11
+
+- [x] Extracted the production cleanup loop into the internal `DisposeResources` helper; `DisposeAsync()` uses this same helper for owned streams, associated handles, and reverse-order directory-chain handles.
+- [x] Added deterministic fault injection with four disposable resources: the first and third throw distinct exceptions, while the second and fourth record successful disposal. The test asserts all four were attempted and both original exceptions were retained in order.
+- [x] The test exercises the exact production cleanup helper without requiring a native Windows handle to throw during `Dispose()`.
+- [ ] Await exact-head Windows CI for the source and test commits; this test is not accepted until that workflow completes successfully.
+- [ ] The test validates continuation and failure collection in the shared cleanup routine; it does not simulate an operating-system SafeHandle close failure or prove hardware-level handle closure under kernel faults.
+- [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested.
