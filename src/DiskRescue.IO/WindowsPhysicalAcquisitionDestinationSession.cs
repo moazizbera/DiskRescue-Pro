@@ -314,18 +314,21 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
             };
             Marshal.StructureToPtr(unicodeString, unicodeStringBuffer, false);
 
-            var attributes = new ObjectAttributes
-            {
-                Length = Marshal.SizeOf<ObjectAttributes>(),
-                RootDirectory = parent.DangerousGetHandle(),
-                ObjectName = unicodeStringBuffer,
-                Attributes = ObjectCaseInsensitive
-            };
-
             var addRef = false;
             try
             {
+                // Acquire the SafeHandle reference before obtaining its raw value.
+                // Otherwise concurrent disposal could close/reuse the handle between
+                // DangerousGetHandle and DangerousAddRef, redirecting RootDirectory.
                 parent.DangerousAddRef(ref addRef);
+                var attributes = new ObjectAttributes
+                {
+                    Length = Marshal.SizeOf<ObjectAttributes>(),
+                    RootDirectory = parent.DangerousGetHandle(),
+                    ObjectName = unicodeStringBuffer,
+                    Attributes = ObjectCaseInsensitive
+                };
+
                 var status = NtCreateFile(
                     out var rawHandle,
                     desiredAccess,
