@@ -1,3 +1,26 @@
+# Current status update — 2026-11-11 (native adapter static review checkpoint)
+
+This section records a bounded source review after exact-head CI #1334. It is not an independent third-party security audit or release approval.
+
+## Review completed so far
+
+- [x] Reviewed the native adapter's handle-relative open/create flow, path-component validation, FILE_OPEN_REPARSE_POINT use, reparse attribute rejection, handle-derived volume/directory/file identities, no-replace rename layout, delete disposition, and SafeHandle reference acquisition around raw parent-handle use.
+- [x] Manually checked the native structure layouts and offsets against the documented Windows ABI shapes for both pointer widths: UNICODE_STRING, OBJECT_ATTRIBUTES, FILE_ID_INFO, FILE_ATTRIBUTE_TAG_INFO, IO_STATUS_BLOCK, and the variable-length FILE_RENAME_INFORMATION buffer. This is a source-level review only; automated architecture-specific ABI assertions and Windows-version/filesystem coverage are not yet present.
+- [x] Confirmed the implementation explicitly documents sequential, non-thread-safe session use and that the coordinator uses the session sequentially. SafeHandle references protect individual native calls; they do not make concurrent session operations or concurrent disposal supported.
+- [x] Confirmed the rename uses the pinned destination directory handle, requests no-replace semantics, and the opened file handle has DELETE access. The directory handle is held alive across the native rename call.
+- [ ] Add focused native ABI/layout tests (including x86/x64 expectations where supported) and broaden adapter tests beyond the current hosted Windows runner.
+- [ ] Resolve/document the durability boundary for directory-entry metadata after rename. FileStream.Flush(flushToDisk: true) flushes the file handle's data, but this review has not established a Windows/filesystem-independent guarantee that the parent directory rename metadata is durable across sudden power loss. Do not describe the publication as power-loss-atomic/durable until this is proven or the contract is narrowed.
+- [ ] Complete independent security review of native ABI/layout, handle lifetime, reparse handling, rename semantics, filesystem compatibility, and race assumptions.
+- [ ] Disposable-VHDX coordinator end-to-end acquisition, source-byte invariance, output image/hash/manifest verification, destination-full handling, and full cleanup-path acceptance remain outstanding.
+- [ ] Manual Windows keyboard/accessibility, high-DPI, and multi-work-area checks remain outstanding.
+
+## Current exact-head validation
+
+- [x] Exact-head Windows CI #1334 passed on d1b14884f0da452f46125651d446ca41391818a4: 370 passed, 0 failed, 1 skipped (371 total). Disposable RAW VHDX attached read-only, filtered public-API policy test passed (1/1), and DiskPart detached it successfully. Generated fixtures, CLI/recovery smoke tests, WPF build, Windows x64 desktop/CLI publishing, screenshot capture, and artifact uploads passed. https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43000070523
+- PR #30 remains draft/open; public physical acquisition remains hard-disabled. No original or valuable physical HDD has been opened or read. These results do not establish physical HDD recovery readiness.
+
+---
+
 # Current status update — 2026-11-11 (pinned destination identity regression validated)
 
 This update supersedes the pending validation note in the preceding 2026-11-11 section.
