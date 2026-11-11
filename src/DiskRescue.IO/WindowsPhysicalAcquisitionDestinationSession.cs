@@ -12,6 +12,14 @@ namespace DiskRescue.IO;
 /// the public acquisition API remains hard-disabled pending independent review and
 /// disposable-VHDX end-to-end acceptance.
 /// </summary>
+/// <remarks>
+/// This session is intentionally not a thread-safe shared service. The caller must
+/// serialize all session operations and must not dispose the session while an operation
+/// or a write to an owned stream is in progress. The acquisition coordinator currently
+/// follows this sequential-use contract. Concurrent calls and concurrent disposal are
+/// unsupported; the SafeHandle references still protect native handles during each
+/// individual P/Invoke call.
+/// </remarks>
 internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAcquisitionDestinationSession
 {
     private const uint FileListDirectory = 0x00000001;
