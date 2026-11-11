@@ -253,21 +253,16 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
 
         // A failure closing one owned file must not strand the remaining file handles
         // or the retained directory chain. Attempt every close, then report failures.
-        List<Exception>? disposalErrors = null;
-        foreach (var owned in _files.Values)
-        {
-            TryDispose(owned.Stream, ref disposalErrors);
-            TryDispose(owned.Handle, ref disposalErrors);
-        }
+        var resources = _files.Values
+            .SelectMany(owned => new IDisposable[] { owned.Stream, owned.Handle })
+            .Concat(_directoryChainHandles.AsEnumerable().Reverse());
+        var disposalErrors = DisposeResources(resources);
         _files.Clear();
-
-        for (var index = _directoryChainHandles.Count - 1; index >= 0; index--)
-            TryDispose(_directoryChainHandles[index], ref disposalErrors);
         _directoryChainHandles.Clear();
 
-        if (disposalErrors is { Count: 1 })
+        if (disposalErrors.Count == 1)
             System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(disposalErrors[0]).Throw();
-        if (disposalErrors is { Count: > 1 })
+        if (disposalErrors.Count > 1)
             throw new AggregateException(
                 "One or more destination-session resources could not be disposed.",
                 disposalErrors);
@@ -275,16 +270,23 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         return ValueTask.CompletedTask;
     }
 
-    private static void TryDispose(IDisposable resource, ref List<Exception>? errors)
+    // Shared by the production disposal path and deterministic fault-injection tests.
+    internal static List<Exception> DisposeResources(IEnumerable<IDisposable> resources)
     {
-        try
+        var errors = new List<Exception>();
+        foreach (var resource in resources)
         {
-            resource.Dispose();
+            try
+            {
+                resource.Dispose();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
         }
-        catch (Exception exception)
-        {
-            (errors ??= new List<Exception>()).Add(exception);
-        }
+
+        return errors;
     }
 
     private OwnedFile GetOwned(Stream stream)
