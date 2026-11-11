@@ -781,3 +781,35 @@ All current validation uses generated disk images. Source images remain read-onl
 ### Safety boundary reaffirmed
 
 All automated validation used generated disk images. Source images remain read-only. No format, initialize, repair, repartition, partition-table write, or source-media write operation is authorized. Recovery output must remain separate from source storage. CI success and the screenshot do not prove physical HDD recovery capability.
+
+## Disposable-VHDX coordinator integration — 2026-11-11
+
+### New integration coverage
+
+- [x] Expanded `WindowsVhdxSafetySmokeTests` from a policy-only test to include an internal coordinator acquisition test. The harness creates a new RAW VHDX, attaches it read-only, and confirms the Windows device is virtual/file-backed.
+- [x] The public `PhysicalDiskImageAcquisition.AcquireAsync` boundary is still asserted to reject that virtual device before opening a source or creating output.
+- [x] The second test reads the disposable VHDX through a read-only `PhysicalDriveN` handle, injects **synthetic test inventory/volume/extent metadata** into the internal coordinator, and uses the real Windows pinned-destination session for output.
+- [x] The test verifies full image length, destination SHA-256 against the coordinator result, manifest format/length/hash and pre-publication verification marker, plus matching source SHA-256 before and after the acquisition.
+- [x] It verifies image and manifest publication through the same pinned native destination session. The harness detaches the VHDX in its `finally` path and removes its temporary VHDX when detach is confirmed.
+- [x] Full Windows CI run #1341 on coordinator-test commit `daf02e04f8a59363994e1fab20182f2f4176b5f8` passed: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43004485735. Build, normal tests, the opt-in VHDX policy + coordinator integration step, generated fixtures, CLI/recovery smoke tests, WPF build, Windows x64 desktop/CLI publishing, screenshot capture, and artifact uploads all succeeded.
+- [x] Latest script-wording commit `4009d229c2ceb12710855e578f69472e41825a89` also passed build, full tests, VHDX integration, generated fixtures, CLI/recovery smoke tests, WPF build, desktop publish and screenshot capture in CI run #1342; Windows x64 CLI publish/artifact upload were still running at the last check: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43004502496.
+
+### Exact scope limits — do not overstate this result
+
+- The coordinator test injects synthetic inventory and physical-volume/extent identities so that its internal preflight path can be exercised with a virtual device. It does **not** prove real Windows source-device identity for the VHDX, real source/destination physical-disk separation, or the production hardware identity gate.
+- The destination folder is a temporary CI folder; this test is not a claim that its underlying physical storage is separate from the VHDX backing file.
+- The source is opened read-only. The public acquisition API and UI remain hard-disabled; no real or valuable physical HDD has been opened or read.
+- Existing deterministic coordinator tests still provide the failure-path coverage for cancellation, read errors, manifest commit failure, and path replacement. The new host integration test covers the successful acquisition/publication path; destination-full and full native cleanup/fault-injection scenarios remain separate acceptance work.
+- The native publication write-through/directory-metadata durability question documented above remains open. Do not claim power-loss durability for the published name until a defensible contract is implemented and tested.
+- Native ABI/layout assertions already exist for x86 and x64 layouts in the test source; current hosted Windows CI evidence is x64. A separate x86 runtime execution has not been demonstrated.
+
+### Remaining gates before any physical HDD test
+
+- [ ] Obtain final conclusion for exact latest-head CI #1342 and keep its artifact links/evidence.
+- [ ] Add or complete native-session fault-injection coverage for destination-full, cleanup failure, and publication interruption as feasible without weakening safety.
+- [ ] Resolve or explicitly constrain the publication durability contract and supported filesystems.
+- [ ] Complete independent security review and any outstanding review comments.
+- [ ] Confirm a dedicated spare, non-valuable physical HDD and a genuinely separate destination device are available for a supervised manual test. Never use the user's original or valuable HDD.
+- [ ] Keep public physical acquisition disabled until a separate explicit release decision after all gates above.
+
+**Current decision:** the disposable VHDX integration milestone has passed on CI #1341. The physical HDD test is **not authorized yet**. No date is promised; it can be scheduled only after the remaining gates are closed.
