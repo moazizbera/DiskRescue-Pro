@@ -28,19 +28,21 @@ $testExitCode = 1
 try {
     # The VHDX is deliberately left RAW: no partition table, filesystem, or volume is created.
     @"
-create vdisk file="$vhdPath" maximum=128 type=expandable
+create vdisk file="$vhdPath" maximum=128
 select vdisk file="$vhdPath"
 attach vdisk readonly
 exit
 "@ | Set-Content -LiteralPath $diskpartPath -Encoding Unicode
 
-    & diskpart.exe /s $diskpartPath
+    $diskpartOutput = & diskpart.exe /s $diskpartPath 2>&1
+    $diskpartExitCode = $LASTEXITCODE
+    $diskpartOutput | ForEach-Object { Write-Host $_ }
     # Check the actual attachment state even if DiskPart reports a non-zero exit;
     # never delete a VHDX that may have been attached before a partial failure.
     $imageState = Get-DiskImage -ImagePath $vhdPath -ErrorAction SilentlyContinue
     $attached = [bool]($imageState -and $imageState.Attached)
-    if ($LASTEXITCODE -ne 0) {
-        throw "diskpart failed while creating or attaching the disposable VHDX (exit $LASTEXITCODE)."
+    if ($diskpartExitCode -ne 0) {
+        throw "diskpart failed while creating or attaching the disposable VHDX (exit $diskpartExitCode). Review the DiskPart output above."
     }
     if (-not $attached) {
         throw "Windows did not confirm that the disposable VHDX is attached."
