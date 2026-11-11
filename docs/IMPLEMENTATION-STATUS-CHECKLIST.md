@@ -9,7 +9,9 @@ This is the current status snapshot for PR #30. Earlier dated sections are histo
 - Last implementation head validated by Windows CI #1318: `133305a9377b5ddb75829c4b3200f250e92a80d6`: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42996738462
 - New VHDX API-gate regression commit: `4fe9618155befa306648417340cbd7cf22d0cb43`.
 - CI workflow now runs `tools/Test-WindowsVhdxSafety.ps1` on the Windows runner after the normal test suite, so the opt-in VHDX check is executed rather than remaining skipped in the ordinary test invocation.
-- Workflow integration commit: `06d8b5223cc3ed300039c47316c04109d43d87a2`; exact-head CI #1325 is queued: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42997905179.
+- Workflow integration commit: `06d8b5223cc3ed300039c47316c04109d43d87a2`.
+- CI #1325 on that commit and CI #1326 on checklist head `005eb428` both failed in the new DiskPart VHDX setup step before the host integration test ran. The regular suite still passed **370/0/1** in both runs. Failure was `diskpart` exit `-2147024809` while processing the create/attach script; no VHDX acceptance result is claimed. CI #1325: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42997905179 ; CI #1326: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42997947249.
+- Harness correction commit `7b89209ced2bbebab5fa594c836ad275872a46f8` simplifies the VHD creation command and captures DiskPart output for diagnostics. Exact-head CI #1327 is queued: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42998250762.
 - Documentation updates for this VHDX gate: `4a3518ebaef246413a53155622d3f2d891ddff15`. The checklist itself is being refreshed in this commit.
 - Test result on implementation head `133305a9`: **370 passed, 0 failed, 1 skipped (371 total)** in `DiskRescue.IO.Tests.dll`.
 - CI #1318 also completed the workflow's generated disk-image fixtures, CLI discovery/recovery smoke tests, deleted-NTFS extraction and manifest checks, one-command lost-NTFS harness, WPF build, Windows x64 desktop/CLI publishing, dashboard screenshot capture, and artifact uploads.
@@ -23,7 +25,7 @@ This is the current status snapshot for PR #30. Earlier dated sections are histo
 - [x] The test now calls the public `PhysicalDiskImageAcquisition.AcquireAsync` only to assert immediate `NotSupportedException` rejection; it verifies that neither the image nor manifest is created.
 - [x] The test explicitly performs no source-sector reads and does not invoke the internal coordinator or low-level physical-disk reader.
 - [ ] This is **not** disposable-VHDX imaging, native writer + VHDX source integration, or coordinator end-to-end acceptance. Those remain separate release gates; no virtual-device policy is bypassed.
-- [ ] The new VHDX regression and its new Windows CI harness step are awaiting exact-head CI #1325; do not mark the host VHDX run passed until the job logs confirm it.
+- [ ] The disposable VHDX setup step has not yet succeeded in CI; harness correction is awaiting exact-head CI #1327. Do not mark the host VHDX run passed until logs confirm attach, read-only state, test execution, and detach.
 
 ## Native destination writer evidence
 
