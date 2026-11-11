@@ -78,7 +78,7 @@ try {
         throw "The Windows VHDX safety smoke test failed (dotnet test exit $testExitCode)."
     }
 
-    Write-Host "PASS: the virtual disk was discovered and production acquisition policy blocked it."
+    Write-Host "PASS: public physical acquisition remained blocked; the separate internal read-only VHDX writer test verified copied bytes, SHA-256, manifest publication, and source hash invariance."
 }
 finally {
     Remove-Item Env:\DISKRESCUE_TEST_VHDX_DISK_NUMBER -ErrorAction SilentlyContinue
