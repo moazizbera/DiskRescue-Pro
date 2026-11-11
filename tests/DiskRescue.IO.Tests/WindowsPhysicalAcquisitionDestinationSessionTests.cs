@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 using DiskRescue.IO;
 using Xunit;
 
@@ -446,6 +447,45 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
         public void Dispose() => _disposed = true;
     }
 
+    [Fact]
+    public async Task NativeSessionFailsClosedWhenExistingDirectoryHandleRequestsDeleteAccess()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            using (var conflictingHandle = CreateFileW(
+                directory,
+                DeleteAccess,
+                ShareRead | ShareWrite | ShareDelete,
+                IntPtr.Zero,
+                OpenExisting,
+                FileFlagBackupSemantics,
+                IntPtr.Zero))
+            {
+                Assert.False(
+                    conflictingHandle.IsInvalid,
+                    $"Could not open the synthetic directory with DELETE access (Win32 error {Marshal.GetLastWin32Error()}).");
+
+                // The pinned session deliberately omits FILE_SHARE_DELETE. An
+                // existing DELETE-capable handle must therefore cause a fail-closed
+                // sharing violation rather than a weaker fallback open.
+                Assert.Throws<IOException>(() =>
+                    WindowsPhysicalAcquisitionDestinationSession.Open(directory));
+            }
+
+            // Once the conflicting handle is released, the same directory can be pinned.
+            await using var session = WindowsPhysicalAcquisitionDestinationSession.Open(directory);
+            Assert.Equal(Path.GetFullPath(directory), session.GetCurrentDirectoryPath(), StringComparer.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
     private static Type GetNativeStruct(string name) =>
         typeof(WindowsPhysicalAcquisitionDestinationSession).GetNestedType(
             name,
@@ -505,6 +545,23 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
             error => Assert.Same(firstFailure, error),
             error => Assert.Same(thirdFailure, error));
     }
+
+    private const uint DeleteAccess = 0x00010000;
+    private const uint ShareRead = 0x00000001;
+    private const uint ShareWrite = 0x00000002;
+    private const uint ShareDelete = 0x00000004;
+    private const uint OpenExisting = 3;
+    private const uint FileFlagBackupSemantics = 0x02000000;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle CreateFileW(
+        string fileName,
+        uint desiredAccess,
+        uint shareMode,
+        IntPtr securityAttributes,
+        uint creationDisposition,
+        uint flagsAndAttributes,
+        IntPtr templateFile);
 
     private sealed class TrackingDisposable(Exception? failure = null) : IDisposable
     {
