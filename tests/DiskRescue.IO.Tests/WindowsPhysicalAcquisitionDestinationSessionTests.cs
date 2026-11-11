@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using DiskRescue.IO;
 using Xunit;
 
