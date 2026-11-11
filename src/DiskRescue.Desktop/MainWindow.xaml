@@ -318,21 +318,34 @@
                           ShowsPreview="True" ResizeDirection="Columns"
                           ResizeBehavior="PreviousAndNext" Cursor="SizeWE"/>
 
-            <!-- Findings panel is a readable report surface, not a console -->
+            <!-- Findings panel keeps the report visible while partition details remain expandable. -->
             <Border Grid.Column="2" Background="{StaticResource Panel}" BorderBrush="#263A52"
                     BorderThickness="1" CornerRadius="11" Padding="12">
-                <DockPanel LastChildFill="True">
-                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,11">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Margin="0,0,0,7">
                         <TextBlock Text="03  /  SELECTED ITEM" Foreground="{StaticResource Muted}"
                                    FontSize="10" FontWeight="Bold"/>
                         <TextBlock Text="Partition inspector" Foreground="{StaticResource Text}"
                                    FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0"/>
+                    </StackPanel>
+                    <Expander Grid.Row="1" Header="Selected partition details"
+                              IsExpanded="False" Margin="0,0,0,9"
+                              Foreground="{StaticResource Text}"
+                              AutomationProperties.Name="Expand selected partition geometry and interpretation">
                         <TextBox x:Name="SelectedPartitionDetailsBox" AutomationProperties.Name="Selected partition geometry and interpretation" IsReadOnly="True"
                                  TextWrapping="Wrap" AcceptsReturn="True"
-                                 VerticalScrollBarVisibility="Visible" Height="126" MinHeight="104"
-                                 Margin="0,8,0,12" BorderThickness="1"
+                                 VerticalScrollBarVisibility="Auto" MinHeight="84" MaxHeight="150"
+                                 Margin="0,7,0,2" BorderThickness="1"
                                  BorderBrush="#263A52" Background="#0C1726" Padding="10"
                                  Text="Inspect an image and select a partition to review its geometry and validation context."/>
+                    </Expander>
+                    <StackPanel Grid.Row="2" Margin="0,0,0,8">
                         <TextBlock Text="03  /  INSPECTION REPORT" Foreground="{StaticResource Muted}"
                                    FontSize="10" FontWeight="Bold"/>
                         <TextBlock Text="Findings &amp; guidance" Foreground="{StaticResource Text}"
@@ -340,7 +353,7 @@
                         <TextBlock Text="Validation results, warnings, and limitations"
                                    Foreground="{StaticResource Muted}" FontSize="11" Margin="0,3,0,0"/>
                         <Border Background="#2D2222" BorderBrush="#8E4545" BorderThickness="1"
-                                CornerRadius="6" Padding="9" Margin="0,9,0,0">
+                                CornerRadius="6" Padding="9" Margin="0,8,0,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -354,12 +367,12 @@
                             </Grid>
                         </Border>
                     </StackPanel>
-                    <TextBox x:Name="FindingsBox" AutomationProperties.Name="Inspection findings, warnings, and limitations" IsReadOnly="True" TextWrapping="Wrap"
+                    <TextBox Grid.Row="3" x:Name="FindingsBox" AutomationProperties.Name="Inspection findings, warnings, and limitations" IsReadOnly="True" TextWrapping="Wrap"
                              AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
                              BorderThickness="1" BorderBrush="#263A52"
                              Background="#0C1726" Padding="12"
                              Text="No inspection has been run. Choose a regular disk-image file to begin."/>
-                </DockPanel>
+                </Grid>
             </Border>
         </Grid>
 
