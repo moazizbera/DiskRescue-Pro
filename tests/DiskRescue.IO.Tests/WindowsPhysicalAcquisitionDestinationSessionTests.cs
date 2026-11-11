@@ -195,6 +195,35 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
     }
 
     [Fact]
+    public void NativeSessionReleasesPartiallyOpenedDirectoryChainWhenLaterComponentIsMissing()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var parent = CreateTemporaryDirectory();
+        var firstComponent = Path.Combine(parent, "opened-component");
+        var movedComponent = Path.Combine(parent, "opened-component-moved");
+        Directory.CreateDirectory(firstComponent);
+
+        try
+        {
+            var missingDestination = Path.Combine(firstComponent, "missing", "destination");
+
+            Assert.Throws<IOException>(() =>
+                WindowsPhysicalAcquisitionDestinationSession.Open(missingDestination));
+
+            // The first component was pinned before opening the missing component failed.
+            // Failure cleanup must release it so a rename is immediately possible.
+            Directory.Move(firstComponent, movedComponent);
+            Assert.True(Directory.Exists(movedComponent));
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(parent);
+        }
+    }
+
+    [Fact]
     public void NativeSessionRejectsDirectorySymbolicLinkWithoutFollowingIt()
     {
         if (!OperatingSystem.IsWindows())
