@@ -73,6 +73,10 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
             await session.FlushToDiskAsync(stream);
             await session.PublishNoReplaceAsync(stream, "protected.img");
 
+            // Close the session-owned write/delete-capable handle before opening a
+            // separate reader; Windows share checks are symmetric.
+            await session.DisposeAsync();
+
             Assert.Equal(
                 new byte[] { 1, 2, 3, 4, 5, 6 },
                 await File.ReadAllBytesAsync(Path.Combine(directory, "protected.img")));
