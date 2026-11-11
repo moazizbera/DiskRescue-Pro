@@ -208,6 +208,26 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
     }
 
     [Fact]
+    public async Task DestinationFlushFailureRemovesUnpublishedImageAndManifest()
+    {
+        using var folder = new TemporaryFolder();
+        var source = new MemorySource(new byte[128 * 1024]);
+        var environment = new FakeEnvironment
+        {
+            Source = source,
+            ImageFlushException = new IOException("synthetic destination flush failure")
+        };
+
+        var error = await Assert.ThrowsAsync<IOException>(() =>
+            PhysicalDiskAcquisitionCoordinator.AcquireAsync(
+                Descriptor(), folder.File("flush-failure.img"), environment));
+
+        Assert.Contains("synthetic destination flush failure", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(Directory.GetFiles(folder.Path));
+        Assert.Equal(1, source.DisposeCalls);
+    }
+
+    [Fact]
     public async Task CleanupFailurePreservesBothAcquisitionAndCleanupErrors()
     {
         using var folder = new TemporaryFolder();
@@ -335,6 +355,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         public MemorySource? Source { get; init; }
         public Exception? ManifestException { get; init; }
         public Exception? CleanupException { get; init; }
+        public Exception? ImageFlushException { get; init; }
         public string? PinnedVolumeGuidPath { get; init; }
         public string? PinnedDirectoryPath { get; init; }
         public int InventoryCalls { get; private set; }
@@ -383,6 +404,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
                 destinationDirectoryPath,
                 ManifestException,
                 CleanupException,
+                ImageFlushException,
                 PinnedVolumeGuidPath ?? DestinationVolumeGuid,
                 PinnedDirectoryPath ?? destinationDirectoryPath);
         }
@@ -393,6 +415,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         private readonly string _directory;
         private readonly Exception? _manifestException;
         private readonly Exception? _cleanupException;
+        private readonly Exception? _imageFlushException;
         private readonly Dictionary<Stream, string> _paths = new(ReferenceEqualityComparer.Instance);
         private readonly HashSet<Stream> _published = new(ReferenceEqualityComparer.Instance);
         private readonly HashSet<Stream> _deleted = new(ReferenceEqualityComparer.Instance);
@@ -401,11 +424,12 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         private readonly string _reportedDirectoryPath;
 
         public FakeDestinationSession(
-            string directory, Exception? manifestException, Exception? cleanupException, string volumeGuidPath, string reportedDirectoryPath)
+            string directory, Exception? manifestException, Exception? cleanupException, Exception? imageFlushException, string volumeGuidPath, string reportedDirectoryPath)
         {
             _directory = directory;
             _manifestException = manifestException;
             _cleanupException = cleanupException;
+            _imageFlushException = imageFlushException;
             VolumeGuidPath = volumeGuidPath;
             _reportedDirectoryPath = reportedDirectoryPath;
             DirectoryIdentity = new PhysicalDestinationDirectoryIdentity("WINVOL:COORDINATOR", 0, 2);
@@ -444,6 +468,9 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         {
             EnsureOwned(file);
             cancellationToken.ThrowIfCancellationRequested();
+            if (_imageFlushException is not null &&
+                Path.GetFileName(_paths[file]).EndsWith(".image.partial", StringComparison.OrdinalIgnoreCase))
+                throw _imageFlushException;
             ((FileStream)file).Flush(flushToDisk: true);
             return ValueTask.CompletedTask;
         }
