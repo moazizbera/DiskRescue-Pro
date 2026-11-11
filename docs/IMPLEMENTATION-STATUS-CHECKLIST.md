@@ -1,5 +1,12 @@
 # Current status update — 2026-11-11 (directory-chain rename exclusion CI accepted)
 
+
+### Additional failure-path test added — CI pending
+
+- Added `NativeSessionReleasesPartiallyOpenedDirectoryChainWhenLaterComponentIsMissing` to verify that when opening a destination fails after an ancestor component has already been pinned, the partially opened chain is released and the ancestor can immediately be renamed.
+- Commit: `d3d6bdf1238b9c7b6f955028bbad85594af040a6`.
+- This is a newly added Windows test; it is **not yet validated by CI**. Keep partial-open cleanup marked pending until the exact commit's Windows job runs.
+
 ## Exact-head Windows validation
 
 - [x] Exact-head Windows CI #43046744037 passed on `596ae34f2b2ca9360864d4f47bce9d504b65ad90`: https://github.com/DiskRescue-Pro/actions/runs/43046744037.
