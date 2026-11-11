@@ -69,7 +69,7 @@ try {
     }
 
     Write-Host "Disposable VHDX attached read-only as PhysicalDrive$($disk.Number)."
-    Write-Host "No partitioning, formatting, filesystem creation, or source-sector reads will be performed."
+    Write-Host "No partitioning, formatting, or filesystem creation will be performed. The policy test reads no sectors; the internal integration reads only this disposable VHDX through a read-only handle."
 
     $env:DISKRESCUE_TEST_VHDX_DISK_NUMBER = [string]$disk.Number
     dotnet test $testProject --configuration Release --filter "FullyQualifiedName~WindowsVhdxSafetySmokeTests" --logger "console;verbosity=normal"
