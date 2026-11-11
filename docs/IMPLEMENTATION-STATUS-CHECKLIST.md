@@ -928,3 +928,22 @@ No code change or physical-media operation was made as part of this investigatio
 - [ ] Retain restrictive sharing, pinned-directory-relative open, file identity comparison, and no-replace rename. Prove that a competing writer/delete cannot modify or replace the temporary file during or after reopen; fail closed on any mismatch.
 - [ ] Do not implement the prototype until native NTSTATUS-to-Win32 error handling, handle lifetime, supported filesystem semantics, and write-through rename durability claims are independently reviewed and tested.
 
+### Disposable NTFS ENOSPC harness — implementation and CI acceptance — 2026-11-11
+
+- [x] Added `tools/Test-WindowsVhdxEnospc.ps1` as a separate hosted-Windows-only harness; retained the existing read-only policy smoke script unchanged.
+- [x] Added a dedicated xUnit fact that runs only when both the source VHDX disk number and destination root are supplied by the ENOSPC harness. The ordinary VHDX policy harness therefore skips this test instead of accidentally running it without its destination.
+- [x] Added a coordinator integration assertion using the existing synthetic inventory/destination assessment seam and the real native pinned destination adapter. The test creates its output in a unique child directory and refuses to accept the volume root as the output directory.
+- [x] The script creates two distinct expandable VHDXs: a 128-MiB RAW source attached read-only and a 96-MiB destination attached writable. It correlates each disk to its exact `Get-DiskImage -ImagePath` backing file before proceeding; destination formatting is gated by exact image-path association, RAW state, writable state, and non-boot/non-system checks.
+- [x] Initialized, partitioned, and formatted only the verified destination VHDX as NTFS; assigned a dynamically unused drive letter; re-queried the destination disk association and partition/volume mapping; verified a ready local fixed NTFS volume before opening the native destination session.
+- [x] Hosted CI measured **85,762,048 bytes** available on the destination before acquisition, versus a **134,217,728-byte** source image. The test confirmed actual Windows disk-full error code 112 or 39 through the exception/HRESULT chain; this was not a preflight rejection or a synthetic exception.
+- [x] The coordinator integration test passed: no final image or manifest was published, no temporary acquisition file remained after session cleanup, and the source SHA-256 before/after the failed acquisition matched.
+- [x] Source and destination VHDXs were detached independently. CI logs confirm both detach operations succeeded; the script re-queried each image attachment state before deleting its backing file.
+- [x] The normal VHDX policy smoke test passed separately, preserving the public hard-disabled acquisition boundary. The new ENOSPC fact is not enabled in that test and is run only by the dedicated two-VHDX script.
+- [x] Full CI run **43029104611** passed on commit `75783a6d736a5161a5dd9f04ed14aa518ffd979d`: unit suite 373 passed / 0 failed / 3 skipped; ordinary VHDX policy integration passed; dedicated genuine ENOSPC integration passed; generated-fixture/CLI/recovery checks passed; WPF build, Windows x64 desktop and CLI publishing, and actual dashboard screenshot capture/upload passed.
+- [ ] Repeat the dedicated ENOSPC run on another supported Windows runner / filesystem configuration before making broader filesystem compatibility claims. Current acceptance is for the hosted Windows runner's local NTFS destination.
+- [ ] Independent review the new PowerShell harness and C# test for test-isolation, runner-version, and cleanup edge cases before considering the harness a release gate.
+
+### ENOSPC safety scope after CI acceptance
+
+This acceptance proves cleanup behavior when a **test-only internal coordinator** writes to a capacity-constrained disposable NTFS VHDX. The source is also a generated disposable VHDX and is opened read-only. The coordinator test uses synthetic inventory and destination-disk metadata; it does not validate production hardware identity reconciliation or physical source/destination separation. No user HDD or physical media was opened. Public physical acquisition remains hard-disabled and PR #30 remains draft/open/unmerged.
+
