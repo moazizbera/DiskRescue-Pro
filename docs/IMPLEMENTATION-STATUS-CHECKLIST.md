@@ -7,7 +7,9 @@ This is the current status snapshot for PR #30. Earlier dated sections are histo
 - PR #30 remains **draft/open**: https://github.com/moazizbera/DiskRescue-Pro/pull/30
 - Branch: `security/managed-destination-session-contract-20261110`
 - Last implementation head validated by Windows CI #1318: `133305a9377b5ddb75829c4b3200f250e92a80d6`: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42996738462
-- New VHDX API-gate regression commit: `4fe9618155befa306648417340cbd7cf22d0cb43`; its Windows CI validation is pending.
+- New VHDX API-gate regression commit: `4fe9618155befa306648417340cbd7cf22d0cb43`.
+- CI workflow now runs `tools/Test-WindowsVhdxSafety.ps1` on the Windows runner after the normal test suite, so the opt-in VHDX check is executed rather than remaining skipped in the ordinary test invocation.
+- Workflow integration commit: `06d8b5223cc3ed300039c47316c04109d43d87a2`; exact-head CI #1325 is queued: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/42997905179.
 - Documentation updates for this VHDX gate: `4a3518ebaef246413a53155622d3f2d891ddff15`. The checklist itself is being refreshed in this commit.
 - Test result on implementation head `133305a9`: **370 passed, 0 failed, 1 skipped (371 total)** in `DiskRescue.IO.Tests.dll`.
 - CI #1318 also completed the workflow's generated disk-image fixtures, CLI discovery/recovery smoke tests, deleted-NTFS extraction and manifest checks, one-command lost-NTFS harness, WPF build, Windows x64 desktop/CLI publishing, dashboard screenshot capture, and artifact uploads.
@@ -21,7 +23,7 @@ This is the current status snapshot for PR #30. Earlier dated sections are histo
 - [x] The test now calls the public `PhysicalDiskImageAcquisition.AcquireAsync` only to assert immediate `NotSupportedException` rejection; it verifies that neither the image nor manifest is created.
 - [x] The test explicitly performs no source-sector reads and does not invoke the internal coordinator or low-level physical-disk reader.
 - [ ] This is **not** disposable-VHDX imaging, native writer + VHDX source integration, or coordinator end-to-end acceptance. Those remain separate release gates; no virtual-device policy is bypassed.
-- [ ] The new regression test and documentation changes are awaiting Windows CI on the current PR head.
+- [ ] The new VHDX regression and its new Windows CI harness step are awaiting exact-head CI #1325; do not mark the host VHDX run passed until the job logs confirm it.
 
 ## Native destination writer evidence
 
