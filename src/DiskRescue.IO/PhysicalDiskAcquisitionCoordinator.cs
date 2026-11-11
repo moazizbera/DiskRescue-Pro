@@ -97,6 +97,13 @@ internal static class PhysicalDiskAcquisitionCoordinator
         if (File.Exists(manifestPreflightPath) || Directory.Exists(manifestPreflightPath))
             throw new IOException("Acquisition manifest already exists; existing files are never overwritten.");
 
+        // Pin the requested directory before any path-based destination preflight.
+        // Keep this handle for the whole operation so a same-volume directory swap
+        // during preflight cannot silently redirect publication to a replacement folder.
+        var destinationDirectory = Path.GetDirectoryName(fullImagePath)
+            ?? throw new IOException("Destination directory is invalid.");
+        await using var destinationSession = environment.OpenDestinationSession(destinationDirectory);
+
         var first = RunPreflight(selected, fullImagePath, environment);
         if (!first.Assessment.CanAcquire)
             throw new InvalidOperationException("Physical acquisition preflight failed: " +
@@ -107,6 +114,9 @@ internal static class PhysicalDiskAcquisitionCoordinator
         if (!second.Assessment.CanAcquire)
             throw new InvalidOperationException("Physical acquisition revalidation failed: " +
                 string.Join(" ", second.Assessment.Blockers));
+
+        var requestedDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationDirectory));
+        EnsurePinnedDirectoryStillMatches(destinationSession, requestedDirectory);
 
         cancellationToken.ThrowIfCancellationRequested();
         using var opened = environment.OpenReadOnly(second.CurrentDescriptor);
@@ -128,20 +138,11 @@ internal static class PhysicalDiskAcquisitionCoordinator
 
         var destinationAssessment = finalPreflight.Destination
             ?? throw new IOException("Final preflight did not produce a destination assessment.");
-        var destinationDirectory = Path.GetDirectoryName(fullImagePath)
-            ?? throw new IOException("Destination directory is invalid.");
 
-        // Pin the directory only after final preflight, then reconcile the volume GUID
-        // returned by that handle against the complete volume map and the extent list
-        // already inspected by destination preflight. A changed path cannot silently
-        // redirect output to another volume.
-        await using var destinationSession = environment.OpenDestinationSession(destinationDirectory);
-        var requestedDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationDirectory));
-        var pinnedDirectory = Path.TrimEndingDirectorySeparator(
-            Path.GetFullPath(destinationSession.GetCurrentDirectoryPath()));
-        if (!string.Equals(requestedDirectory, pinnedDirectory, StringComparison.OrdinalIgnoreCase))
-            throw new IOException(
-                "The destination directory path no longer resolves to the directory object pinned by the session. No source sectors were read.");
+        // Recheck after the final path-based preflight and before the first source read.
+        // The session was pinned before preflight, so a directory replacement at the
+        // requested path is detected even when the replacement is on the same volume.
+        EnsurePinnedDirectoryStillMatches(destinationSession, requestedDirectory);
 
         var pinnedMappingIssues = PhysicalImageDestinationSafety.ValidatePinnedDestinationVolume(
             selected.DiskNumber,
@@ -230,6 +231,17 @@ internal static class PhysicalDiskAcquisitionCoordinator
         var image = new DiskImageResult(
             committedImagePath, writeResult.BytesCopied, writeResult.Sha256);
         return new(image, committedManifestPath, opened.Descriptor, finalPreflight.Assessment.Warnings);
+    }
+
+    private static void EnsurePinnedDirectoryStillMatches(
+        IPhysicalAcquisitionDestinationSession destinationSession,
+        string requestedDirectory)
+    {
+        var pinnedDirectory = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(destinationSession.GetCurrentDirectoryPath()));
+        if (!string.Equals(requestedDirectory, pinnedDirectory, StringComparison.OrdinalIgnoreCase))
+            throw new IOException(
+                "The destination directory path no longer resolves to the directory object pinned by the session. No source sectors were read.");
     }
 
     private static string ValidateNewImageDestination(string destinationImagePath)
