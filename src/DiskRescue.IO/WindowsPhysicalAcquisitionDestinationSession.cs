@@ -250,16 +250,41 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         if (_disposed)
             return ValueTask.CompletedTask;
         _disposed = true;
+
+        // A failure closing one owned file must not strand the remaining file handles
+        // or the retained directory chain. Attempt every close, then report failures.
+        List<Exception>? disposalErrors = null;
         foreach (var owned in _files.Values)
         {
-            owned.Stream.Dispose();
-            owned.Handle.Dispose();
+            TryDispose(owned.Stream, ref disposalErrors);
+            TryDispose(owned.Handle, ref disposalErrors);
         }
         _files.Clear();
+
         for (var index = _directoryChainHandles.Count - 1; index >= 0; index--)
-            _directoryChainHandles[index].Dispose();
+            TryDispose(_directoryChainHandles[index], ref disposalErrors);
         _directoryChainHandles.Clear();
+
+        if (disposalErrors is { Count: 1 })
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(disposalErrors[0]).Throw();
+        if (disposalErrors is { Count: > 1 })
+            throw new AggregateException(
+                "One or more destination-session resources could not be disposed.",
+                disposalErrors);
+
         return ValueTask.CompletedTask;
+    }
+
+    private static void TryDispose(IDisposable resource, ref List<Exception>? errors)
+    {
+        try
+        {
+            resource.Dispose();
+        }
+        catch (Exception exception)
+        {
+            (errors ??= new List<Exception>()).Add(exception);
+        }
     }
 
     private OwnedFile GetOwned(Stream stream)
