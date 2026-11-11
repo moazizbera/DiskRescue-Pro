@@ -485,4 +485,36 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
             // Cleanup is best effort for an isolated generated test directory.
         }
     }
+
+    [Fact]
+    public void DisposeResourcesAttemptsEveryResourceAndPreservesAllFailures()
+    {
+        var firstFailure = new IOException("first close failed");
+        var thirdFailure = new InvalidOperationException("third close failed");
+        var first = new TrackingDisposable(firstFailure);
+        var second = new TrackingDisposable();
+        var third = new TrackingDisposable(thirdFailure);
+        var fourth = new TrackingDisposable();
+
+        var errors = WindowsPhysicalAcquisitionDestinationSession.DisposeResources(
+            new IDisposable[] { first, second, third, fourth });
+
+        Assert.Equal(4, new[] { first, second, third, fourth }.Count(resource => resource.DisposeCalled));
+        Assert.Collection(
+            errors,
+            error => Assert.Same(firstFailure, error),
+            error => Assert.Same(thirdFailure, error));
+    }
+
+    private sealed class TrackingDisposable(Exception? failure = null) : IDisposable
+    {
+        public bool DisposeCalled { get; private set; }
+
+        public void Dispose()
+        {
+            DisposeCalled = true;
+            if (failure is not null)
+                throw failure;
+        }
+    }
 }
