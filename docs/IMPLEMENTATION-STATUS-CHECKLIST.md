@@ -837,3 +837,33 @@ All automated validation used generated disk images. Source images remain read-o
 - The disposable VHDX coordinator success path is validated on CI #1341/#1342, but synthetic inventory metadata means it does not prove production physical source identity or real physical destination separation.
 - The new flush/publication/cleanup fault-injection tests await exact-head CI. A genuine full-disk test and native filesystem fault-injection remain separate work.
 - No valuable or original HDD has been opened or read. A dedicated spare HDD test remains unauthorized until all security, durability, failure-path, and hardware-separation gates are closed.
+
+## Exact-head validation update — 2026-11-11 (fault-injection suite and CI #1346)
+
+This section supersedes the pending exact-head validation items in the preceding failure-path review. Older entries are retained as historical evidence.
+
+### Candidate and CI
+
+- [x] PR #30 remains **draft/open/unmerged** on `security/managed-destination-session-contract-20261110`.
+- [x] Exact PR head before this checklist-only update: `736a8cee0b83fbd37bbff81959cc69c09adaf6e0`.
+- [x] Full Windows CI #1346 passed on that exact implementation head: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43005495035.
+- [x] Normal `DiskRescue.IO.Tests.dll` suite: **373 passed, 0 failed, 2 skipped (375 total)**.
+- [x] Disposable VHDX safety/integration step: **2 passed, 0 failed**. The harness attached a newly generated RAW VHDX read-only as PhysicalDrive2; both the public-API virtual-device rejection test and the internal coordinator/native-destination integration test passed; the script completed its detach/cleanup path.
+- [x] Remaining workflow stages passed: generated fixtures, CLI/recovery smoke tests, deleted-NTFS extraction and manifest checks, one-command lost-NTFS harness, WPF build, Windows x64 desktop and CLI publishing, dashboard screenshot capture, diagnostics upload, and all artifact uploads.
+- [x] The three deterministic coordinator fault-injection regressions are included in the passing 373-test suite: destination flush failure cleanup, image-publication interruption cleanup, and preservation of both acquisition/cancellation and cleanup exceptions.
+- [x] The PR API was rechecked: PR #30 is still open, draft, and unmerged. Public physical acquisition remains hard-disabled.
+
+### Evidence limits and remaining gates
+
+- [ ] A real disposable destination-full/ENOSPC test has **not** been run. The flush-failure test is deterministic fault injection against a fake session; it is not an ENOSPC simulation.
+- [ ] Windows native-handle cleanup/publication fault injection remains outstanding; the three new tests do not inject failures inside the native adapter.
+- [ ] Publication power-loss durability remains unresolved. Current evidence supports file-content flush followed by atomic no-replace publication; it does **not** establish power-loss durability of the renamed directory entry. Do not claim otherwise.
+- [ ] Destination filesystem support still needs an explicit, tested compatibility contract. Current native adapter scope remains local fixed drive-letter paths and fail-closed reparse handling; broad filesystem certification is not established.
+- [ ] Independent security review remains outstanding, including ABI/runtime architecture coverage, handle lifetime, reparse behavior, rename semantics, filesystem compatibility, and race assumptions.
+- [ ] A dedicated spare, non-valuable physical HDD and a genuinely separate destination device have not been confirmed for supervised testing. No physical HDD test is authorized.
+- [ ] Manual Windows keyboard/accessibility, high-DPI, and multi-work-area checks remain outstanding.
+
+### Safety decision
+
+The VHDX coordinator test uses synthetic inventory/volume/extent metadata and a temporary CI destination. It does not prove production physical-device identity or genuine physical source/destination separation. No original or valuable HDD has been opened or read. Keep the public acquisition API/UI disabled and PR #30 draft until the remaining gates are independently closed and a separate release decision is made.
+
