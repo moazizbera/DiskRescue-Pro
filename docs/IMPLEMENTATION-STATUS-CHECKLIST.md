@@ -895,3 +895,14 @@ This is a design/investigation checkpoint only. No production behavior was chang
 ### Safety boundary
 
 No code change or physical-media operation was made as part of this investigation. PR #30 remains draft/open, public physical acquisition remains hard-disabled, and physical HDD testing remains unauthorized. The only acceptable ENOSPC test target is a newly generated disposable destination VHDX on the hosted Windows CI runner.
+
+### Windows harness feasibility review — 2026-11-11
+
+- [x] Confirmed the current VHDX script already requires PowerShell 7 and Administrator privileges, and the CI workflow runs it on `windows-latest`. This provides a viable place to prototype a second, separate disposable destination VHDX without involving user hardware.
+- [x] Confirmed the current script creates exactly one 128-MiB RAW VHDX and attaches it read-only. Its current test destination is an ordinary temporary folder on the runner volume; it is not a capacity-constrained destination.
+- [x] Confirmed the current native destination adapter can open a drive-letter root directory as a pinned destination directory, provided Windows reports the volume as a local fixed drive and the path contains no rejected reparse-point component. This makes a temporary drive letter on a dedicated destination VHDX a plausible test route, subject to runtime verification.
+- [ ] Prototype destination VHDX attachment and verify the exact attached disk by `Get-DiskImage -ImagePath` correlation before any DiskPart destructive command. Require one matching virtual disk, RAW state, and expected backing-file path; abort if any check is ambiguous.
+- [ ] Select an unused drive letter programmatically, then format only the newly created destination VHDX. Re-query its disk/volume association and verify its volume GUID and drive letter before passing its root path to the native session.
+- [ ] Keep the source VHDX read-only and preserve the current public API rejection test. The internal coordinator's synthetic inventory metadata remains test-only and must not be mistaken for production device identity validation.
+- [ ] A 64-MiB destination versus the existing 128-MiB source is an initial capacity ratio to evaluate, not a guaranteed ENOSPC result; NTFS metadata, allocation and file growth behavior must be measured in the hosted runner. Assert actual free space and actual native write failure.
+- [ ] Make cleanup conservative: detach both VHDXs independently, re-query attachment state, and delete each backing file only after Windows confirms it is detached. If either detach is uncertain, preserve that backing file and fail the job.
