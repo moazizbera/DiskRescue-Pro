@@ -318,6 +318,80 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
         AssertFieldOffset(fileAttributeTagInfo, "ReparseTag", 4);
     }
 
+    [Fact]
+    public async Task NativeSessionPublishesGeneratedImageAndManifestThroughRealWindowsHandles()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var directory = CreateTemporaryDirectory();
+        var bytes = Enumerable.Range(0, 384 * 1024)
+            .Select(index => (byte)((index * 31 + 17) % 251))
+            .ToArray();
+        using var source = new GeneratedMemorySource(bytes);
+
+        try
+        {
+            await using var session = WindowsPhysicalAcquisitionDestinationSession.Open(directory);
+            var imageLeaf = "native-session-fixture.img";
+            var manifestLeaf = "native-session-fixture.img.diskrescue.json";
+            var expectedSha256 = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(bytes));
+
+            var result = await PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
+                source,
+                session,
+                ".native-session-fixture.image.partial",
+                imageLeaf,
+                ".native-session-fixture.manifest.partial",
+                manifestLeaf,
+                imageContent => new
+                {
+                    format = "DiskRescue.NativeSessionFixture.v1",
+                    imageContent.BytesCopied,
+                    sha256 = imageContent.Sha256
+                });
+
+            var pinnedDirectory = session.GetCurrentDirectoryPath();
+            var imagePath = Path.Combine(pinnedDirectory, imageLeaf);
+            var manifestPath = Path.Combine(pinnedDirectory, manifestLeaf);
+
+            Assert.Equal(bytes.LongLength, result.BytesCopied);
+            Assert.Equal(expectedSha256, result.Sha256);
+            Assert.True(source.ReadAttempts > 0);
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(imagePath));
+
+            var manifest = await File.ReadAllTextAsync(manifestPath);
+            Assert.Contains("DiskRescue.NativeSessionFixture.v1", manifest, StringComparison.Ordinal);
+            Assert.Contains(expectedSha256, manifest, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(bytes.LongLength.ToString(System.Globalization.CultureInfo.InvariantCulture), manifest, StringComparison.Ordinal);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
+    private sealed class GeneratedMemorySource(byte[] bytes) : IReadOnlyRandomAccessSource
+    {
+        private bool _disposed;
+
+        public long Length => bytes.LongLength;
+        public int ReadAttempts { get; private set; }
+
+        public void ReadExactlyAt(long offset, Span<byte> destination)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (offset < 0 || offset > bytes.LongLength - destination.Length)
+                throw new ArgumentOutOfRangeException(nameof(offset));
+
+            ReadAttempts++;
+            bytes.AsSpan(checked((int)offset), destination.Length).CopyTo(destination);
+        }
+
+        public void Dispose() => _disposed = true;
+    }
+
     private static Type GetNativeStruct(string name) =>
         typeof(WindowsPhysicalAcquisitionDestinationSession).GetNestedType(
             name,
