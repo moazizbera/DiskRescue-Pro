@@ -130,7 +130,7 @@ public sealed class WindowsVhdxSafetySmokeTests(ITestOutputHelper output)
     }
 
 
-    [WindowsVhdxFact]
+    [WindowsVhdxEnospcFact]
     [Trait("Category", "WindowsVhdxIntegration")]
     public async Task UndersizedNtfsDestinationVhdxProducesRealDiskFullAndCleansPartialImage()
     {
@@ -359,6 +359,18 @@ public sealed class WindowsVhdxSafetySmokeTests(ITestOutputHelper output)
 /// xUnit v2 has no runtime skip API, so set the inherited Skip property during
 /// test discovery when the disposable VHDX harness has not supplied a disk number.
 /// </summary>
+public sealed class WindowsVhdxEnospcFactAttribute : FactAttribute
+{
+    public WindowsVhdxEnospcFactAttribute()
+    {
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DISKRESCUE_TEST_VHDX_DISK_NUMBER")) ||
+            string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DISKRESCUE_TEST_DESTINATION_ROOT")))
+        {
+            Skip = "Run tools/Test-WindowsVhdxEnospc.ps1 to attach the read-only source and disposable NTFS destination VHDXs.";
+        }
+    }
+}
+
 public sealed class WindowsVhdxFactAttribute : FactAttribute
 {
     public WindowsVhdxFactAttribute()
