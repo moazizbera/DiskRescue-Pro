@@ -1244,3 +1244,16 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] Manual keyboard navigation, screen-reader/accessibility, high-DPI and constrained-work-area checks remain outstanding.
 - [ ] x86 execution proof remains outstanding; this CI run is the existing Windows x64 path and must not be described as x86 validation.
 - [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested.
+
+
+### Compact dashboard inspector refinement — exact-head validation — 2026-11-11
+
+- [x] Reworked the right-hand inspector from a fixed-height partition-details textbox in a DockPanel into a four-row Grid: title, collapsible selected-partition details, inspection-report heading/warning, and a star-sized findings area.
+- [x] The selected-partition details are now in a labeled Expander (collapsed by default), so the findings report receives the remaining panel height instead of losing a fixed 126 px to geometry text.
+- [x] Exact-head Windows CI run **43079546402** passed on commit `24d664594f2f1acfafdd1ee32d2758f0710e8181`: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43079546402
+- [x] Downloaded and parsed the run's TRX artifact: **377 passed, 0 failed, 3 not executed (380 total); 377/377 executed tests passed**.
+- [x] Downloaded and visually inspected the exact-head dashboard screenshot (979 × 623). The dark selected-partition state remains readable; the partition-details Expander is visible and the inspection warning/report heading remain in view. The findings textbox occupies the remaining lower inspector area.
+- [ ] The screenshot is one synthetic-fixture state at one captured window size; it does not prove that long findings remain fully visible or usable at smaller windows, 125–200% DPI, or alternate display configurations. Continue manual responsive-layout checks.
+- [ ] Verify keyboard focus/order and screen-reader announcements for the new Expander and findings region; visual screenshot review is not accessibility acceptance.
+- [ ] x86 execution proof, independent native security review, and publication namespace/power-loss durability acceptance remain outstanding.
+- [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested; no physical HDD testing is authorized.
