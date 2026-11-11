@@ -26,16 +26,18 @@ The test checks that:
 - Windows discovers the attached virtual disk through the existing bounded physical-device enumeration.
 - The reported storage bus is Virtual (14) or File-backed Virtual (15).
 - The production acquisition assessment refuses the device specifically because its storage bus is virtual/layered.
-- The acquisition method is never called and no source sectors are read.
+- The public acquisition API is called only to verify its hard-disabled boundary: it must throw `NotSupportedException` before opening a source handle, reading sectors, or creating an image/manifest.
+- The test verifies that neither the requested image nor its sidecar manifest is created.
+- No source sectors are read; this remains a discovery and fail-closed API-gate test, not an imaging or coordinator end-to-end test.
 
 The script detaches and deletes its temporary VHDX after a successful detach. If detach fails, it deliberately preserves the VHDX and prints a warning rather than deleting an attached file.
 
 ## What this proves — and what it does not
 
-A passing result validates discovery and fail-closed classification for this Windows host and VHDX implementation. It does not prove that every storage controller reports bus identity correctly, that all firmware boot configurations are recognized, or that a physical disk can be imaged safely. The production policy continues to reject virtual, file-backed virtual, RAID, Storage Spaces, unknown, and ambiguous bus types.
+A passing result validates discovery, fail-closed classification, and the public API's early disabled rejection for this Windows host and VHDX implementation. It does not prove that every storage controller reports bus identity correctly, that all firmware boot configurations are recognized, or that a physical disk can be imaged safely. The production policy continues to reject virtual, file-backed virtual, RAID, Storage Spaces, unknown, and ambiguous bus types.
 
 No diskpart command in this test initializes, partitions, formats, mounts, or writes sectors to the VHDX. The VHDX is attached with the `readonly` flag. No real physical HDD is selected for acquisition.
 
 ## Safety boundary
 
-Do not change this test to attach the VHDX read-write or to invoke the physical acquisition method. Do not use the test script as a reason to test against the damaged HDD. Physical acquisition remains experimental until separate review and representative Windows hardware validation are complete.
+Do not change this test to attach the VHDX read-write, read source sectors, or enable the physical acquisition method. The public API call is intentionally limited to verifying its immediate disabled rejection. Do not use the test script as a reason to test against the damaged HDD. Physical acquisition remains experimental until separate review and representative Windows hardware validation are complete.
