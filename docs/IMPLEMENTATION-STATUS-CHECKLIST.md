@@ -1,11 +1,13 @@
 # Current status update — 2026-11-11 (directory-chain rename exclusion CI accepted)
 
 
-### Additional failure-path test added — CI pending
+### Additional failure-path test — Windows CI passed
 
-- Added `NativeSessionReleasesPartiallyOpenedDirectoryChainWhenLaterComponentIsMissing` to verify that when opening a destination fails after an ancestor component has already been pinned, the partially opened chain is released and the ancestor can immediately be renamed.
-- Commit: `d3d6bdf1238b9c7b6f955028bbad85594af040a6`.
-- This is a newly added Windows test; it is **not yet validated by CI**. Keep partial-open cleanup marked pending until the exact commit's Windows job runs.
+- [x] Added and executed `NativeSessionReleasesPartiallyOpenedDirectoryChainWhenLaterComponentIsMissing`. It forces a later path component to be missing after an ancestor has been opened, then verifies the ancestor can immediately be renamed, demonstrating that the partial chain was released.
+- [x] Test commit: `d3d6bdf1238b9c7b6f955028bbad85594af040a6`; Windows CI run **43059470350** passed: https://github.com/DiskRescue-Pro/actions/runs/43059470350.
+- [x] Build: 0 warnings, 0 errors. Standard suite: **374 passed, 0 failed, 3 skipped (377 total)**.
+- [x] Separate disposable read-only VHDX policy and coordinator integration tests passed; separate genuine NTFS destination-full integration passed. These remain synthetic VHDX tests, not physical HDD validation.
+- [ ] Constructor failure, cancellation, acquisition-failure cleanup, and compatibility with existing handles/filter drivers still need focused review and testing.
 
 ## Exact-head Windows validation
 
