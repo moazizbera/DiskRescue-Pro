@@ -208,6 +208,26 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
     }
 
     [Fact]
+    public async Task ImagePublicationFailureRemovesUnpublishedTemporaryImage()
+    {
+        using var folder = new TemporaryFolder();
+        var source = new MemorySource(new byte[128 * 1024]);
+        var environment = new FakeEnvironment
+        {
+            Source = source,
+            ImagePublishException = new IOException("synthetic image publication interruption")
+        };
+
+        var error = await Assert.ThrowsAsync<IOException>(() =>
+            PhysicalDiskAcquisitionCoordinator.AcquireAsync(
+                Descriptor(), folder.File("publish-failure.img"), environment));
+
+        Assert.Contains("synthetic image publication interruption", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(Directory.GetFiles(folder.Path));
+        Assert.Equal(1, source.DisposeCalls);
+    }
+
+    [Fact]
     public async Task DestinationFlushFailureRemovesUnpublishedImageAndManifest()
     {
         using var folder = new TemporaryFolder();
@@ -356,6 +376,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         public Exception? ManifestException { get; init; }
         public Exception? CleanupException { get; init; }
         public Exception? ImageFlushException { get; init; }
+        public Exception? ImagePublishException { get; init; }
         public string? PinnedVolumeGuidPath { get; init; }
         public string? PinnedDirectoryPath { get; init; }
         public int InventoryCalls { get; private set; }
@@ -405,6 +426,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
                 ManifestException,
                 CleanupException,
                 ImageFlushException,
+                ImagePublishException,
                 PinnedVolumeGuidPath ?? DestinationVolumeGuid,
                 PinnedDirectoryPath ?? destinationDirectoryPath);
         }
@@ -416,6 +438,7 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         private readonly Exception? _manifestException;
         private readonly Exception? _cleanupException;
         private readonly Exception? _imageFlushException;
+        private readonly Exception? _imagePublishException;
         private readonly Dictionary<Stream, string> _paths = new(ReferenceEqualityComparer.Instance);
         private readonly HashSet<Stream> _published = new(ReferenceEqualityComparer.Instance);
         private readonly HashSet<Stream> _deleted = new(ReferenceEqualityComparer.Instance);
@@ -424,12 +447,13 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
         private readonly string _reportedDirectoryPath;
 
         public FakeDestinationSession(
-            string directory, Exception? manifestException, Exception? cleanupException, Exception? imageFlushException, string volumeGuidPath, string reportedDirectoryPath)
+            string directory, Exception? manifestException, Exception? cleanupException, Exception? imageFlushException, Exception? imagePublishException, string volumeGuidPath, string reportedDirectoryPath)
         {
             _directory = directory;
             _manifestException = manifestException;
             _cleanupException = cleanupException;
             _imageFlushException = imageFlushException;
+            _imagePublishException = imagePublishException;
             VolumeGuidPath = volumeGuidPath;
             _reportedDirectoryPath = reportedDirectoryPath;
             DirectoryIdentity = new PhysicalDestinationDirectoryIdentity("WINVOL:COORDINATOR", 0, 2);
@@ -484,6 +508,9 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
             var target = Path.Combine(_directory, finalLeafName);
             if (File.Exists(target) || Directory.Exists(target))
                 throw new IOException("Destination entry already exists.");
+            if (_imagePublishException is not null &&
+                !finalLeafName.EndsWith(".diskrescue.json", StringComparison.OrdinalIgnoreCase))
+                throw _imagePublishException;
             if (_manifestException is not null &&
                 finalLeafName.EndsWith(".diskrescue.json", StringComparison.OrdinalIgnoreCase))
                 throw _manifestException;
