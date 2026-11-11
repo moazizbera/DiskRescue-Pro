@@ -249,6 +249,90 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
         }
     }
 
+    [Fact]
+    public void NativeInteropStructuresMatchWindowsAbiLayout()
+    {
+        var unicodeString = GetNativeStruct("UnicodeString");
+        var objectAttributes = GetNativeStruct("ObjectAttributes");
+        var ioStatusBlock = GetNativeStruct("IoStatusBlock");
+        var fileIdInfo = GetNativeStruct("FileIdInfo");
+        var fileAttributeTagInfo = GetNativeStruct("FileAttributeTagInfo");
+
+        if (IntPtr.Size == 8)
+        {
+            Assert.Equal(16, Marshal.SizeOf(unicodeString));
+            AssertFieldOffset(unicodeString, "Length", 0);
+            AssertFieldOffset(unicodeString, "MaximumLength", 2);
+            AssertFieldOffset(unicodeString, "Buffer", 8);
+
+            Assert.Equal(48, Marshal.SizeOf(objectAttributes));
+            AssertFieldOffset(objectAttributes, "Length", 0);
+            AssertFieldOffset(objectAttributes, "RootDirectory", 8);
+            AssertFieldOffset(objectAttributes, "ObjectName", 16);
+            AssertFieldOffset(objectAttributes, "Attributes", 24);
+            AssertFieldOffset(objectAttributes, "SecurityDescriptor", 32);
+            AssertFieldOffset(objectAttributes, "SecurityQualityOfService", 40);
+
+            Assert.Equal(16, Marshal.SizeOf(ioStatusBlock));
+            AssertFieldOffset(ioStatusBlock, "Status", 0);
+            AssertFieldOffset(ioStatusBlock, "Information", 8);
+
+            // FILE_RENAME_INFORMATION: BOOLEAN, alignment padding, HANDLE,
+            // ULONG FileNameLength, then WCHAR FileName[1].
+            Assert.Equal(8, IntPtr.Size);
+            Assert.Equal(8, AlignUp(sizeof(byte), IntPtr.Size));
+            Assert.Equal(16, AlignUp(sizeof(byte), IntPtr.Size) + IntPtr.Size);
+            Assert.Equal(20, AlignUp(sizeof(byte), IntPtr.Size) + IntPtr.Size + sizeof(uint));
+        }
+        else
+        {
+            Assert.Equal(8, Marshal.SizeOf(unicodeString));
+            AssertFieldOffset(unicodeString, "Length", 0);
+            AssertFieldOffset(unicodeString, "MaximumLength", 2);
+            AssertFieldOffset(unicodeString, "Buffer", 4);
+
+            Assert.Equal(24, Marshal.SizeOf(objectAttributes));
+            AssertFieldOffset(objectAttributes, "Length", 0);
+            AssertFieldOffset(objectAttributes, "RootDirectory", 4);
+            AssertFieldOffset(objectAttributes, "ObjectName", 8);
+            AssertFieldOffset(objectAttributes, "Attributes", 12);
+            AssertFieldOffset(objectAttributes, "SecurityDescriptor", 16);
+            AssertFieldOffset(objectAttributes, "SecurityQualityOfService", 20);
+
+            Assert.Equal(8, Marshal.SizeOf(ioStatusBlock));
+            AssertFieldOffset(ioStatusBlock, "Status", 0);
+            AssertFieldOffset(ioStatusBlock, "Information", 4);
+
+            Assert.Equal(4, AlignUp(sizeof(byte), IntPtr.Size));
+            Assert.Equal(8, AlignUp(sizeof(byte), IntPtr.Size) + IntPtr.Size);
+            Assert.Equal(12, AlignUp(sizeof(byte), IntPtr.Size) + IntPtr.Size + sizeof(uint));
+        }
+
+        Assert.Equal(24, Marshal.SizeOf(fileIdInfo));
+        AssertFieldOffset(fileIdInfo, "VolumeSerialNumber", 0);
+        AssertFieldOffset(fileIdInfo, "FileId", 8);
+
+        Assert.Equal(8, Marshal.SizeOf(fileAttributeTagInfo));
+        AssertFieldOffset(fileAttributeTagInfo, "FileAttributes", 0);
+        AssertFieldOffset(fileAttributeTagInfo, "ReparseTag", 4);
+    }
+
+    private static Type GetNativeStruct(string name) =>
+        typeof(WindowsPhysicalAcquisitionDestinationSession).GetNestedType(
+            name,
+            System.Reflection.BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException($"Native interop structure '{name}' was not found.");
+
+    private static void AssertFieldOffset(Type type, string fieldName, int expectedOffset)
+    {
+        Assert.Equal(
+            new IntPtr(expectedOffset),
+            Marshal.OffsetOf(type, fieldName));
+    }
+
+    private static int AlignUp(int value, int alignment) =>
+        checked((value + alignment - 1) / alignment * alignment);
+
     private static string CreateTemporaryDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), $"DiskRescue-NativeSession-{Guid.NewGuid():N}");
