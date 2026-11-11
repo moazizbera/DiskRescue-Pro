@@ -56,97 +56,134 @@ public sealed class WindowsVhdxSafetySmokeTests(ITestOutputHelper output)
 
     [WindowsVhdxFact]
     [Trait("Category", "WindowsVhdxIntegration")]
-    public async Task ReadOnlyVhdxSourceCanBeCopiedAndVerifiedThroughNativeDestinationSession()
+    public async Task ReadOnlyVhdxSourceCompletesCoordinatorAcquisitionWithNativeDestinationSession()
     {
         Assert.True(OperatingSystem.IsWindows(), "The VHDX integration test requires Windows.");
         var diskNumberText = Environment.GetEnvironmentVariable("DISKRESCUE_TEST_VHDX_DISK_NUMBER");
         Assert.True(int.TryParse(diskNumberText, out var diskNumber), "The VHDX disk number environment variable is invalid.");
 
-        var inventory = WindowsPhysicalDiskDiscovery.Enumerate();
-        var descriptor = Assert.Single(inventory.Disks, disk => disk.DiskNumber == diskNumber);
-        Assert.True(descriptor.LengthBytes > 0);
-        Assert.True(descriptor.BusType is 14 or 15, "This test must operate only on the disposable virtual source.");
+        var hostInventory = WindowsPhysicalDiskDiscovery.Enumerate();
+        var virtualDescriptor = Assert.Single(hostInventory.Disks, disk => disk.DiskNumber == diskNumber);
+        Assert.True(virtualDescriptor.LengthBytes > 0);
+        Assert.True(virtualDescriptor.BusType is 14 or 15, "This test must operate only on the disposable virtual source.");
 
         var outputDirectory = Path.Combine(
-            Path.GetTempPath(), $"diskrescue-vhdx-writer-{Guid.NewGuid():N}");
+            Path.GetTempPath(), $"diskrescue-vhdx-coordinator-{Guid.NewGuid():N}");
         Directory.CreateDirectory(outputDirectory);
-        var imageLeaf = "vhdx-source-copy.img";
-        var manifestLeaf = imageLeaf + ".diskrescue.json";
-        var imagePath = Path.Combine(outputDirectory, imageLeaf);
-        var manifestPath = Path.Combine(outputDirectory, manifestLeaf);
+        var imagePath = Path.Combine(outputDirectory, "vhdx-coordinator-copy.img");
+        var manifestPath = imagePath + ".diskrescue.json";
 
         try
         {
-            using var source = new ReadOnlyPhysicalDriveSource(diskNumber, descriptor.LengthBytes);
-            var sourceHashBefore = HashSource(source);
-            PhysicalAcquisitionDestinationWriteResult result;
+            string sourceHashBefore;
+            using (var before = new ReadOnlyPhysicalDriveSource(diskNumber, virtualDescriptor.LengthBytes))
+                sourceHashBefore = HashSource(before);
 
-            // This deliberately exercises the native pinned-destination writer with a
-            // read-only VHDX source, without bypassing the public acquisition policy or
-            // claiming source/destination physical-volume separation. The destination
-            // is a temporary CI folder on the runner volume.
-            await using (var session = WindowsPhysicalAcquisitionDestinationSession.Open(outputDirectory))
-            {
-                result = await PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
-                    source,
-                    session,
-                    ".vhdx-source-copy.image.partial",
-                    imageLeaf,
-                    ".vhdx-source-copy.manifest.partial",
-                    manifestLeaf,
-                    image => new
-                    {
-                        format = "DiskRescue.VhdxWriterIntegrationManifest.v1",
-                        source = new
-                        {
-                            diskNumber = descriptor.DiskNumber,
-                            descriptor.DevicePath,
-                            descriptor.LengthBytes,
-                            descriptor.BytesPerSector,
-                            descriptor.BusType
-                        },
-                        image = new
-                        {
-                            image.BytesCopied,
-                            sha256 = image.Sha256,
-                            verifiedBeforePublish = true
-                        },
-                        testScope = "read-only-disposable-vhdx-writer-integration-only",
-                        physicalDestinationSeparationVerified = false
-                    });
-            }
+            // Synthetic inventory metadata lets the internal coordinator traverse
+            // preflight gates; reads still come from the attached read-only VHDX.
+            // The real Windows pinned destination adapter handles all output I/O.
+            var syntheticSource = new PhysicalDiskDescriptor(
+                2, @"\\.\PhysicalDrive2", virtualDescriptor.LengthBytes,
+                virtualDescriptor.BytesPerSector, "DiskRescue Test", "Disposable VHDX Source",
+                "DISKRESCUE-TEST-SOURCE-0002", 3, false);
+            var environment = new VhdxCoordinatorTestEnvironment(
+                syntheticSource, diskNumber, virtualDescriptor.LengthBytes);
 
-            var sourceHashAfter = HashSource(source);
+            var result = await PhysicalDiskAcquisitionCoordinator.AcquireAsync(
+                syntheticSource, imagePath, environment);
+
+            string sourceHashAfter;
+            using (var after = new ReadOnlyPhysicalDriveSource(diskNumber, virtualDescriptor.LengthBytes))
+                sourceHashAfter = HashSource(after);
+
             Assert.Equal(sourceHashBefore, sourceHashAfter);
-            Assert.Equal(descriptor.LengthBytes, result.BytesCopied);
+            Assert.Equal(virtualDescriptor.LengthBytes, result.Image.BytesCopied);
+            Assert.Equal(imagePath, result.Image.ImagePath, ignoreCase: true);
+            Assert.Equal(manifestPath, result.ManifestPath, ignoreCase: true);
             Assert.True(File.Exists(imagePath));
             Assert.True(File.Exists(manifestPath));
-            Assert.Equal(descriptor.LengthBytes, new FileInfo(imagePath).Length);
+            Assert.Equal(virtualDescriptor.LengthBytes, new FileInfo(imagePath).Length);
 
             string destinationHash;
             await using (var imageStream = File.OpenRead(imagePath))
-            {
                 destinationHash = Convert.ToHexString(await SHA256.HashDataAsync(imageStream));
-            }
-            Assert.Equal(result.Sha256, destinationHash);
+            Assert.Equal(result.Image.Sha256, destinationHash);
 
             using var manifestDocument = JsonDocument.Parse(await File.ReadAllTextAsync(manifestPath));
             var root = manifestDocument.RootElement;
-            Assert.Equal("DiskRescue.VhdxWriterIntegrationManifest.v1", root.GetProperty("format").GetString());
-            Assert.Equal(descriptor.LengthBytes, root.GetProperty("image").GetProperty("bytesCopied").GetInt64());
-            Assert.Equal(result.Sha256, root.GetProperty("image").GetProperty("sha256").GetString());
-            Assert.False(root.GetProperty("physicalDestinationSeparationVerified").GetBoolean());
+            Assert.Equal("DiskRescue.PhysicalAcquisitionManifest.v1", root.GetProperty("format").GetString());
+            Assert.Equal(virtualDescriptor.LengthBytes, root.GetProperty("image").GetProperty("BytesCopied").GetInt64());
+            Assert.Equal(result.Image.Sha256, root.GetProperty("image").GetProperty("sha256").GetString());
+            Assert.True(root.GetProperty("image").GetProperty("verifiedBeforePublish").GetBoolean());
 
-            output.WriteLine($"Read-only VHDX source copied: {result.BytesCopied:N0} bytes.");
-            output.WriteLine($"SHA-256 verified against the published image: {result.Sha256}.");
-            output.WriteLine($"Source SHA-256 before and after imaging matched: {sourceHashAfter}.");
-            output.WriteLine("Native pinned destination session published image and manifest without overwrite.");
-            output.WriteLine("Scope limitation: this test does not invoke the coordinator and does not verify separate physical destination storage.");
+            output.WriteLine($"Internal coordinator copied {result.Image.BytesCopied:N0} bytes from read-only disposable PhysicalDrive{diskNumber}.");
+            output.WriteLine($"Published image SHA-256: {result.Image.Sha256}.");
+            output.WriteLine($"Source SHA-256 before and after acquisition matched: {sourceHashAfter}.");
+            output.WriteLine("The real Windows pinned destination session published image and manifest.");
+            output.WriteLine("Scope limitation: synthetic inventory metadata is injected; physical source identity and separate physical-disk mapping are not validated.");
         }
         finally
         {
             if (Directory.Exists(outputDirectory))
                 Directory.Delete(outputDirectory, recursive: true);
+        }
+    }
+
+    private sealed class VhdxCoordinatorTestEnvironment(
+        PhysicalDiskDescriptor sourceDescriptor,
+        int virtualDiskNumber,
+        long sourceLength) : IPhysicalDiskAcquisitionEnvironment
+    {
+        private const string SourceVolume = @"\\?\Volume{DISKRESCUE-TEST-SOURCE}\";
+        private IPhysicalAcquisitionDestinationSession? _destinationSession;
+
+        public void EnsureSupportedPlatform() => WindowsPhysicalDiskDiscovery.EnsureWindows();
+
+        public PhysicalDiskDiscoveryResult EnumeratePhysicalDisks() =>
+            new(new[]
+            {
+                sourceDescriptor,
+                new PhysicalDiskDescriptor(
+                    7, @"\\.\PhysicalDrive7", sourceLength, sourceDescriptor.BytesPerSector,
+                    "DiskRescue Test", "Synthetic Separate Destination",
+                    "DISKRESCUE-TEST-DESTINATION-0007", 3, false)
+            }, Array.Empty<string>());
+
+        public PhysicalVolumeMappingResult EnumerateVolumes()
+        {
+            var destinationVolume = _destinationSession?.VolumeGuidPath
+                ?? throw new InvalidOperationException("Destination session must be pinned before preflight.");
+            return new(true, new Dictionary<int, IReadOnlyList<string>>
+            {
+                [sourceDescriptor.DiskNumber] = new[] { SourceVolume },
+                [7] = new[] { destinationVolume }
+            }, Array.Empty<string>());
+        }
+
+        public WindowsBootDeviceMappingResult EnumerateBootDevices(PhysicalVolumeMappingResult volumeMap) =>
+            new(true, new HashSet<int>(), Array.Empty<string>());
+
+        public PhysicalImageDestinationAssessment AssessDestination(
+            int sourceDiskNumber, string destinationPath,
+            PhysicalVolumeMappingResult volumeMap, long requiredBytes) =>
+            new(true, _destinationSession?.VolumeGuidPath, new[] { 7 }, Array.Empty<string>());
+
+        public PhysicalDiskOpenedSource OpenReadOnly(PhysicalDiskDescriptor descriptor)
+        {
+            if (descriptor.DiskNumber != sourceDescriptor.DiskNumber ||
+                descriptor.LengthBytes != sourceLength)
+                throw new IOException("The coordinator requested an unexpected synthetic source identity.");
+            return new PhysicalDiskOpenedSource(
+                new ReadOnlyPhysicalDriveSource(virtualDiskNumber, sourceLength),
+                sourceDescriptor);
+        }
+
+        public IPhysicalAcquisitionDestinationSession OpenDestinationSession(string destinationDirectoryPath)
+        {
+            if (_destinationSession is not null)
+                throw new InvalidOperationException("The destination session was opened more than once.");
+            _destinationSession = WindowsPhysicalAcquisitionDestinationSession.Open(destinationDirectoryPath);
+            return _destinationSession;
         }
     }
 
