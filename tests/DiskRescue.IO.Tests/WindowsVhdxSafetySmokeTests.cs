@@ -12,7 +12,7 @@ public sealed class WindowsVhdxSafetySmokeTests(ITestOutputHelper output)
 {
     [WindowsVhdxFact]
     [Trait("Category", "WindowsVhdxIntegration")]
-    public void AttachedReadOnlyVhdxIsDiscoveredAndPhysicalAcquisitionIsBlocked()
+    public async Task AttachedReadOnlyVhdxIsDiscoveredAndPhysicalAcquisitionIsBlocked()
     {
         var diskNumberText = Environment.GetEnvironmentVariable("DISKRESCUE_TEST_VHDX_DISK_NUMBER");
 
@@ -36,9 +36,20 @@ public sealed class WindowsVhdxSafetySmokeTests(ITestOutputHelper output)
             blocker.Contains("virtual", StringComparison.OrdinalIgnoreCase) ||
             blocker.Contains("layered", StringComparison.OrdinalIgnoreCase));
 
+        // Exercise only the public hard-disabled boundary. AcquireAsync must reject
+        // before opening a source handle, reading sectors, or creating either output.
+        var blockedImagePath = Path.Combine(
+            Path.GetTempPath(), $"diskrescue-vhdx-blocked-{Guid.NewGuid():N}.img");
+        var disabledError = await Assert.ThrowsAsync<NotSupportedException>(() =>
+            PhysicalDiskImageAcquisition.AcquireAsync(selected, blockedImagePath));
+        Assert.Contains("remains disabled", disabledError.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(File.Exists(blockedImagePath));
+        Assert.False(File.Exists(blockedImagePath + ".diskrescue.json"));
+
         output.WriteLine($"Detected disposable PhysicalDrive{diskNumber} as bus type {selected.BusType}.");
         output.WriteLine("Physical acquisition was correctly blocked by the production safety policy.");
-        output.WriteLine("No source sectors were read and no acquisition API was invoked.");
+        output.WriteLine("The public acquisition API rejected the virtual source at its hard-disabled boundary.");
+        output.WriteLine("No source sectors were read and no image or manifest was created.");
     }
 }
 
