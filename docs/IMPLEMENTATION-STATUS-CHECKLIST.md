@@ -972,3 +972,11 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] Review the captured dashboard screenshot visually before marking the UI acceptance gate complete; CI verifies capture and PNG validity, not visual quality or operator usability.
 - [ ] Physical HDD validation remains not authorized and not performed. Public physical acquisition remains hard-disabled; PR #30 remains draft/open/unmerged.
 
+### Dashboard screenshot visual review — 2026-11-11
+
+- [x] Downloaded and visually inspected the actual WPF dashboard screenshot artifact from successful CI run **43029862011** (65,570-byte PNG; generated with the synthetic valid MBR fixture).
+- [x] Found a visible theme defect: the selected TreeView partition node rendered with a default light/system selection background, inconsistent with the dark navy workspace and cyan/teal selection language.
+- [x] Added an explicit `TreeViewItem` style in `src/DiskRescue.Desktop/App.xaml` for dark-theme foreground/background, teal selected state, restrained hover state, padding, and keyboard focus visibility. Commit: `4cee1c483c24eab4af51b1fd0bdf6daf5d454ddd`.
+- [ ] Re-review the next CI-captured dashboard screenshot to verify the selected node now uses the intended dark/teal style and no text contrast regression exists.
+- [ ] The current screenshot's inspector uses a visible internal vertical scrollbar; CI screenshot alone does not establish usability at 100–200% scaling or constrained work areas. Keep those manual UI checks open.
+
