@@ -991,3 +991,15 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] The explicit template requires manual keyboard/tree-navigation, accessibility, and high-DPI verification; the template-level CI screenshot is not a substitute.
 - [ ] Latest prior full validation remains CI run 43030664353 on 71094840c7f05edcf00e71ce0deaff82be3942e5 (373 passed, 0 failed, 3 skipped; VHDX policy and genuine NTFS ENOSPC tests passed; recovery smoke tests, WPF build/publish and screenshot capture passed). The new template commit is 4e7abcac2fc9bf4658620bd07517e09b08b925da; exact-head CI is pending.
 - [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested.
+
+
+### Dashboard selection-template verification — 2026-11-11
+
+- [x] Exact-head Windows CI completed successfully for the explicit TreeViewItem template and checklist commits (run 43031441909).
+- [x] Downloaded and visually inspected the actual WPF dashboard screenshot artifact (65408-byte PNG). The selected partition header is dark teal with readable mint text; the stock light/system selection highlight is no longer visible.
+- [x] Exact-head standard IO suite: 373 passed, 0 failed, 3 skipped (376 total).
+- [x] Exact-head disposable VHDX policy/coordinator checks passed; genuine NTFS destination disk-full was reproduced with 85,762,048 free bytes measured before acquisition; unpublished partial image was removed, no final image/manifest was published, and read-only source hash remained unchanged.
+- [x] Lost-partition discovery, bounded preview, and file extraction smoke test passed; WPF screenshot capture and desktop/CLI publish steps passed.
+- [ ] Manual keyboard navigation, screen-reader/accessibility, high-DPI and real-user workflow checks remain outstanding; CI screenshot is visual evidence for the captured state only.
+- [ ] Independent native adapter/security review and filesystem durability/compatibility evidence remain outstanding.
+- [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested.
