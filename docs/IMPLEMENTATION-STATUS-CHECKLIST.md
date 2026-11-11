@@ -1220,3 +1220,15 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] Await exact-head Windows CI for the source and test commits; this test is not accepted until that workflow completes successfully.
 - [ ] The test validates continuation and failure collection in the shared cleanup routine; it does not simulate an operating-system SafeHandle close failure or prove hardware-level handle closure under kernel faults.
 - [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested.
+
+
+### x86 Windows native-interoperability execution feasibility — 2026-11-11
+
+- [x] Rechecked the existing CI workflow: it uses `windows-latest`, installs the default-architecture .NET 10 SDK, and runs the full solution test suite without an x86 runtime selection.
+- [x] Rechecked the IO library and test project: both target `net10.0`; the current workflow does not install or explicitly invoke an x86 .NET host.
+- [x] Confirmed from Microsoft's .NET 10 Windows support matrix that Windows 11 desktop supports x86, while the listed Windows Server releases support .NET 10 x64 only. The current workflow's hosted runner has not been established as a supported Windows desktop x86 environment.
+- [x] Confirmed the VSTest documentation: `dotnet test --arch x86` selects the `win-x86` runtime identifier, but x86 test execution requires the x86 .NET runtime to be installed. The setup-dotnet action supports selecting an x86 SDK architecture; that alone does not prove the runner OS is a supported .NET 10 x86 platform.
+- [ ] Establish an explicitly supported Windows 11 desktop x86 test environment (or another Microsoft-supported .NET 10 x86 environment) before adding an x86 CI gate.
+- [ ] In that environment, install/use the x86 .NET 10 SDK/runtime, assert the test process is actually 32-bit (`IntPtr.Size == 4`), and run the IO native layout/handle tests. Preserve the existing x64 run as a separate required check.
+- [ ] Do not claim x86 compatibility from source-level pointer-size assertions or from an x64 process merely targeting `win-x86`.
+- [ ] No workflow or native source changes were made during this feasibility review. PR #30 remains draft/open/unmerged; public physical acquisition remains hard-disabled; no physical HDD was opened or tested.
