@@ -960,3 +960,15 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] Benchmark the additional read/hash pass on large generated images. Do not add FILE_WRITE_THROUGH to the original sequential image-write handle.
 - [ ] Run crash/power-interruption tests on disposable NTFS VHDX media and define the exact supported filesystem/Windows contract before changing the product's durability claim. API flag semantics and successful rename return alone are insufficient proof of power-loss durability.
 
+### Repeated hosted-Windows validation after checklist and API-contract updates — 2026-11-11
+
+- [x] Full CI run **43029862011** passed on current PR head `32422314071f3b35eddb351ade6231610814e25a`: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43029862011
+- [x] Build succeeded; unit suite: **373 passed, 0 failed, 3 skipped (376 total)**.
+- [x] Existing disposable read-only VHDX policy test passed.
+- [x] Dedicated two-VHDX NTFS ENOSPC test passed again. The real native coordinator encountered Windows disk-full; unpublished image cleanup succeeded; no final image/manifest remained; source hash was unchanged.
+- [x] Generated-fixture CLI smoke tests, deleted-NTFS extraction/recovery-manifest smoke tests, and one-command lost-partition recovery harness passed.
+- [x] WPF build and Windows x64 desktop/CLI publish succeeded. CI captured and uploaded a real WPF dashboard PNG (65,570 bytes) and the desktop/CLI preview artifacts.
+- [x] CI uploaded test results and WPF startup diagnostics. Artifact listing: desktop preview, CLI preview, dashboard screenshot, test results, and startup diagnostics.
+- [ ] Review the captured dashboard screenshot visually before marking the UI acceptance gate complete; CI verifies capture and PNG validity, not visual quality or operator usability.
+- [ ] Physical HDD validation remains not authorized and not performed. Public physical acquisition remains hard-disabled; PR #30 remains draft/open/unmerged.
+
