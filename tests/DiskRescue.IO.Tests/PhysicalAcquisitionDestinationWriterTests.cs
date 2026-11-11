@@ -67,6 +67,30 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
     }
 
     [Fact]
+    public async Task WriterDeletesPartialImageWhenCancellationOccursDuringCopy()
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var source = new MemorySource(
+            new byte[5 * 1024 * 1024],
+            afterRead: () => cancellation.Cancel());
+        await using var session = new FakeDestinationSession();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
+                source, session,
+                "capture.img.partial", "capture.img",
+                "capture.json.partial", "capture.json",
+                new { format = "test" },
+                cancellationToken: cancellation.Token));
+
+        Assert.Equal(1, source.ReadAttempts);
+        Assert.True(session.WasDeleted("capture.img.partial"));
+        Assert.False(session.IsPublished("capture.img"));
+        Assert.False(session.IsPublished("capture.json"));
+        Assert.Equal(0, session.PublishedCount);
+    }
+
+    [Fact]
     public async Task ManifestFailurePreservesPublishedImageAndRemovesManifestTemporary()
     {
         var bytes = new byte[96 * 1024];
@@ -262,7 +286,10 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
         private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
     }
 
-    private sealed class MemorySource(byte[] data, bool failAfterFirstRead = false) : IReadOnlyRandomAccessSource
+    private sealed class MemorySource(
+        byte[] data,
+        bool failAfterFirstRead = false,
+        Action? afterRead = null) : IReadOnlyRandomAccessSource
     {
         private int _readCount;
         public long Length => data.LongLength;
@@ -275,6 +302,7 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
             if (offset < 0 || offset > data.Length || destination.Length > data.Length - offset)
                 throw new EndOfStreamException();
             data.AsSpan(checked((int)offset), destination.Length).CopyTo(destination);
+            afterRead?.Invoke();
         }
         public void Dispose() { }
     }
