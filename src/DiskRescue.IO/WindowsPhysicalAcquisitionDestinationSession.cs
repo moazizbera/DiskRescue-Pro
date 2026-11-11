@@ -269,6 +269,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
             _directoryHandle,
             leafName,
             GenericRead | GenericWrite | DeleteAccess | FileReadAttributes | Synchronize,
+            ShareRead,
             FileCreate,
             FileNonDirectoryFile | FileSynchronousIoNonAlert | FileOpenReparsePoint);
         return handle;
@@ -283,6 +284,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
             component,
             FileListDirectory | FileReadAttributes | Synchronize |
                 (isFinalComponent ? FileAddFile : 0),
+            ShareRead | ShareWrite | ShareDelete,
             FileOpen,
             FileDirectoryFile | FileSynchronousIoNonAlert | FileOpenReparsePoint);
 
@@ -290,6 +292,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         SafeFileHandle parent,
         string name,
         uint desiredAccess,
+        uint shareAccess,
         uint disposition,
         uint options)
     {
@@ -330,7 +333,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
                     out _,
                     IntPtr.Zero,
                     0,
-                    ShareRead | ShareWrite | ShareDelete,
+                    shareAccess,
                     disposition,
                     options,
                     IntPtr.Zero,
