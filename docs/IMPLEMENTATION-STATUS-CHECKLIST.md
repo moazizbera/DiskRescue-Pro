@@ -813,3 +813,27 @@ All automated validation used generated disk images. Source images remain read-o
 - [ ] Keep public physical acquisition disabled until a separate explicit release decision after all gates above.
 
 **Current decision:** the disposable VHDX integration milestone has passed on CI #1341. The physical HDD test is **not authorized yet**. No date is promised; it can be scheduled only after the remaining gates are closed.
+
+## Failure-path and durability review follow-up — 2026-11-11
+
+### New deterministic coordinator fault-injection tests
+
+- [x] Added a simulated destination flush failure test. It verifies the coordinator aborts before publication, removes the unpublished temporary image, creates no manifest, and disposes the source.
+- [x] Added a simulated image-publication interruption test. It verifies the temporary image is removed, no final image or manifest appears, and the source is disposed.
+- [x] Added a cleanup-failure test while cancellation is already unwinding. It verifies both the original cancellation failure and the secondary cleanup failure are retained in the resulting `AggregateException`, rather than allowing cleanup failure to mask the original error.
+- [x] Existing tests continue to cover source-read failure, cancellation with successful cleanup, and manifest-publication failure after the verified image has committed.
+- [ ] These new tests are fault-injected against the deterministic fake destination session. They do not reproduce a real filesystem ENOSPC condition, a physical device failure, or a Windows native-handle cleanup failure. Exact-head CI must pass before this test work is considered validated.
+
+### Publication durability review decision
+
+- [ ] The power-loss durability question remains open. `FlushFileBuffers`/stream flush on the image handle proves the image file's data flush path, but no supported, ordinary-user parent-directory metadata flush contract has been established for the rename.
+- [ ] Do not simply enable `FILE_WRITE_THROUGH` on the original image handle without measuring/accepting the effect on the entire large sequential image write. Microsoft's documented NTFS metadata behavior is useful evidence, but it is not a blanket guarantee across every filesystem and does not by itself establish the exact contract for this adapter's pinned-handle rename.
+- [ ] Any publication-only write-through approach must preserve the no-competing-writer/delete contract and must be validated against supported filesystems before implementation. Until then, describe the current behavior as file-content flush plus atomic no-replace publication, not as guaranteed power-loss-durable directory metadata.
+- [ ] Explicitly constrain and document supported destination filesystems (currently local fixed drive-letter paths are accepted; this is not yet an NTFS-only or broader filesystem certification).
+
+### Current safety decision
+
+- Public physical acquisition remains hard-disabled and PR #30 remains draft/open.
+- The disposable VHDX coordinator success path is validated on CI #1341/#1342, but synthetic inventory metadata means it does not prove production physical source identity or real physical destination separation.
+- The new flush/publication/cleanup fault-injection tests await exact-head CI. A genuine full-disk test and native filesystem fault-injection remain separate work.
+- No valuable or original HDD has been opened or read. A dedicated spare HDD test remains unauthorized until all security, durability, failure-path, and hardware-separation gates are closed.
