@@ -1118,3 +1118,13 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] Manual keyboard navigation, screen-reader/accessibility, high-DPI and real-user workflow checks remain outstanding; CI screenshot is visual evidence for the captured state only.
 - [ ] Independent native adapter/security review and filesystem durability/compatibility evidence remain outstanding.
 - [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested.
+
+
+### Destination-session disposal hardening — 2026-11-11
+
+- [x] Source review confirmed a cleanup weakness in `WindowsPhysicalAcquisitionDestinationSession.DisposeAsync()`: a thrown exception from one owned stream/handle disposal stopped the loop and could leave later owned files and retained directory-chain handles undisposed.
+- [x] Hardened disposal to attempt every owned stream, its associated handle, and every retained directory-chain handle in reverse order, even when an earlier close throws.
+- [x] The session clears its ownership collections after all close attempts and reports disposal failures only after cleanup has been attempted: rethrows the single original exception with its stack, or reports multiple failures as an `AggregateException`.
+- [ ] Add a deterministic fault-injection test proving later resources are still closed when an earlier resource's Dispose throws. Current native integration tests cover ordinary session disposal and release of the directory chain, but do not inject a failing Dispose implementation into this concrete adapter.
+- [ ] Await exact-head Windows CI for the disposal hardening commit; do not treat the previous successful run as validation of this change.
+- [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested.
