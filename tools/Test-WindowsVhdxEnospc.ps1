@@ -28,11 +28,11 @@ $cleanupErrors = [System.Collections.Generic.List[string]]::new()
 function Invoke-DiskPartScript {
     param([Parameter(Mandatory)][string[]]$Commands)
 
-    $body = $Commands -join "\`r\`n"
+    $body = $Commands -join "`r`n"
     if ([System.Text.Encoding]::ASCII.GetString([System.Text.Encoding]::ASCII.GetBytes($body)) -cne $body) {
         throw "A temporary VHDX path contains non-ASCII characters that cannot be represented safely in the DiskPart script."
     }
-    [System.IO.File]::WriteAllText($diskpartPath, $body + "\`r\`n", [System.Text.Encoding]::ASCII)
+    [System.IO.File]::WriteAllText($diskpartPath, $body + "`r`n", [System.Text.Encoding]::ASCII)
     $output = & diskpart.exe /s $diskpartPath 2>&1
     $exitCode = $LASTEXITCODE
     $output | ForEach-Object { Write-Host $_ }
@@ -88,7 +88,7 @@ function Detach-VhdxAndConfirm {
     if ($attachedState) {
         try {
             Invoke-DiskPartScript -Commands @(
-                "select vdisk file=\`"$ImagePath\`""
+                "select vdisk file=`"$ImagePath`""
                 "detach vdisk"
                 "exit"
             )
@@ -110,11 +110,11 @@ function Detach-VhdxAndConfirm {
 
 try {
     Invoke-DiskPartScript -Commands @(
-        "create vdisk file=\`"$sourceVhdPath\`" maximum=128 type=expandable"
-        "select vdisk file=\`"$sourceVhdPath\`""
+        "create vdisk file=`"$sourceVhdPath`" maximum=128 type=expandable"
+        "select vdisk file=`"$sourceVhdPath`""
         "attach vdisk readonly"
-        "create vdisk file=\`"$destinationVhdPath\`" maximum=96 type=expandable"
-        "select vdisk file=\`"$destinationVhdPath\`""
+        "create vdisk file=`"$destinationVhdPath`" maximum=96 type=expandable"
+        "select vdisk file=`"$destinationVhdPath`""
         "attach vdisk"
         "exit"
     )
