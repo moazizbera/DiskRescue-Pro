@@ -63,7 +63,6 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         if (string.IsNullOrWhiteSpace(DirectoryIdentity.VolumeIdentity) ||
             (DirectoryIdentity.FileIdHigh == 0 && DirectoryIdentity.FileIdLow == 0))
         {
-            directoryHandle.Dispose();
             throw new IOException("Windows did not provide a stable destination directory identity.");
         }
     }
@@ -135,26 +134,25 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
                 var component = components[index];
                 PhysicalDestinationLeafName.Validate(component, nameof(directoryPath));
                 var next = OpenRelativeDirectory(current, component, isFinalComponent: index == components.Length - 1);
-                try
-                {
-                    EnsureNotReparseDirectory(next);
-                }
-                catch
-                {
-                    next.Dispose();
-                    throw;
-                }
-
+                // Transfer ownership to the construction scope before validation so
+                // every successfully opened handle is included in failure cleanup.
                 directoryChainHandles.Add(next);
+                EnsureNotReparseDirectory(next);
                 current = next;
             }
 
             return new WindowsPhysicalAcquisitionDestinationSession(current, directoryChainHandles);
         }
-        catch
+        catch (Exception openFailure)
         {
-            for (var index = directoryChainHandles.Count - 1; index >= 0; index--)
-                directoryChainHandles[index].Dispose();
+            var cleanupErrors = DisposeResources(directoryChainHandles.AsEnumerable().Reverse());
+            if (cleanupErrors.Count > 0)
+            {
+                throw new AggregateException(
+                    "Destination-session construction failed and one or more opened directory handles could not be disposed.",
+                    new[] { openFailure }.Concat(cleanupErrors));
+            }
+
             throw;
         }
     }
