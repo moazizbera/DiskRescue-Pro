@@ -90,33 +90,51 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
     }
 
     [Fact]
-    public async Task NativeSessionUsesPinnedDirectoryAfterItsPathIsReplaced()
+    public async Task NativeSessionPreventsRenameOfFinalDirectoryAndAncestorUntilDisposed()
     {
         if (!OperatingSystem.IsWindows())
             return;
 
         var parent = CreateTemporaryDirectory();
-        var original = Path.Combine(parent, "destination");
-        var moved = Path.Combine(parent, "destination-pinned");
+        var ancestor = Path.Combine(parent, "level-one");
+        var original = Path.Combine(ancestor, "destination");
+        var movedFinal = Path.Combine(ancestor, "destination-moved");
+        var movedAncestor = Path.Combine(parent, "level-one-moved");
         Directory.CreateDirectory(original);
 
         try
         {
-            await using var session = WindowsPhysicalAcquisitionDestinationSession.Open(original);
-            Assert.Equal(Path.GetFullPath(original), session.GetCurrentDirectoryPath(), StringComparer.OrdinalIgnoreCase);
+            await using (var session = WindowsPhysicalAcquisitionDestinationSession.Open(original))
+            {
+                Assert.Equal(
+                    Path.GetFullPath(original),
+                    session.GetCurrentDirectoryPath(),
+                    StringComparer.OrdinalIgnoreCase);
 
-            // The open directory handle allows rename/delete sharing. Replacing the
-            // textual path must not redirect subsequent relative creates or path reporting.
-            Directory.Move(original, moved);
-            Directory.CreateDirectory(original);
-            Assert.Equal(Path.GetFullPath(moved), session.GetCurrentDirectoryPath(), StringComparer.OrdinalIgnoreCase);
+                // Every non-root component remains open without FILE_SHARE_DELETE.
+                // Windows must reject renaming both the final directory and its ancestor.
+                Assert.Throws<IOException>(() => Directory.Move(original, movedFinal));
+                Assert.Throws<IOException>(() => Directory.Move(ancestor, movedAncestor));
 
-            var stream = await session.CreateNewFileAsync("pinned.bin");
-            await stream.WriteAsync(new byte[] { 1, 2, 3 });
-            await session.FlushToDiskAsync(stream);
+                Assert.Equal(
+                    Path.GetFullPath(original),
+                    session.GetCurrentDirectoryPath(),
+                    StringComparer.OrdinalIgnoreCase);
 
-            Assert.True(File.Exists(Path.Combine(moved, "pinned.bin")));
-            Assert.False(File.Exists(Path.Combine(original, "pinned.bin")));
+                var stream = await session.CreateNewFileAsync("pinned.bin");
+                await stream.WriteAsync(new byte[] { 1, 2, 3 });
+                await session.FlushToDiskAsync(stream);
+                await session.PublishNoReplaceAsync(stream, "pinned.img");
+            }
+
+            Assert.True(File.Exists(Path.Combine(original, "pinned.img")));
+            Assert.False(Directory.Exists(movedFinal));
+            Assert.False(Directory.Exists(movedAncestor));
+
+            // Once all retained component handles are closed, ordinary directory
+            // rename becomes available again.
+            Directory.Move(original, movedFinal);
+            Assert.True(File.Exists(Path.Combine(movedFinal, "pinned.img")));
         }
         finally
         {
