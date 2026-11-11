@@ -18,6 +18,7 @@ This is the current status snapshot for PR #30. Earlier dated sections are histo
 - [x] Native session + destination writer integration test publishes a generated 384-KiB in-memory source fixture, then verifies the committed image bytes/hash and manifest after disposing the session.
 - [x] SafeHandle lifetime ordering is covered by the corrected add-reference-before-get-handle implementation.
 - [x] Session file handles deny competing write/delete opens while the owning session is active.
+- [x] Sequential-use contract is documented on the native session: callers must serialize session operations and must not dispose the session while an operation or owned-stream write is in progress; the coordinator currently uses it sequentially. Concurrent session calls/disposal remain unsupported, not thread-safe.
 - [ ] The native writer integration test is **not** a VHDX source-device test and does not constitute a complete physical acquisition coordinator end-to-end test.
 
 ## Remaining release gates — still blocking
