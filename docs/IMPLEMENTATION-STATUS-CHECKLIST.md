@@ -1,3 +1,35 @@
+# Current status update — 2026-11-11 (constructor and cancellation cleanup gates)
+
+## Constructor failure and cancellation review
+
+- [x] Reviewed the native destination-session constructor and partial directory-chain open path.
+- [x] Changed construction so each successfully opened directory handle is registered for cleanup before component validation.
+- [x] Construction failure now uses the shared all-resources disposal helper, attempts every retained handle in reverse order, and preserves the original failure alongside any cleanup failures.
+- [x] Existing Windows regression still covers a later missing path component after an ancestor handle has been opened; the ancestor can be renamed immediately after the failed open.
+- [x] Added `WriterDeletesPartialImageWhenCancellationOccursDuringCopy`: cancellation after the first source read must remove the unpublished temporary image and publish neither image nor manifest.
+- [x] The writer's post-image-commit behavior remains intentional: once the verified image is published, manifest creation/publication uses `CancellationToken.None` so late cancellation does not abandon a committed image without its sidecar.
+- [x] Cancellation regression CI run **43066365462** passed all 24 workflow steps: https://github.com/DiskRescue-Pro/actions/runs/43066365462.
+- [x] Constructor cleanup exact-head CI run **43066527404** passed all 24 workflow steps on `fc37877a762edc5adb0082edc7ec2ef289dea0d5`: https://github.com/DiskRescue-Pro/actions/runs/43066527404.
+- [x] Latest test artifact: **376 passed, 0 failed, 3 skipped (379 total)**. All executed tests passed (376/376); skipped tests are not counted as passes.
+- [x] Both runs also passed disposable VHDX read-only policy and NTFS ENOSPC cleanup integrations, generated-fixture/CLI/recovery smoke tests, WPF build, screenshot capture, Windows x64 desktop/CLI preview publishing, and artifact uploads.
+
+## Remaining acceptance gates
+
+- [ ] Existing-handle contention and compatibility with antivirus, indexing, backup, synchronization, and other filesystem filter software.
+- [ ] Supported Windows/filesystem matrix and automated x86 execution/ABI validation.
+- [ ] Publication power-loss durability of the final rename and directory metadata; content flush alone does not establish this.
+- [ ] Independent security review.
+- [ ] Manual keyboard/accessibility, high-DPI, and multi-work-area UI validation.
+- [ ] Physical HDD testing remains unauthorized and must not be attempted.
+
+## Safety boundary
+
+- PR #30 remains draft/open/unmerged.
+- Public physical acquisition remains hard-disabled.
+- No original or valuable physical HDD has been opened or read. All storage integration evidence remains disposable VHDX and generated-fixture evidence.
+
+---
+
 # Current status update — 2026-11-11 (directory-chain rename exclusion CI accepted)
 
 
