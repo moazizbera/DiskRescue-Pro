@@ -867,3 +867,31 @@ This section supersedes the pending exact-head validation items in the preceding
 
 The VHDX coordinator test uses synthetic inventory/volume/extent metadata and a temporary CI destination. It does not prove production physical-device identity or genuine physical source/destination separation. No original or valuable HDD has been opened or read. Keep the public acquisition API/UI disabled and PR #30 draft until the remaining gates are independently closed and a separate release decision is made.
 
+## Engineering follow-up — 2026-11-11 (ENOSPC and publication durability investigation)
+
+This is a design/investigation checkpoint only. No production behavior was changed in this update, and no new test result is claimed.
+
+### Destination-full test design
+
+- [x] Reviewed the native destination open path: destination files are created relative to the pinned directory handle with FILE_CREATE, GENERIC_READ | GENERIC_WRITE | DELETE, and restrictive ShareRead sharing. Native open failures currently surface as an IOException carrying the NTSTATUS value.
+- [x] Confirmed the existing CI VHDX harness attaches a disposable RAW VHDX read-only for source testing; it does not create or format a destination volume. It cannot be repurposed as an ENOSPC test without adding a separately isolated destination-disk lifecycle.
+- [ ] Build a dedicated, small, dynamically expanding test-only destination VHDX in the Windows runner. The harness must create a partition and filesystem only inside that newly generated disposable VHDX, assign a temporary drive letter, and verify the resolved destination volume is the expected test VHDX before writing anything.
+- [ ] Constrain the test to a tiny destination capacity and write a generated in-memory source larger than the available free space. Assert that the acquisition fails before image publication, no final image or manifest appears, and all unpublished temporary files/handles are cleaned up.
+- [ ] Ensure teardown detaches the destination VHDX before deleting its backing file; if detach cannot be confirmed, retain the backing file and fail the test rather than deleting an attached image.
+- [ ] The test must never format, initialize, partition, or write to the source VHDX or any host/physical disk. The destination VHDX must be created by the test itself and identified independently before its one-time test-only formatting step.
+- [ ] Capture the actual Windows error/status and filesystem free-space evidence. Do not treat a synthetic IOException, quota estimate, or fake-session flush exception as proof of ENOSPC.
+- [ ] Before implementing this harness, inspect CI runner privileges and DiskPart/PowerShell teardown behavior; run it only in the hosted disposable Windows runner, not against user disks.
+
+### Publication-only write-through candidate
+
+- [x] Confirmed current native file creation uses FILE_SYNCHRONOUS_IO_NONALERT and does not request FILE_WRITE_THROUGH; the writer calls FileStream.Flush(flushToDisk: true) and then performs handle-relative no-replace rename through NtSetInformationFile.
+- [x] Identified a candidate worth prototyping: close the ordinary sequential-write stream after its content flush, reopen the temporary leaf relative to the already-pinned directory with a publication-only FILE_WRITE_THROUGH handle, compare its handle-derived file identity with the identity captured before close, and perform the no-replace rename through that publication handle.
+- [ ] This candidate is not yet proven safe. The close/reopen interval creates a name-race window; the implementation must fail closed if the reopened handle's volume/file ID differs, must keep the directory pinned, must retain no-replace semantics, and must prove no competing writer/delete can modify the file after it is reopened.
+- [ ] Validate Windows share-mode behavior and file-ID comparison on supported NTFS versions before changing the adapter. A successful API call alone does not prove crash/power-loss durability.
+- [ ] Measure the prototype on large generated sequential images to confirm write-through applies only to the publication handle and does not impose write-through latency on the full image-copy phase.
+- [ ] Define the supported filesystem contract explicitly. Do not infer NTFS or ReFS durability guarantees from a generic local fixed-drive check; unsupported or unverified filesystems must remain outside the claimed contract.
+- [ ] Add crash/power-interruption validation where feasible and document the limits of what automated tests can establish. Until then, retain the current wording: file-content flush followed by atomic no-replace publication; no guarantee of power-loss-durable directory metadata.
+
+### Safety boundary
+
+No code change or physical-media operation was made as part of this investigation. PR #30 remains draft/open, public physical acquisition remains hard-disabled, and physical HDD testing remains unauthorized. The only acceptable ENOSPC test target is a newly generated disposable destination VHDX on the hosted Windows CI runner.
