@@ -1,3 +1,34 @@
+# Current status update — 2026-11-11 (exact-head CI #43033267693)
+
+This update records the completed validation of the current PR head. It does not change the release or physical-media safety boundary.
+
+## Exact-head CI
+
+- [x] PR #30 head `843ddd4a6a2e9fa8dd144060758132a8bed7ac83` completed Windows CI successfully: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43033267693.
+- [x] Standard IO suite: **373 passed, 0 failed, 3 skipped (376 total)**.
+- [x] The separate read-only VHDX policy smoke test passed; public physical acquisition remained blocked.
+- [x] The separate coordinator/VHDX integration passed: generated disposable source VHDX was read-only; copied image bytes, SHA-256, manifest publication, and before/after source hash invariance were verified using synthetic inventory metadata and the real pinned native destination adapter.
+- [x] The separate NTFS ENOSPC integration passed after measuring **85,762,048 bytes** free against a **134,217,728-byte** source image. Windows disk-full was reproduced; no final image or manifest remained, the unpublished partial image was cleaned up, and the source hash was unchanged. Both VHDXs detached successfully.
+- [x] Generated-fixture discovery, CLI/recovery smoke tests, WPF build and screenshot capture, Windows x64 desktop/CLI publishing, and artifact uploads passed.
+- [ ] These disposable-VHDX tests do not validate production physical hardware identity reconciliation or authorize physical HDD acquisition.
+
+## Native adapter review checkpoint
+
+- [x] Source-level review covered handle-relative create/open, reparse-point rejection, handle-derived identities, SafeHandle lifetime ordering, restrictive sharing, delete disposition, and pinned-directory no-replace rename.
+- [x] Native structure and variable-length rename-buffer offsets were manually checked for x86/x64 layouts.
+- [ ] Automated x86 execution and broader Windows/filesystem compatibility testing remain outstanding; hosted CI currently proves the Windows x64 path.
+- [ ] Independent security review remains outstanding. This source review is not a third-party audit.
+- [ ] Publication still requests file-content flush before atomic rename; power-loss durability of rename/directory metadata is not established. Keep the publication durability and filesystem compatibility gates open.
+- [ ] Manual keyboard/accessibility, high-DPI, and multi-work-area UI checks remain outstanding.
+
+## Safety boundary
+
+- PR #30 remains draft/open/unmerged.
+- Public physical acquisition remains hard-disabled.
+- No original or valuable physical HDD has been opened or read. No physical HDD test is authorized by this validation.
+
+---
+
 # Current status update — 2026-11-11 (native adapter static review checkpoint)
 
 This section records a bounded source review after exact-head CI #1334. It is not an independent third-party security audit or release approval.
