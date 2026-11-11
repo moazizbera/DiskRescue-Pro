@@ -78,7 +78,7 @@ try {
         throw "The Windows VHDX safety smoke test failed (dotnet test exit $testExitCode)."
     }
 
-    Write-Host "PASS: public physical acquisition remained blocked; the separate internal read-only VHDX writer test verified copied bytes, SHA-256, manifest publication, and source hash invariance."
+    Write-Host "PASS: public physical acquisition remained blocked; the internal coordinator integration verified copied bytes, SHA-256, manifest publication, and source hash invariance using synthetic inventory metadata and the real pinned destination adapter."
 }
 finally {
     Remove-Item Env:\DISKRESCUE_TEST_VHDX_DISK_NUMBER -ErrorAction SilentlyContinue
