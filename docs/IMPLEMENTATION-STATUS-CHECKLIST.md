@@ -1,3 +1,30 @@
+# Current status update — 2026-11-11 (directory-chain rename exclusion CI accepted)
+
+## Exact-head Windows validation
+
+- [x] Exact-head Windows CI #43046744037 passed on `596ae34f2b2ca9360864d4f47bce9d504b65ad90`: https://github.com/DiskRescue-Pro/actions/runs/43046744037.
+- [x] Release build succeeded with 0 warnings and 0 errors.
+- [x] Standard test suite: **373 passed, 0 failed, 3 skipped (376 total)**.
+- [x] The disposable read-only VHDX policy and coordinator integration tests passed; the separate NTFS destination-full integration passed; DiskPart detached the disposable virtual disks.
+- [x] The earlier implementation-only commit `109de25c` failed because the old regression test still expected the directory rename to succeed. The failure was at that exact assertion (372 passed, 1 failed, 3 skipped). The test was replaced with final-directory and ancestor rename-denial assertions; the complete checklist-head workflow then passed.
+- [ ] The CI evidence is hosted Windows runner evidence only. It does not establish compatibility across all Windows versions/filesystems or third-party filter drivers.
+
+## Current acceptance interpretation
+
+- [x] The new Windows test proves that on the hosted runner, attempts to rename the final destination directory and its ancestor fail while the session is open, publication succeeds in the requested directory, and a rename succeeds after session disposal.
+- [ ] Existing-handle contention and compatibility with antivirus, indexing, backup, synchronization, and other filesystem filter software still need targeted compatibility testing.
+- [ ] Constructor failure, partial path-open failure, cancellation, and acquisition-failure cleanup paths still need focused review/tests for retained chain handles.
+- [ ] Independent security review remains outstanding.
+- [ ] Publication power-loss durability and filesystem compatibility remain separate unresolved gates; rename exclusion does not solve them.
+
+## Safety boundary
+
+- PR #30 remains draft/open/unmerged.
+- Public physical acquisition remains hard-disabled.
+- No original or valuable physical HDD has been opened or read. No physical HDD test is authorized.
+
+---
+
 # Current status update — 2026-11-11 (directory-chain rename exclusion implementation)
 
 This is an implementation candidate, not a release approval. Windows CI must validate the new sharing contract before it can be accepted. Keep public physical acquisition hard-disabled.
@@ -8,7 +35,9 @@ This is an implementation candidate, not a release approval. Windows CI must val
 - [x] Non-root directory components are opened without `FILE_SHARE_DELETE`; the handles remain open until session disposal. This is intended to prevent a concurrent rename/delete of the final destination directory or any ancestor while acquisition is active, rather than relying on repeated point-in-time path checks.
 - [x] The root volume handle remains retained too; the volume root is not an ordinary renameable directory component.
 - [x] Replaced the prior test that deliberately renamed the pinned directory with a deterministic Windows test that attempts to rename both the final directory and an ancestor, expects both attempts to fail while the session is active, verifies publication remains at the requested path, and verifies rename works again after disposal.
-- [ ] Exact-head Windows CI for these source/test changes is pending. Do not mark the behavior validated until the Windows native test actually executes and passes.
+- [x] Exact-head Windows CI #43046744037 passed on checklist head `596ae34f2b2ca9360864d4f47bce9d504b65ad90`: build succeeded with 0 warnings/errors; standard suite **373 passed, 0 failed, 3 skipped (376 total)**; the Windows native directory-session tests executed as part of that suite. Run: https://github.com/DiskRescue-Pro/actions/runs/43046744037.
+- [x] The opt-in disposable-VHDX workflow stages also passed: the read-only attached VHDX policy test and coordinator integration both passed, the separate NTFS destination-full integration passed, and DiskPart detached the disposable virtual disks. This is synthetic VHDX evidence, not physical-device acceptance.
+- [x] The implementation-only commit `109de25c` initially failed because the old test still expected a directory rename to succeed; the log shows **372 passed, 1 failed, 3 skipped**, failing exactly at the now-prohibited rename. The test was then replaced with the new final-directory/ancestor denial test in `1ac41f05`; the subsequent exact-head CI #43046744037 passed. Earlier failure: https://github.com/DiskRescue-Pro/actions/runs/43046626051.
 - [ ] Compatibility remains a deliberate open gate: a directory component may fail to open if an existing process holds a conflicting handle that requested DELETE access. Evaluate behavior with common antivirus/indexer/backup software and on supported Windows/filesystem combinations. Fail closed; do not fall back to share-delete behavior.
 - [ ] Verify cleanup/disposal under all constructor and partial-open failure paths, plus cancellation and acquisition failure paths.
 - [ ] Independent review must confirm Windows directory rename/share semantics for both final and ancestor components, including filesystem-specific behavior.
