@@ -1,3 +1,25 @@
+# Current status update — 2026-11-11 (directory-name stability race review)
+
+This is a source-review finding, not a confirmed exploit and not a code change. Keep the physical-acquisition release gate closed pending design and tests.
+
+## Additional path-stability race to resolve
+
+- [x] Re-read the complete coordinator flow and native directory-open/share contract at exact head `777aee8d71b46e830d10e43d3d36efef42673ae0`.
+- [x] Confirmed the coordinator checks that the pinned directory handle still resolves to the requested path immediately before source-sector reads. Publication remains relative to the pinned directory handle, so a replacement path cannot redirect writes into the replacement directory.
+- [ ] The final path comparison is still a point-in-time check: the final directory and its ancestors are opened with `FILE_SHARE_DELETE`, and intermediate directory handles are released while walking the path. A concurrent rename of the pinned directory or an ancestor after the last comparison can move the pinned destination during acquisition. The writer will continue targeting the original directory object, but its pathname may no longer be the requested destination path. This is an availability/location-integrity race, not evidence that the replacement directory receives the image.
+- [ ] Design whether the supported contract should prevent renames for the session lifetime by retaining directory-chain handles opened without `FILE_SHARE_DELETE`, or whether a different explicit destination-path semantics is preferable. Evaluate compatibility with antivirus/indexer handles, existing open directories, cleanup, and normal user workflows before choosing.
+- [ ] Add deterministic Windows tests for attempted rename of the final directory and an ancestor while a session is active; prove either that the rename is denied for the session lifetime or that the chosen alternative fails closed without publishing to an unexpected path.
+- [ ] Do not treat repeated path comparisons as eliminating this race; a check followed by a later operation is not an atomic name-stability guarantee.
+- [ ] Re-run the hosted Windows test suite and disposable-VHDX integrations after any implementation change. Keep public physical acquisition hard-disabled until independent review accepts the final semantics.
+
+## Review scope and safety
+
+The source review also reconfirmed that the session is sequential/non-thread-safe, the temporary file is held with restrictive write/delete sharing, and image/manifest publication uses handle-relative no-replace rename. The current content flush does not establish power-loss durability of the rename or directory metadata.
+
+No source code or physical media was changed or accessed during this review.
+
+---
+
 # Current status update — 2026-11-11 (exact-head CI #43033267693)
 
 This update records the completed validation of the current PR head. It does not change the release or physical-media safety boundary.
