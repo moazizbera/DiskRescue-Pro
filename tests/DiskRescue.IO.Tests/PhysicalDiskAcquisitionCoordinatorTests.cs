@@ -166,8 +166,9 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
 
         Assert.Contains("directory object pinned", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, environment.DestinationSessionOpenCalls);
+        Assert.Equal(0, environment.OpenCalls);
         Assert.Equal(0, source.ReadAttempts);
-        Assert.Equal(1, source.DisposeCalls);
+        Assert.Equal(0, source.DisposeCalls);
         Assert.Empty(Directory.GetFiles(folder.Path));
     }
 
