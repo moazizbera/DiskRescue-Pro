@@ -1232,3 +1232,15 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] In that environment, install/use the x86 .NET 10 SDK/runtime, assert the test process is actually 32-bit (`IntPtr.Size == 4`), and run the IO native layout/handle tests. Preserve the existing x64 run as a separate required check.
 - [ ] Do not claim x86 compatibility from source-level pointer-size assertions or from an x64 process merely targeting `win-x86`.
 - [ ] No workflow or native source changes were made during this feasibility review. PR #30 remains draft/open/unmerged; public physical acquisition remains hard-disabled; no physical HDD was opened or tested.
+
+
+### x86 feasibility documentation CI and dashboard artifact review — 2026-11-11
+
+- [x] Exact-head CI run **43075184377** completed successfully for commit `a2ba87489c047ac08d4e4c0c2c4a6b7a978f149f`: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43075184377
+- [x] All **24/24** workflow steps succeeded, including build, test, disposable VHDX read-only policy, genuine NTFS ENOSPC cleanup integration, generated-fixture/CLI/recovery checks, WPF build, x64 desktop/CLI publish, screenshot capture, and artifact uploads.
+- [x] Downloaded and parsed the exact-run TRX artifact: **377 passed, 0 failed, 3 not executed, 380 total; 377/377 executed tests passed**.
+- [x] Downloaded and visually inspected the exact-run WPF screenshot artifact. The selected partition node remains dark teal with readable mint text; the earlier stock light/system selection defect has not returned.
+- [ ] Screenshot review still shows the partition inspector content clipped within its fixed-height scrollable area; only part of the metadata is visible without scrolling. Review responsive sizing and ensure key fields remain discoverable at common DPI/scaling settings.
+- [ ] Manual keyboard navigation, screen-reader/accessibility, high-DPI and constrained-work-area checks remain outstanding.
+- [ ] x86 execution proof remains outstanding; this CI run is the existing Windows x64 path and must not be described as x86 validation.
+- [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested.
