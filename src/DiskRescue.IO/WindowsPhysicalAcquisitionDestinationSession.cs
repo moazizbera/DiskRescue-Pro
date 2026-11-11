@@ -48,12 +48,16 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
     private const uint StatusObjectNameCollision = 0xC0000035;
 
     private readonly SafeFileHandle _directoryHandle;
+    private readonly List<SafeFileHandle> _directoryChainHandles;
     private readonly Dictionary<Stream, OwnedFile> _files = new(ReferenceEqualityComparer.Instance);
     private bool _disposed;
 
-    private WindowsPhysicalAcquisitionDestinationSession(SafeFileHandle directoryHandle)
+    private WindowsPhysicalAcquisitionDestinationSession(
+        SafeFileHandle directoryHandle,
+        List<SafeFileHandle> directoryChainHandles)
     {
         _directoryHandle = directoryHandle;
+        _directoryChainHandles = directoryChainHandles;
         VolumeGuidPath = QueryVolumeGuidPath(directoryHandle);
         DirectoryIdentity = QueryIdentity(directoryHandle);
         if (string.IsNullOrWhiteSpace(DirectoryIdentity.VolumeIdentity) ||
@@ -117,6 +121,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         }
 
         SafeFileHandle current = rootHandle;
+        var directoryChainHandles = new List<SafeFileHandle> { rootHandle };
         try
         {
             EnsureNotReparseDirectory(current);
@@ -140,21 +145,16 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
                     throw;
                 }
 
-                if (!ReferenceEquals(current, rootHandle))
-                    current.Dispose();
+                directoryChainHandles.Add(next);
                 current = next;
             }
 
-            if (!ReferenceEquals(current, rootHandle))
-                rootHandle.Dispose();
-
-            return new WindowsPhysicalAcquisitionDestinationSession(current);
+            return new WindowsPhysicalAcquisitionDestinationSession(current, directoryChainHandles);
         }
         catch
         {
-            if (!ReferenceEquals(current, rootHandle))
-                current.Dispose();
-            rootHandle.Dispose();
+            for (var index = directoryChainHandles.Count - 1; index >= 0; index--)
+                directoryChainHandles[index].Dispose();
             throw;
         }
     }
@@ -256,7 +256,9 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
             owned.Handle.Dispose();
         }
         _files.Clear();
-        _directoryHandle.Dispose();
+        for (var index = _directoryChainHandles.Count - 1; index >= 0; index--)
+            _directoryChainHandles[index].Dispose();
+        _directoryChainHandles.Clear();
         return ValueTask.CompletedTask;
     }
 
@@ -292,7 +294,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
             component,
             FileListDirectory | FileReadAttributes | Synchronize |
                 (isFinalComponent ? FileAddFile : 0),
-            ShareRead | ShareWrite | ShareDelete,
+            ShareRead | ShareWrite,
             FileOpen,
             FileDirectoryFile | FileSynchronousIoNonAlert | FileOpenReparsePoint);
 
