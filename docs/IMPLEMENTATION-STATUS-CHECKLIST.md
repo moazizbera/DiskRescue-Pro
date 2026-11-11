@@ -980,3 +980,14 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] Re-review the next CI-captured dashboard screenshot to verify the selected node now uses the intended dark/teal style and no text contrast regression exists.
 - [ ] The current screenshot's inspector uses a visible internal vertical scrollbar; CI screenshot alone does not establish usability at 100–200% scaling or constrained work areas. Keep those manual UI checks open.
 
+
+
+### Dashboard selection-template correction — 2026-11-11
+
+- [x] Reviewed the actual dashboard screenshot artifact from CI run 43030664353 after the first TreeView style correction.
+- [x] Confirmed visually that the stock WPF TreeViewItem control template continued to paint the selected header with a light/system selection background; setting only the TreeViewItem Background/Foreground properties was insufficient.
+- [x] Replaced the implicit TreeViewItem style with an explicit header/expander/items template in App.xaml. The template owns the selected, hover, and keyboard-focus visuals so the system selection brush cannot override the dark navy/teal palette.
+- [ ] Await exact-head Windows CI and inspect its newly captured dashboard screenshot. Do not mark the selection styling fix complete until the selected node is visibly dark/teal and text contrast remains clear.
+- [ ] The explicit template requires manual keyboard/tree-navigation, accessibility, and high-DPI verification; the template-level CI screenshot is not a substitute.
+- [ ] Latest prior full validation remains CI run 43030664353 on 71094840c7f05edcf00e71ce0deaff82be3942e5 (373 passed, 0 failed, 3 skipped; VHDX policy and genuine NTFS ENOSPC tests passed; recovery smoke tests, WPF build/publish and screenshot capture passed). The new template commit is 4e7abcac2fc9bf4658620bd07517e09b08b925da; exact-head CI is pending.
+- [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested.
