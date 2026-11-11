@@ -1,3 +1,24 @@
+# Current status update — 2026-11-11 (pinned destination identity regression validated)
+
+This update supersedes the pending validation note in the preceding 2026-11-11 section.
+
+## Preflight-to-pin directory replacement finding
+
+- [x] The coordinator now opens and pins the requested destination directory immediately after validating the requested image path and before path-based destination preflight.
+- [x] It retains the same destination session through preflight and revalidates the directory path resolved from the pinned handle after the second preflight and again after final pre-read revalidation, before the first source-sector read.
+- [x] The deterministic regression asserts the replacement is rejected before the source is opened: zero environment source-open calls, zero source read attempts, zero source disposals, and no output files.
+- [x] Exact-head Windows CI #1334 passed on test commit `d1b14884f0da452f46125651d446ca41391818a4`: **370 passed, 0 failed, 1 skipped (371 total)**. The VHDX policy smoke test also passed with a disposable RAW VHDX attached read-only as PhysicalDrive2, filtered host test passed (1/1), and DiskPart detached it successfully. Generated fixture, CLI/recovery smoke tests, WPF build, Windows x64 desktop/CLI publishing, screenshot capture, and artifact uploads all completed. Run: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43000070523.
+- [x] CI #1333 on implementation-only commit `ab7ecc8c8d9417207ff67a4845ac39a3f8179368` exposed a stale regression expectation: the test still expected one source-open call, while the new earlier destination-session pinning correctly produced zero. The failure was **1 failed, 369 passed, 1 skipped**; no later workflow stages ran. The test expectation was then corrected in `d1b14884`, and exact-head CI #1334 passed. Run: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43000040610.
+- [ ] The fix is validated by the deterministic coordinator test and hosted CI, but independent security review of native adapter ABI/layout, handle lifetime, reparse handling, rename semantics, and remaining race assumptions is still outstanding.
+
+## Safety and release boundary
+
+- [ ] Disposable-VHDX coordinator end-to-end acquisition, source-byte invariance, output image/hash/manifest verification, destination-full handling, and full cleanup-path acceptance remain outstanding.
+- [ ] Manual Windows keyboard/accessibility, high-DPI, and multi-work-area checks remain outstanding.
+- Public physical acquisition remains hard-disabled. No original or valuable physical HDD has been opened or read. These CI results do not establish physical HDD recovery readiness.
+
+---
+
 # Current status update — 2026-11-11 (VHDX public-API gate regression)
 
 This is the current status snapshot for PR #30. Earlier dated sections are historical evidence and must not override this section.
