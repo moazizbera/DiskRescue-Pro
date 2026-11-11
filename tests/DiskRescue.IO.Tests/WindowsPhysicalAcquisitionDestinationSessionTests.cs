@@ -332,27 +332,34 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
 
         try
         {
-            await using var session = WindowsPhysicalAcquisitionDestinationSession.Open(directory);
             var imageLeaf = "native-session-fixture.img";
             var manifestLeaf = "native-session-fixture.img.diskrescue.json";
             var expectedSha256 = Convert.ToHexString(
                 System.Security.Cryptography.SHA256.HashData(bytes));
+            var pinnedDirectory = directory;
+            PhysicalAcquisitionDestinationWriteResult result;
 
-            var result = await PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
-                source,
-                session,
-                ".native-session-fixture.image.partial",
-                imageLeaf,
-                ".native-session-fixture.manifest.partial",
-                manifestLeaf,
-                imageContent => new
-                {
-                    format = "DiskRescue.NativeSessionFixture.v1",
-                    imageContent.BytesCopied,
-                    sha256 = imageContent.Sha256
-                });
+            // The session intentionally keeps published file handles open with restrictive
+            // sharing. Dispose it before independently reopening the outputs for assertions.
+            await using (var session = WindowsPhysicalAcquisitionDestinationSession.Open(directory))
+            {
+                result = await PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
+                    source,
+                    session,
+                    ".native-session-fixture.image.partial",
+                    imageLeaf,
+                    ".native-session-fixture.manifest.partial",
+                    manifestLeaf,
+                    imageContent => new
+                    {
+                        format = "DiskRescue.NativeSessionFixture.v1",
+                        imageContent.BytesCopied,
+                        sha256 = imageContent.Sha256
+                    });
 
-            var pinnedDirectory = session.GetCurrentDirectoryPath();
+                pinnedDirectory = session.GetCurrentDirectoryPath();
+            }
+
             var imagePath = Path.Combine(pinnedDirectory, imageLeaf);
             var manifestPath = Path.Combine(pinnedDirectory, manifestLeaf);
 
