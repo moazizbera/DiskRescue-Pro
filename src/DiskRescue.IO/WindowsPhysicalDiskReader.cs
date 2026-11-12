@@ -102,13 +102,15 @@ public static class WindowsPhysicalDiskDiscovery
     {
         if (!NativeMethods.DeviceIoControl(
                 handle, IoctlDiskGetDriveGeometry, IntPtr.Zero, 0,
-                out DiskGeometry geometry, Marshal.SizeOf<DiskGeometry>(), out _, IntPtr.Zero))
+                out DiskGeometry geometry, Marshal.SizeOf<DiskGeometry>(), out var geometryBytesReturned, IntPtr.Zero))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to read disk geometry.");
+        EnsureCompleteIoctlResponse(geometryBytesReturned, Marshal.SizeOf<DiskGeometry>(), "disk geometry");
 
         if (!NativeMethods.DeviceIoControl(
                 handle, IoctlDiskGetLengthInfo, IntPtr.Zero, 0,
-                out GetLengthInformation lengthInfo, Marshal.SizeOf<GetLengthInformation>(), out _, IntPtr.Zero))
+                out GetLengthInformation lengthInfo, Marshal.SizeOf<GetLengthInformation>(), out var lengthBytesReturned, IntPtr.Zero))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to read disk capacity.");
+        EnsureCompleteIoctlResponse(lengthBytesReturned, Marshal.SizeOf<GetLengthInformation>(), "disk capacity");
 
         var sectorSize = geometry.BytesPerSector;
         if (lengthInfo.Length <= 0)
@@ -123,6 +125,13 @@ public static class WindowsPhysicalDiskDiscovery
             diskNumber, path, lengthInfo.Length, sectorSize,
             identity.Vendor, identity.Model, identity.SerialNumber,
             identity.BusType, identity.RemovableMedia);
+    }
+
+    internal static void EnsureCompleteIoctlResponse(int bytesReturned, int expectedSize, string description)
+    {
+        if (expectedSize <= 0 || bytesReturned < expectedSize)
+            throw new InvalidDataException(
+                $"The device returned an incomplete {description} response ({bytesReturned} of {expectedSize} bytes).");
     }
 
     internal static (string? Vendor, string? Model, string? SerialNumber, uint? BusType, bool? RemovableMedia)
