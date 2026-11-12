@@ -1267,3 +1267,14 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - Captured dashboard screenshot reviewed at 979 × 623. Findings text now has a bounded minimum/maximum height inside a vertically scrollable inspector; partition details remain collapsible.
 - Screenshot review notes remaining narrow-panel warning wrapping and no evidence yet for high-DPI, alternate display scaling, keyboard-only, or screen-reader acceptance.
 - This is a visual/automated validation milestone only. It does not establish full responsive UI acceptance or production readiness.
+
+
+### Compact inspector checklist commit CI — 2026-11-12
+
+- [x] Exact branch-head commit `86a551c83fb2ac12fc212c7b6d9d03a57e1c6a1a` passed Windows CI run [43162451670](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43162451670); job `build-and-test` succeeded.
+- [x] Downloaded and parsed the exact-run TRX artifact: **377 passed, 0 failed, 3 not executed, 380 total**; all 377 executed tests passed.
+- [x] Branch head verified as `86a551c83fb2ac12fc212c7b6d9d03a57e1c6a1a` at validation time.
+- [ ] This run is Windows x64 CI, not x86 runtime validation. The workflow installs the standard .NET SDK and runs the solution tests without `--arch x86`; published desktop and CLI artifacts target `win-x64` only.
+- [ ] Manual high-DPI, constrained-work-area, keyboard-only, and screen-reader acceptance remain outstanding. No new manual display configuration was available from this CI artifact.
+- [ ] Independent native security review and publication namespace/power-loss durability proof remain outstanding.
+- [ ] PR #30 remains draft/open/unmerged; public physical acquisition remains hard-disabled. No physical HDD was opened or tested; physical HDD testing is not authorized.
