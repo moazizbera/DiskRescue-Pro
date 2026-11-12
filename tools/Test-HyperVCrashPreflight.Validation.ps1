@@ -46,7 +46,7 @@ function Invoke-Case([string]$Name, [scriptblock]$Action, [bool]$ShouldPass) {
 }
 
 $f = New-Fixture
-Invoke-Case "valid exact VM and two-disk inventory" { Test-DiskRescueHyperVPreflightInventory @f.Expected @f.Inventory | Out-Null } $true
+Invoke-Case "valid exact VM and two-disk inventory" { Test-DiskRescueHyperVPreflightInventory -Expected $f.Expected -Inventory $f.Inventory | Out-Null } $true
 
 $cases = @(
     @{ Name="wrong VM ID"; Change={ param($x) $x.Inventory.Vm.Id="a9f88428-ae55-4db9-bcca-cf1e23bfa210" } }
@@ -67,7 +67,7 @@ $cases = @(
 foreach ($case in $cases) {
     $f = New-Fixture
     & $case.Change $f
-    Invoke-Case $case.Name { Test-DiskRescueHyperVPreflightInventory $f.Expected $f.Inventory | Out-Null } $false
+    Invoke-Case $case.Name { Test-DiskRescueHyperVPreflightInventory -Expected $f.Expected -Inventory $f.Inventory | Out-Null } $false
 }
 Write-Host "RESULT passed=$passed failed=$failed total=$($passed + $failed)"
 if ($failed -ne 0) { exit 1 }
