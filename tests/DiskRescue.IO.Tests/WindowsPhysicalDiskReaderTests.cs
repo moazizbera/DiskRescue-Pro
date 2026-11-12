@@ -99,6 +99,24 @@ public sealed class WindowsPhysicalDiskReaderTests
     }
 
     [Fact]
+    public void StorageDescriptorParserIgnoresStringOffsetsIntoFixedHeader()
+    {
+        var data = new byte[48];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 36);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4, 4), 48);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(12, 4), 12);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(16, 4), 35);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(24, 4), 1);
+        data[36] = (byte)'V';
+
+        var result = WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor(data);
+
+        Assert.Null(result.Vendor);
+        Assert.Null(result.Model);
+        Assert.Null(result.SerialNumber);
+    }
+
+    [Fact]
     public void StorageDescriptorParserIgnoresOutOfRangeStringOffsets()
     {
         var data = new byte[36];
