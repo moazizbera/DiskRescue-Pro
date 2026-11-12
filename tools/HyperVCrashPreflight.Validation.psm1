@@ -123,6 +123,16 @@ function Test-DiskRescueHyperVPreflightInventory {
         $path = if ($role -eq "Boot") { $bootPath } else { $dataPath }
         $disk = $Inventory.Vhdx[$role]
         if ($null -eq $disk) { throw "$role VHDX metadata is missing." }
+        foreach ($field in @("Path", "Format", "Type", "ParentPath", "VirtualDiskId", "HasReparsePoint", "FileLength", "VirtualSize", "LinkCount")) {
+            $present = if ($disk -is [System.Collections.IDictionary]) {
+                $disk.Contains($field)
+            } else {
+                $null -ne $disk.PSObject.Properties[$field]
+            }
+            if (-not $present) { throw "$role VHDX metadata '$field' is missing." }
+        }
+        $reparseValue = if ($disk -is [System.Collections.IDictionary]) { $disk["HasReparsePoint"] } else { $disk.PSObject.Properties["HasReparsePoint"].Value }
+        if ($reparseValue -isnot [bool]) { throw "$role VHDX reparse-point status must be an explicit Boolean value." }
         Assert-DiskRescueEqual (ConvertTo-DiskRescueCanonicalLocalPath ([string]$disk.Path)) $path "$role VHDX path"
         Assert-DiskRescueEqual $disk.Format "VHDX" "$role VHDX format"
         if ($disk.Type -notin @("Fixed", "Dynamic")) { throw "$role VHDX type is unsupported." }
