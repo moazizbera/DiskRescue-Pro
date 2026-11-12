@@ -1396,3 +1396,15 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] Do not claim power-loss durability, filesystem-wide compatibility, or hardware-cache guarantees until the exact contract and limits are independently established.
 
 **Safety boundary:** no physical HDD access or testing. Source remains read-only; all validation uses generated disk images and disposable VHDX media. Public physical acquisition remains hard-disabled; PR #30 remains draft/open/unmerged.
+## Volume-handle namespace flush candidate — 2026-11-12
+
+- [x] Reviewed Microsoft's `FlushFileBuffers` contract: when passed a volume handle, it flushes all open files on that volume; the caller must have administrative privileges; a volume can be opened through its volume-GUID path without the trailing backslash.
+- [x] Identified this as a more promising publication-stage candidate than write-through mode mutation: it can run after handle-relative no-replace rename without changing the sequential image-write handle or replacing the rename mechanism.
+- [ ] Confirm that flushing the destination volume after publication provides the required parent-directory/rename metadata persistence for the supported NTFS contract; Microsoft's user-mode documentation says all open files are flushed but does not explicitly spell out this exact adapter sequence.
+- [ ] Prototype volume-handle acquisition from the volume GUID resolved through the pinned directory handle. Verify the opened volume matches the pinned directory's volume identity; require administrative access and fail closed if the flush cannot be completed.
+- [ ] Integrate flush failure handling so an already-published image/manifest is preserved and reported as published with durability unconfirmed; never attempt unpublished-file cleanup after a successful rename.
+- [ ] Exercise the volume flush only on a newly created, independently verified disposable NTFS destination VHDX in CI. Do not run this acceptance step against a user or physical HDD.
+- [ ] Measure the cost of flushing all open files on the destination volume and define the exact supported filesystem contract.
+- [ ] Controlled crash/recovery evidence and storage-hardware flush behavior remain separate acceptance gates; a successful volume flush call alone is not proof of survival through every power-loss scenario.
+
+**Safety boundary:** no physical HDD access or testing. Source remains read-only; all validation uses generated disk images and disposable VHDX media. Public physical acquisition remains hard-disabled; PR #30 remains draft/open/unmerged.
