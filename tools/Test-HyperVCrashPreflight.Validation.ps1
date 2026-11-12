@@ -60,6 +60,10 @@ function Invoke-Case([string]$Name, [scriptblock]$Action, [bool]$ShouldPass, [st
 
 $f = New-Fixture
 Invoke-Case "valid exact VM and two-disk inventory" { Test-DiskRescueHyperVPreflightInventory -Expected $f.Expected -Inventory $f.Inventory | Out-Null } $true
+$f = New-Fixture
+$f.Inventory.Vhdx.Boot.Remove("LinkCount")
+$f.Inventory.Vhdx.Data.Remove("LinkCount")
+Invoke-Case "valid inventory when optional link-count evidence is absent" { Test-DiskRescueHyperVPreflightInventory -Expected $f.Expected -Inventory $f.Inventory | Out-Null } $true
 
 $cases = @(
     @{ Name="wrong VM ID"; Change={ param($x) $x.Inventory.Vm.Id="a9f88428-ae55-4db9-bcca-cf1e23bfa210" } }
