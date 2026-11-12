@@ -36,7 +36,11 @@ The preflight implementation may use only read-only Hyper-V inspection operation
 6. Record VM ID, name, generation, state, configuration version, attachment controller/location, canonical paths, VHDX IDs/types/sizes, host file identities, hashes, timestamps, run ID, phase, and preflight timestamp in a machine-readable evidence file.
 7. Recheck the VM ID and attachment mapping immediately before handing control to a separately reviewed guest-runner. A changed VM state or attachment map invalidates the preflight.
 
-Preflight must not change the VM state. It does not authorize a later shutdown by itself.
+The current read-only adapter re-queries the VM identity/state, complete attachment map, and both VHDX file identities/lengths/hashes/metadata after its initial inspection. Any observed drift invalidates the preflight. This is a point-in-time consistency check, not a lock: it cannot prevent a later change and does not eliminate the time-of-check/time-of-use window.
+
+A preflight evidence file is a snapshot, not a capability or authorization token. It must never be treated as permission to stop a VM, start a guest runner, or perform recovery. Any future handoff must repeat the exact identity/attachment/baseline checks immediately before use and independently validate a fresh run marker. If the implementation cannot guarantee that sequencing, it must return **Not Run**.
+
+Preflight must not change the VM state. It does not authorize a later shutdown by itself. The only host-side write performed by the adapter is creation of a new evidence JSON file in an existing, operator-selected local directory; it never writes to either VHDX.
 
 ## 4. Guest-runner prerequisites
 
@@ -76,7 +80,7 @@ The verifier must not infer durability from a successful process exit or from a 
 
 ## 7. Required negative tests before any crash controller
 
-The preflight itself must have tests proving it rejects: wrong VM ID; same name but different ID; boot/data path swap; duplicate attachment; unexpected third VHDX; missing attachment; differencing data VHDX; changed baseline hash; changed file identity; UNC path; reparse-point path; stale run ID; mismatched phase; and unavailable Hyper-V cmdlets.
+The pure validator's mocked tests cover wrong VM ID; same name but different ID; boot/data path swap; duplicate attachment; unexpected third VHDX; missing attachment; differencing data VHDX; changed baseline hash; changed file identity; UNC path; reparse-point path; stale run ID; mismatched phase; unavailable VM inspection; VM not Off; duplicate virtual-disk identity; hard-link aliases; and shared/pass-through attachment rejection. The host adapter also fails closed when required Hyper-V attachment properties are absent or shared-disk metadata is null/non-Boolean. Hyper-V cmdlet availability and host permission failures are enforced by PowerShell prerequisites and terminating read-only queries; no fallback is permitted.
 
 All negative tests must operate on mocked inspection results or generated fixtures. They must not attach, enumerate, or open physical disks.
 
