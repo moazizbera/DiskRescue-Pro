@@ -1257,3 +1257,13 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] Verify keyboard focus/order and screen-reader announcements for the new Expander and findings region; visual screenshot review is not accessibility acceptance.
 - [ ] x86 execution proof, independent native security review, and publication namespace/power-loss durability acceptance remain outstanding.
 - [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested; no physical HDD testing is authorized.
+
+
+## Compact inspector follow-up — 2026-11-11
+
+- Commit: `cfea0630809919e84fd38f4dfad272912e63d9bd` — `ui: preserve findings space in compact inspector`.
+- Exact-head Windows CI run: [43084312993](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43084312993), completed successfully; 1/1 job successful.
+- TRX result: 377 passed, 0 failed, 3 not executed, 380 total; all 377 executed tests passed.
+- Captured dashboard screenshot reviewed at 979 × 623. Findings text now has a bounded minimum/maximum height inside a vertically scrollable inspector; partition details remain collapsible.
+- Screenshot review notes remaining narrow-panel warning wrapping and no evidence yet for high-DPI, alternate display scaling, keyboard-only, or screen-reader acceptance.
+- This is a visual/automated validation milestone only. It does not establish full responsive UI acceptance or production readiness.
