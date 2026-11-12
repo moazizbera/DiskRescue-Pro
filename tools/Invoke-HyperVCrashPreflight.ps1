@@ -217,10 +217,14 @@ try {
     $recheckedPaths = @()
     foreach ($drive in $driveRecheck) {
         foreach ($propertyName in @("Path", "ControllerType", "DiskNumber", "SupportPersistentReservations")) {
-            if ($null -eq $drive.PSObject.Properties[$propertyName] -or
-                $null -eq $drive.$propertyName) {
+            if ($null -eq $drive.PSObject.Properties[$propertyName]) {
                 throw "VM attachment metadata became unavailable during preflight; evidence is invalid."
             }
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$drive.Path) -or
+            [string]::IsNullOrWhiteSpace([string]$drive.ControllerType) -or
+            $null -eq $drive.SupportPersistentReservations) {
+            throw "VM attachment metadata became incomplete during preflight; evidence is invalid."
         }
         if ($drive.SupportPersistentReservations -isnot [bool] -or
             [bool]$drive.SupportPersistentReservations -or
