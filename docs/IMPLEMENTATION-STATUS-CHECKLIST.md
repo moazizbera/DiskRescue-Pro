@@ -1278,3 +1278,15 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] Manual high-DPI, constrained-work-area, keyboard-only, and screen-reader acceptance remain outstanding. No new manual display configuration was available from this CI artifact.
 - [ ] Independent native security review and publication namespace/power-loss durability proof remain outstanding.
 - [ ] PR #30 remains draft/open/unmerged; public physical acquisition remains hard-disabled. No physical HDD was opened or tested; physical HDD testing is not authorized.
+
+### Physical-acquisition safety message and exact-head CI — 2026-11-12
+
+- [x] Updated the desktop acquisition warning to accurately name the remaining gates: independent security review, broader Windows/filesystem compatibility testing, and disposable-VHDX end-to-end validation. No acquisition behavior or safety gate changed.
+- [x] Exact-head Windows CI run [43163948097](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43163948097) passed on commit `3527d8541edd3643b8d71e9e6c8d2db0f3e689da`; all workflow steps completed successfully.
+- [x] Downloaded and parsed the exact-run TRX artifact: **377 passed, 0 failed, 3 not executed, 380 total**; all 377 executed tests passed.
+- [x] The ordinary test invocation skips the three opt-in VHDX facts by design. The workflow separately executes `Test-WindowsVhdxSafety.ps1` and `Test-WindowsVhdxEnospc.ps1`; both dedicated steps passed.
+- [x] The read-only VHDX harness runs both the public hard-disabled policy test and `ReadOnlyVhdxSourceCompletesCoordinatorAcquisitionWithNativeDestinationSession`. The coordinator integration reads only a newly generated disposable VHDX through a read-only handle, uses synthetic inventory/volume/extent metadata, and publishes through the real pinned Windows destination session. It verifies image length/hash, manifest consistency and pre-publish verification, and source hash invariance.
+- [x] The separate NTFS ENOSPC integration passed, including genuine disk-full handling and cleanup of unpublished output.
+- [ ] Synthetic metadata does not prove production physical-device identity reconciliation or real physical source/destination separation. No original or valuable physical HDD was opened or read.
+- [ ] Independent native security review, supported x86 runtime execution, broader filesystem/Windows compatibility, high-DPI/accessibility/manual workflow checks, and power-loss publication durability evidence remain outstanding.
+- [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled; physical HDD testing is not authorized.
