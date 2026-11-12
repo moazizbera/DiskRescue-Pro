@@ -177,7 +177,7 @@ public partial class PhysicalAcquisitionWindow : Window
                     DestinationStatusText.Text = !_destinationAssessment.CanUseAsSeparateDestination
                         ? "BLOCKED · " + string.Join(" ", _destinationAssessment.Blockers)
                         : !PhysicalDiskImageAcquisition.IsAcquisitionEnabled
-                            ? "PREFLIGHT ONLY · Separate volume appears distinct, but acquisition is DISABLED until the handle-pinned destination session and Windows race tests are complete."
+                            ? "PREFLIGHT ONLY · Separate volume appears distinct, but acquisition remains DISABLED pending independent security review, broader Windows/filesystem compatibility testing, and disposable-VHDX end-to-end validation."
                             : $"SEPARATE DESTINATION VERIFIED · {_destinationAssessment.VolumeGuidPath} · Physical disk(s): {string.Join(", ", _destinationAssessment.DestinationDiskNumbers)}";
                 }
             }
