@@ -139,7 +139,8 @@ public static class WindowsPhysicalDiskDiscovery
 
         static string? ReadString(ReadOnlySpan<byte> bytes, uint offset, uint size)
         {
-            if (offset == 0 || offset >= size) return null;
+            // Offsets must point into the variable-length data after the fixed header.
+            if (offset < 36 || offset >= size) return null;
             var start = checked((int)offset);
             var end = start;
             while (end < size && bytes[end] != 0) end++;
