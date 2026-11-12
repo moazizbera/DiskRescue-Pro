@@ -350,6 +350,30 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
         Assert.Equal(2, session.NamespaceFlushCount);
     }
 
+    [Fact]
+    public async Task CheckpointFailureBeforeImageRenameDeletesOnlyUnpublishedTemporaryImage()
+    {
+        using var source = new MemorySource(new byte[96 * 1024]);
+        await using var session = new FakeDestinationSession();
+        var checkpointFailure = new InvalidOperationException("Synthetic pre-rename checkpoint stop.");
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
+                source, session,
+                "capture.img.partial", "capture.img",
+                "capture.json.partial", "capture.json",
+                new { format = "test" },
+                checkpoint: phase => phase == PhysicalAcquisitionPublicationCheckpoint.ImageDataFlushedBeforeRename
+                    ? ValueTask.FromException(checkpointFailure)
+                    : ValueTask.CompletedTask));
+
+        Assert.Same(checkpointFailure, error);
+        Assert.True(session.WasDeleted("capture.img.partial"));
+        Assert.False(session.IsPublished("capture.img"));
+        Assert.False(session.IsPublished("capture.json"));
+        Assert.Equal(0, session.NamespaceFlushCount);
+    }
+
     private sealed class FakeDestinationSession : IPhysicalAcquisitionDestinationSession
     {
         private readonly Dictionary<Stream, string> _owned = new();
