@@ -18,6 +18,9 @@ jobs:
       - name: Validate read-only Hyper-V preflight logic (mocked inventory only)
         shell: pwsh
         run: ./tools/Test-HyperVCrashPreflight.Validation.ps1
+      - name: Test pinned evidence writer (temporary host directory only)
+        shell: pwsh
+        run: ./tools/Test-PinnedEvidenceFile.ps1
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
         with:
