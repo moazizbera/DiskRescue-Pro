@@ -77,6 +77,9 @@ function Test-DiskRescueHyperVPreflightInventory {
     if ($null -eq $vm.Generation -or $null -eq $vm.State -or $null -eq $vm.ConfigurationVersion) {
         throw "VM generation, state, and configuration version are required evidence."
     }
+    if ([string]$vm.State -ne "Off") {
+        throw "The disposable VM must be Off while the baseline is captured; observed state '$($vm.State)'."
+    }
 
     $attachments = @($Inventory.Attachments)
     if ($attachments.Count -ne 2) {
@@ -114,6 +117,15 @@ function Test-DiskRescueHyperVPreflightInventory {
         }
         if ([bool]$disk.HasReparsePoint) { throw "$role VHDX path contains a reparse point." }
         if ([long]$disk.FileLength -le 0 -or [long]$disk.VirtualSize -le 0) { throw "$role VHDX sizes are invalid." }
+        if ($null -ne $disk.LinkCount -and [long]$disk.LinkCount -ne 1) {
+            throw "$role VHDX must not have additional hard-link aliases."
+        }
+    }
+
+    $bootId = [string]$Inventory.Vhdx.Boot.VirtualDiskId
+    $dataId = [string]$Inventory.Vhdx.Data.VirtualDiskId
+    if ([string]::Equals($bootId, $dataId, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Boot and data VHDX virtual-disk identities must be distinct."
     }
 
     $data = $Inventory.Vhdx.Data
