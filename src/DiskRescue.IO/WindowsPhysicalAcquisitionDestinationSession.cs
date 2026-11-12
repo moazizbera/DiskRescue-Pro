@@ -101,6 +101,12 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         if (volumeHandle.IsInvalid)
             ThrowLastWin32IOException("Could not open the pinned destination volume for flush");
 
+        var directoryVolumeSerial = QueryVolumeSerialNumber(_directoryHandle);
+        var openedVolumeSerial = QueryVolumeSerialNumber(volumeHandle);
+        if (directoryVolumeSerial != openedVolumeSerial)
+            throw new IOException(
+                "The volume handle opened for flush does not match the volume of the pinned destination directory.");
+
         if (!FlushFileBuffers(volumeHandle))
             ThrowLastWin32IOException("Could not flush all open files on the pinned destination volume");
     }
@@ -550,6 +556,24 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         return finalPath[..(closingBrace + 2)];
     }
 
+    private static uint QueryVolumeSerialNumber(SafeFileHandle handle)
+    {
+        if (!GetVolumeInformationByHandleW(
+                handle,
+                IntPtr.Zero,
+                0,
+                out var volumeSerialNumber,
+                out _,
+                out _,
+                IntPtr.Zero,
+                0))
+        {
+            ThrowLastWin32IOException("Could not verify the destination volume handle identity");
+        }
+
+        return volumeSerialNumber;
+    }
+
     private static PhysicalDestinationDirectoryIdentity QueryIdentity(SafeFileHandle handle)
     {
         var info = QueryFileIdInfo(handle);
@@ -661,6 +685,17 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
     private static extern SafeFileHandle CreateFileW(
         string fileName, uint desiredAccess, uint shareMode, IntPtr securityAttributes,
         uint creationDisposition, uint flagsAndAttributes, IntPtr templateFile);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "GetVolumeInformationByHandleW")]
+    private static extern bool GetVolumeInformationByHandleW(
+        SafeFileHandle fileHandle,
+        IntPtr volumeNameBuffer,
+        uint volumeNameSize,
+        out uint volumeSerialNumber,
+        out uint maximumComponentLength,
+        out uint fileSystemFlags,
+        IntPtr fileSystemNameBuffer,
+        uint fileSystemNameSize);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "GetDriveTypeW")]
     private static extern uint GetDriveTypeW(string rootPathName);
