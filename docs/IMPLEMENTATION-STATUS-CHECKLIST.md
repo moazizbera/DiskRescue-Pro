@@ -1,3 +1,18 @@
+# Current status update — 2026-11-12 (ambiguous physical identity inventory regression CI accepted)
+
+## Duplicate disk-number descriptor regression
+
+- [x] Added `PhysicalIdentityCheckRejectsAmbiguousDuplicateDiskNumberDescriptors` to `tests/DiskRescue.IO.Tests/PhysicalImageDestinationSafetyTests.cs`. Two distinct descriptors claiming physical disk number 0 must be rejected as ambiguous even when the destination descriptor is otherwise unique.
+- [x] Test commit: `8a4701d6cdff624150a22abb9f867c535ef16cdd` — `test: reject ambiguous physical disk identity inventory`.
+- [x] Exact-head Windows CI run [43165869645](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43165869645) completed successfully on that exact SHA. The `build-and-test` job succeeded; all 43 workflow steps completed successfully.
+- [x] Downloaded and parsed the exact-run TRX artifact: **378 passed, 0 failed, 0 errors, 381 total; all 378 executed tests passed**. The new duplicate-disk-number regression is explicitly recorded as **Passed**.
+- [x] Disposable VHDX read-only policy/coordinator integration and NTFS ENOSPC cleanup integration passed; generated-fixture, CLI/recovery smoke tests, WPF build/screenshot capture, Windows x64 desktop/CLI publishing, and artifact uploads passed.
+- [ ] This test proves rejection of ambiguous descriptors in the identity validator; it does not prove production physical-device inventory correctness or real physical source/destination separation.
+- [ ] Independent native security review, supported x86 runtime execution, broader Windows/filesystem/filter-driver compatibility, high-DPI/accessibility/manual workflow validation, and publication namespace/power-loss durability remain open.
+- [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No original or valuable physical HDD has been opened or read; physical HDD testing is not authorized.
+
+---
+
 # Current status update — 2026-11-11 (publication durability contract review)
 
 ## Documented Windows API review
