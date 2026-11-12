@@ -70,6 +70,15 @@ internal interface IPhysicalAcquisitionDestinationSession : IAsyncDisposable
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Flushes namespace changes after a successful publication. The Windows
+    /// implementation flushes all open files on the pinned destination volume.
+    /// This is an OS flush request, not a guarantee against storage hardware that
+    /// fails to honor flush commands during power loss.
+    /// </summary>
+    ValueTask FlushPublishedNamespaceAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Removes an unpublished session-owned temporary file by handle, never by an
     /// independently re-resolved path.
     /// </summary>
