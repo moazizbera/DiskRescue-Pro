@@ -207,6 +207,7 @@ try {
     if ([string]$vmRecheck.Id -ne [string]$vm.Id -or
         [string]$vmRecheck.Name -cne [string]$vm.Name -or
         [string]$vmRecheck.State -ne "Off" -or
+        [int]$vmRecheck.Generation -ne [int]$vm.Generation -or
         [string]$vmRecheck.Version -cne [string]$vm.Version) {
         throw "VM identity, state, or configuration changed during preflight; evidence is invalid."
     }
@@ -214,7 +215,7 @@ try {
     if ($driveRecheck.Count -ne $attachments.Count) {
         throw "VM disk attachment count changed during preflight; evidence is invalid."
     }
-    $recheckedPaths = @()
+    $recheckedAttachments = @()
     foreach ($drive in $driveRecheck) {
         foreach ($propertyName in @("Path", "ControllerType", "DiskNumber", "SupportPersistentReservations")) {
             if ($null -eq $drive.PSObject.Properties[$propertyName]) {
@@ -228,18 +229,24 @@ try {
         }
         if ($drive.SupportPersistentReservations -isnot [bool] -or
             [bool]$drive.SupportPersistentReservations -or
-            $null -ne $drive.DiskNumber) {
+            $null -ne $drive.DiskNumber -or
+            [string]$drive.ControllerType -notin @("IDE", "SCSI")) {
             throw "VM attachment safety metadata changed or became unsafe during preflight."
         }
-        $recheckedPaths += (Get-CanonicalPath ([string]$drive.Path)).ToUpperInvariant()
+        $recheckedAttachments += ("{0}|{1}|pass={2}|shared={3}" -f
+            (Get-CanonicalPath ([string]$drive.Path)).ToUpperInvariant(),
+            [string]$drive.ControllerType, ($null -ne $drive.DiskNumber),
+            [bool]$drive.SupportPersistentReservations)
     }
-    $originalPaths = @($attachments | ForEach-Object { (Get-CanonicalPath ([string]$_.Path)).ToUpperInvariant() })
-    if (@(Compare-Object -ReferenceObject ($originalPaths | Sort-Object) -DifferenceObject ($recheckedPaths | Sort-Object)).Count -ne 0) {
-        throw "VM disk attachment paths changed during preflight; evidence is invalid."
+    $originalAttachments = @($attachments | ForEach-Object { ("{0}|{1}|pass={2}|shared={3}" -f
+        (Get-CanonicalPath ([string]$_.Path)).ToUpperInvariant(), [string]$_.ControllerType,
+        [bool]$_.IsPassThrough, [bool]$_.IsShared) })
+    if (@(Compare-Object -ReferenceObject ($originalAttachments | Sort-Object) -DifferenceObject ($recheckedAttachments | Sort-Object)).Count -ne 0) {
+        throw "VM disk attachment map or controller locations changed during preflight; evidence is invalid."
     }
     foreach ($pair in @(@{Before=$boot;Path=$BootVhdxPath},@{Before=$data;Path=$DataVhdxPath})) {
         $after = Get-VhdxEvidence -Path $pair.Path
-        foreach ($field in @("FileId","LinkCount","FileLength","Sha256","VirtualDiskId","ParentPath","Type","Format")) {
+        foreach ($field in @("FileId","LinkCount","FileLength","Sha256","VirtualDiskId","ParentPath","Type","Format","VirtualSize","HasReparsePoint","Attached")) {
             if ([string]$after.$field -cne [string]$pair.Before.$field) {
                 throw "VHDX $field changed during preflight; evidence is invalid."
             }
