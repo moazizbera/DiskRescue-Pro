@@ -49,7 +49,53 @@ try {
     catch { $invalidLeafRejected = $true }
     if (-not $invalidLeafRejected) { throw "Pinned evidence writer accepted a path traversal leaf." }
 
-    Write-Output "Pinned evidence writer: create-new, durable flush, collision preservation, and leaf validation passed."
+
+    $concurrentDirectory = Join-Path $root "concurrent"
+    [IO.Directory]::CreateDirectory($concurrentDirectory) | Out-Null
+    Add-Type -TypeDefinition @'
+using System;
+using System.IO;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using DiskRescue.Preflight;
+
+public static class PinnedEvidenceConcurrencyTest
+{
+    public static int Run(string directory)
+    {
+        int created = 0;
+        int rejected = 0;
+        Parallel.For(0, 16, i =>
+        {
+            try
+            {
+                using (var stream = PinnedEvidenceFile.CreateNew(directory, "single-winner.json"))
+                {
+                    var bytes = Encoding.UTF8.GetBytes("winner");
+                    stream.Write(bytes, 0, bytes.Length);
+                    stream.Flush(true);
+                }
+                Interlocked.Increment(ref created);
+            }
+            catch (IOException)
+            {
+                Interlocked.Increment(ref rejected);
+            }
+        });
+        if (created != 1 || rejected != 15)
+            throw new InvalidOperationException("Concurrent create did not produce exactly one winner.");
+        var content = File.ReadAllText(Path.Combine(directory, "single-winner.json"));
+        if (content != "winner")
+            throw new InvalidOperationException("Concurrent create winner content was corrupted.");
+        return created;
+    }
+}
+'@ -ErrorAction Stop
+    $winnerCount = [PinnedEvidenceConcurrencyTest]::Run($concurrentDirectory)
+    if ($winnerCount -ne 1) { throw "Concurrent create test did not produce one winner." }
+
+    Write-Output "Pinned evidence writer: create-new, durable flush, collision preservation, leaf validation, and concurrent single-winner creation passed."
 }
 finally {
     if (Test-Path -LiteralPath $root) {
