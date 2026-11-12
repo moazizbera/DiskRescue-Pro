@@ -87,6 +87,7 @@ $cases = @(
     @{ Name="VM not powered off"; Change={ param($x) $x.Inventory.Vm.State="Running" } }
     @{ Name="duplicate virtual disk identity"; Change={ param($x) $x.Inventory.Vhdx.Data.VirtualDiskId=$x.Inventory.Vhdx.Boot.VirtualDiskId } }
     @{ Name="hard-link alias"; Change={ param($x) $x.Inventory.Vhdx.Data.LinkCount=2L } }
+    @{ Name="unknown hard-link count"; Change={ param($x) $x.Inventory.Vhdx.Data.LinkCount=$null } }
 )
 $expectedErrors = @{
     "wrong VM ID" = "VM ID mismatch"
@@ -110,6 +111,7 @@ $expectedErrors = @{
     "VM not powered off" = "must be Off"
     "duplicate virtual disk identity" = "virtual-disk identities must be distinct"
     "hard-link alias" = "additional hard-link aliases"
+    "unknown hard-link count" = "hard-link count is unknown"
 }
 foreach ($case in $cases) {
     $f = New-Fixture
