@@ -96,7 +96,10 @@ function Get-ReadOnlyFileIdentity {
         if ($info.NumberOfLinks -ne 1) {
             throw "VHDX path has $($info.NumberOfLinks) hard links; aliases are not permitted."
         }
-        return "volume-serial:{0:X8};file-id:{1:X8}{2:X8}" -f $info.VolumeSerialNumber, $info.FileIndexHigh, $info.FileIndexLow
+        return [pscustomobject]@{
+            FileId = ("volume-serial:{0:X8};file-id:{1:X8}{2:X8}" -f $info.VolumeSerialNumber, $info.FileIndexHigh, $info.FileIndexLow)
+            LinkCount = [long]$info.NumberOfLinks
+        }
     }
     finally { $handle.Dispose() }
 }
@@ -108,6 +111,7 @@ function Get-VhdxEvidence {
     $vhd = Get-VHD -Path $canonical -ErrorAction Stop
     $item = Get-Item -LiteralPath $canonical -Force -ErrorAction Stop
     $hash = Get-FileHash -LiteralPath $canonical -Algorithm SHA256 -ErrorAction Stop
+    $identity = Get-ReadOnlyFileIdentity -Path $canonical
     [pscustomobject]@{
         Path = $canonical
         Format = [string]$vhd.VhdFormat
@@ -118,7 +122,8 @@ function Get-VhdxEvidence {
         FileLength = [long]$item.Length
         VirtualSize = [long]$vhd.Size
         Sha256 = [string]$hash.Hash
-        FileId = Get-ReadOnlyFileIdentity -Path $canonical
+        FileId = $identity.FileId
+        LinkCount = $identity.LinkCount
         Attached = [bool]$vhd.Attached
     }
 }
@@ -135,22 +140,39 @@ try {
     if ($vmResults.Count -ne 1) { throw "Expected exactly one Hyper-V VM matching the supplied VM GUID." }
     $vm = $vmResults[0]
     $drives = @(Get-VMHardDiskDrive -VM $vm -ErrorAction Stop)
+
+    # Capture the two operator-designated VHDX files first, then derive
+    # attachment safety flags from their actual metadata rather than defaults.
+    $boot = Get-VhdxEvidence -Path $BootVhdxPath
+    $data = Get-VhdxEvidence -Path $DataVhdxPath
+    $vhdxByPath = @{}
+    $vhdxByPath[(Get-CanonicalPath $boot.Path).ToUpperInvariant()] = $boot
+    $vhdxByPath[(Get-CanonicalPath $data.Path).ToUpperInvariant()] = $data
+
     $attachments = @()
     foreach ($drive in $drives) {
+        foreach ($propertyName in @("Path", "ControllerType", "DiskNumber", "SupportPersistentReservations")) {
+            if ($null -eq $drive.PSObject.Properties[$propertyName]) {
+                throw "Hyper-V attachment metadata '$propertyName' is unavailable; refusing to infer a safe value."
+            }
+        }
         if ([string]::IsNullOrWhiteSpace([string]$drive.Path)) {
             throw "A pass-through or pathless VM disk attachment was detected."
         }
+        $attachmentPath = Get-CanonicalPath ([string]$drive.Path)
+        $attachmentKey = $attachmentPath.ToUpperInvariant()
+        if (-not $vhdxByPath.ContainsKey($attachmentKey)) {
+            throw "An attached disk is not one of the two explicitly designated VHDX files."
+        }
+        $attachedVhdx = $vhdxByPath[$attachmentKey]
         $attachments += @{
-            Path = [string]$drive.Path
+            Path = $attachmentPath
             ControllerType = [string]$drive.ControllerType
             IsPassThrough = ($null -ne $drive.DiskNumber)
             IsShared = [bool]$drive.SupportPersistentReservations
-            IsDifferencing = $false
+            IsDifferencing = (-not [string]::IsNullOrWhiteSpace([string]$attachedVhdx.ParentPath))
         }
     }
-
-    $boot = Get-VhdxEvidence -Path $BootVhdxPath
-    $data = Get-VhdxEvidence -Path $DataVhdxPath
     $inventory = @{
         Vm = @{
             Id = [string]$vm.Id
@@ -182,6 +204,9 @@ try {
     }
     if (Test-Path -LiteralPath $evidenceFullPath) {
         throw "Evidence output already exists; refusing to overwrite: $evidenceFullPath"
+    }
+    if (Test-Path -LiteralPath $evidenceFullPath -PathType Container) {
+        throw "Evidence output must be a new file path, not an existing directory."
     }
     if (-not (Test-Path -LiteralPath $evidenceFullPath -IsValid)) {
         throw "Evidence output path is invalid."
