@@ -55,6 +55,19 @@ internal sealed class PhysicalAcquisitionPublicationDurabilityException : IOExce
 }
 
 /// <summary>
+/// Internal writer checkpoints used only by deterministic crash/recovery tests.
+/// The production coordinator does not expose or configure this callback.
+/// </summary>
+internal enum PhysicalAcquisitionPublicationCheckpoint
+{
+    ImageDataFlushedBeforeRename,
+    ImageRenamedBeforeNamespaceFlush,
+    ImageNamespaceFlushed,
+    ManifestRenamedBeforeNamespaceFlush,
+    ManifestNamespaceFlushed
+}
+
+/// <summary>
 /// Coordinates image and manifest publication through the same pinned destination
 /// session. This class accepts no destination paths; the session owns all filesystem
 /// operations and stream lifetimes.
@@ -70,13 +83,14 @@ internal static class PhysicalAcquisitionDestinationWriter
         string manifestFinalLeaf,
         object manifest,
         IProgress<DiskImageProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<PhysicalAcquisitionPublicationCheckpoint, ValueTask>? checkpoint = null)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         return WriteAndPublishAsync(
             source, session, imageTemporaryLeaf, imageFinalLeaf,
             manifestTemporaryLeaf, manifestFinalLeaf, _ => manifest,
-            progress, cancellationToken);
+            progress, cancellationToken, checkpoint);
     }
 
     public static async Task<PhysicalAcquisitionDestinationWriteResult> WriteAndPublishAsync(
@@ -88,7 +102,8 @@ internal static class PhysicalAcquisitionDestinationWriter
         string manifestFinalLeaf,
         Func<DiskImageContentResult, object> manifestFactory,
         IProgress<DiskImageProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<PhysicalAcquisitionPublicationCheckpoint, ValueTask>? checkpoint = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(session);
@@ -123,12 +138,15 @@ internal static class PhysicalAcquisitionDestinationWriter
             image = await DiskImager.WriteImageAsync(
                 source, imageStream, progress, cancellationToken).ConfigureAwait(false);
             await session.FlushToDiskAsync(imageStream, cancellationToken).ConfigureAwait(false);
+            await RunCheckpointAsync(checkpoint, PhysicalAcquisitionPublicationCheckpoint.ImageDataFlushedBeforeRename).ConfigureAwait(false);
             await session.PublishNoReplaceAsync(
                 imageStream, imageFinalLeaf, cancellationToken).ConfigureAwait(false);
             imagePublished = true;
+            await RunCheckpointAsync(checkpoint, PhysicalAcquisitionPublicationCheckpoint.ImageRenamedBeforeNamespaceFlush).ConfigureAwait(false);
             try
             {
                 await session.FlushPublishedNamespaceAsync(CancellationToken.None).ConfigureAwait(false);
+                await RunCheckpointAsync(checkpoint, PhysicalAcquisitionPublicationCheckpoint.ImageNamespaceFlushed).ConfigureAwait(false);
             }
             catch (Exception flushFailure)
             {
@@ -159,9 +177,11 @@ internal static class PhysicalAcquisitionDestinationWriter
             await session.PublishNoReplaceAsync(
                 manifestStream, manifestFinalLeaf, CancellationToken.None).ConfigureAwait(false);
             manifestPublished = true;
+            await RunCheckpointAsync(checkpoint, PhysicalAcquisitionPublicationCheckpoint.ManifestRenamedBeforeNamespaceFlush).ConfigureAwait(false);
             try
             {
                 await session.FlushPublishedNamespaceAsync(CancellationToken.None).ConfigureAwait(false);
+                await RunCheckpointAsync(checkpoint, PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed).ConfigureAwait(false);
             }
             catch (Exception flushFailure)
             {
@@ -183,6 +203,11 @@ internal static class PhysicalAcquisitionDestinationWriter
                 imageFinalLeaf, manifestFinalLeaf, image.Sha256, failure);
         }
     }
+
+    private static ValueTask RunCheckpointAsync(
+        Func<PhysicalAcquisitionPublicationCheckpoint, ValueTask>? checkpoint,
+        PhysicalAcquisitionPublicationCheckpoint phase) =>
+        checkpoint is null ? ValueTask.CompletedTask : checkpoint(phase);
 
     private static async Task EnsureOwnedVolume(
         IPhysicalAcquisitionDestinationSession session,
