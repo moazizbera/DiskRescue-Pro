@@ -24,6 +24,7 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
         Assert.True(session.IsPublished("capture.img"));
         Assert.True(session.IsPublished("capture.json"));
         Assert.Equal(2, session.FlushCount);
+        Assert.Equal(2, session.NamespaceFlushCount);
         Assert.Equal(bytes, session.PublishedBytes("capture.img"));
         using var manifest = JsonDocument.Parse(session.PublishedBytes("capture.json"));
         Assert.Equal("session-manifest", manifest.RootElement.GetProperty("format").GetString());
@@ -107,8 +108,49 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
         Assert.True(session.IsPublished("capture.img"));
         Assert.False(session.IsPublished("capture.json"));
         Assert.True(session.WasDeleted("capture.json.partial"));
+        Assert.Equal(1, session.NamespaceFlushCount);
         Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)), error.Sha256);
         Assert.Equal("capture.img", error.ImageLeafName);
+    }
+
+    [Fact]
+    public async Task WriterPreservesPublishedImageWhenImageNamespaceFlushFails()
+    {
+        using var source = new MemorySource(new byte[96 * 1024]);
+        await using var session = new FakeDestinationSession { FailNamespaceFlushOnCall = 1 };
+
+        var error = await Assert.ThrowsAsync<PhysicalAcquisitionPublicationDurabilityException>(() =>
+            PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
+                source, session,
+                "capture.img.partial", "capture.img",
+                "capture.json.partial", "capture.json",
+                new { format = "test" }));
+
+        Assert.Equal("capture.img", error.PublishedLeafName);
+        Assert.True(session.IsPublished("capture.img"));
+        Assert.False(session.IsPublished("capture.json"));
+        Assert.False(session.WasDeleted("capture.img.partial"));
+        Assert.Equal(1, session.NamespaceFlushCount);
+    }
+
+    [Fact]
+    public async Task WriterPreservesPublishedImageAndManifestWhenManifestNamespaceFlushFails()
+    {
+        using var source = new MemorySource(new byte[96 * 1024]);
+        await using var session = new FakeDestinationSession { FailNamespaceFlushOnCall = 2 };
+
+        var error = await Assert.ThrowsAsync<PhysicalAcquisitionPublicationDurabilityException>(() =>
+            PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
+                source, session,
+                "capture.img.partial", "capture.img",
+                "capture.json.partial", "capture.json",
+                new { format = "test" }));
+
+        Assert.Equal("capture.json", error.PublishedLeafName);
+        Assert.True(session.IsPublished("capture.img"));
+        Assert.True(session.IsPublished("capture.json"));
+        Assert.False(session.WasDeleted("capture.json.partial"));
+        Assert.Equal(2, session.NamespaceFlushCount);
     }
 
     [Fact]
@@ -200,8 +242,10 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
         public bool FirstFileWithoutId { get; init; }
         public bool SecondFileOnDifferentVolume { get; init; }
         public bool FailManifestPublication { get; init; }
+        public int FailNamespaceFlushOnCall { get; init; }
         public int CreatedCount => _owned.Count;
         public int FlushCount { get; private set; }
+        public int NamespaceFlushCount { get; private set; }
         public int PublishedCount => _published.Count;
 
         public ValueTask<Stream> CreateNewFileAsync(string leafName, CancellationToken cancellationToken = default)
@@ -250,6 +294,16 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
                 throw new IOException("No-replace collision.");
             _published.Add(finalLeafName, ((MemoryStream)file).ToArray());
             _publishedStreams.Add(file);
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask FlushPublishedNamespaceAsync(CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+            cancellationToken.ThrowIfCancellationRequested();
+            NamespaceFlushCount++;
+            if (NamespaceFlushCount == FailNamespaceFlushOnCall)
+                throw new IOException("Synthetic destination volume flush failure.");
             return ValueTask.CompletedTask;
         }
 
