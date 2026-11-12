@@ -37,6 +37,24 @@ internal sealed class PhysicalAcquisitionManifestCommitException : IOException
 }
 
 /// <summary>
+/// A destination entry was published, but the volume-wide namespace flush failed.
+/// The published entry is preserved; power-loss durability is unconfirmed.
+/// </summary>
+internal sealed class PhysicalAcquisitionPublicationDurabilityException : IOException
+{
+    public PhysicalAcquisitionPublicationDurabilityException(string publishedLeafName, Exception innerException)
+        : base(
+            $"Destination entry '{publishedLeafName}' was published, but the destination volume flush failed. " +
+            "The entry was preserved; namespace durability is unconfirmed.",
+            innerException)
+    {
+        PublishedLeafName = publishedLeafName;
+    }
+
+    public string PublishedLeafName { get; }
+}
+
+/// <summary>
 /// Coordinates image and manifest publication through the same pinned destination
 /// session. This class accepts no destination paths; the session owns all filesystem
 /// operations and stream lifetimes.
@@ -108,6 +126,14 @@ internal static class PhysicalAcquisitionDestinationWriter
             await session.PublishNoReplaceAsync(
                 imageStream, imageFinalLeaf, cancellationToken).ConfigureAwait(false);
             imagePublished = true;
+            try
+            {
+                await session.FlushPublishedNamespaceAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception flushFailure)
+            {
+                throw new PhysicalAcquisitionPublicationDurabilityException(imageFinalLeaf, flushFailure);
+            }
         }
         catch (Exception failure)
         {
@@ -133,13 +159,24 @@ internal static class PhysicalAcquisitionDestinationWriter
             await session.PublishNoReplaceAsync(
                 manifestStream, manifestFinalLeaf, CancellationToken.None).ConfigureAwait(false);
             manifestPublished = true;
+            try
+            {
+                await session.FlushPublishedNamespaceAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception flushFailure)
+            {
+                throw new PhysicalAcquisitionPublicationDurabilityException(manifestFinalLeaf, flushFailure);
+            }
 
             return new PhysicalAcquisitionDestinationWriteResult(
                 imageFinalLeaf, image.BytesCopied, image.Sha256, manifestFinalLeaf);
         }
         catch (Exception failure)
         {
-            if (!manifestPublished && manifestStream is not null)
+            if (manifestPublished)
+                throw;
+
+            if (manifestStream is not null)
                 await DeleteAfterFailureAsync(session, manifestStream, failure).ConfigureAwait(false);
 
             throw new PhysicalAcquisitionManifestCommitException(
