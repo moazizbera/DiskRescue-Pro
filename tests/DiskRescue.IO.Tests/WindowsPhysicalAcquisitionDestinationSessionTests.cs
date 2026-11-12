@@ -33,7 +33,7 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
                 (uint)Marshal.SizeOf<FileModeInformation>(),
                 FileModeInformationClass);
             Assert.Equal(0, modeStatus);
-            Assert.NotEqual(0u, mode.Mode & FileWriteThrough);
+            Assert.Equal(0u, mode.Mode & FileWriteThrough);
             await stream.WriteAsync(new byte[] { 4, 8, 15, 16, 23, 42 });
 
             var identity = await session.GetFileIdentityAsync(stream);
@@ -42,6 +42,19 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
 
             await session.FlushToDiskAsync(stream);
             await session.PublishNoReplaceAsync(stream, "capture.img");
+
+            // Write-through is enabled only at publication, after the sequential
+            // image write and explicit content flush have completed.
+            mode = new FileModeInformation();
+            modeStatus = NtQueryInformationFile(
+                nativeStream.SafeFileHandle,
+                out _,
+                ref mode,
+                (uint)Marshal.SizeOf<FileModeInformation>(),
+                FileModeInformationClass);
+            Assert.Equal(0, modeStatus);
+            Assert.NotEqual(0u, mode.Mode & FileWriteThrough);
+
             await session.DisposeAsync();
 
             Assert.Equal(
