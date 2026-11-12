@@ -76,12 +76,19 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         return QueryCurrentDirectoryPath(_directoryHandle);
     }
 
-    // Prototype only: flushes all open files on the pinned destination volume.
-    // This is deliberately invoked only by the disposable-VHDX acceptance test
-    // until its publication semantics and operational cost are independently reviewed.
-    internal void FlushVolumeBuffers()
+    public ValueTask FlushPublishedNamespaceAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
+        FlushVolumeBuffers();
+        return ValueTask.CompletedTask;
+    }
+
+    // Flushes all open files on the volume resolved from the pinned directory handle.
+    // This does not open a physical-disk handle; the volume handle is used only for
+    // the documented volume-wide FlushFileBuffers operation.
+    private void FlushVolumeBuffers()
+    {
         var volumePath = VolumeGuidPath.TrimEnd('\\');
         using var volumeHandle = CreateFileW(
             volumePath,
