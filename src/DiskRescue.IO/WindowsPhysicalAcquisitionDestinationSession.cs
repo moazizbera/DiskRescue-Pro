@@ -36,6 +36,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
     private const uint FileDirectoryFile = 0x00000001;
     private const uint FileNonDirectoryFile = 0x00000040;
     private const uint FileWriteThrough = 0x00000002;
+    private const uint FileSynchronousIoAlert = 0x00000010;
     private const uint FileSynchronousIoNonAlert = 0x00000020;
     private const uint FileOpenReparsePoint = 0x00200000;
     private const uint ObjectCaseInsensitive = 0x00000040;
