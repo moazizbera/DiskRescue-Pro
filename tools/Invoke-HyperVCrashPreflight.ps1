@@ -156,6 +156,9 @@ try {
                 throw "Hyper-V attachment metadata '$propertyName' is unavailable; refusing to infer a safe value."
             }
         }
+        if ($null -eq $drive.SupportPersistentReservations -or $drive.SupportPersistentReservations -isnot [bool]) {
+            throw "Hyper-V shared-disk metadata is null or not Boolean; refusing to infer that the disk is not shared."
+        }
         if ([string]::IsNullOrWhiteSpace([string]$drive.Path)) {
             throw "A pass-through or pathless VM disk attachment was detected."
         }
@@ -169,7 +172,7 @@ try {
             Path = $attachmentPath
             ControllerType = [string]$drive.ControllerType
             IsPassThrough = ($null -ne $drive.DiskNumber)
-            IsShared = [bool]$drive.SupportPersistentReservations
+            IsShared = $drive.SupportPersistentReservations
             IsDifferencing = (-not [string]::IsNullOrWhiteSpace([string]$attachedVhdx.ParentPath))
         }
     }
