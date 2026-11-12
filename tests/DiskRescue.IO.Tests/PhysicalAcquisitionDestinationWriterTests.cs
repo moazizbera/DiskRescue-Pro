@@ -301,6 +301,55 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
         Assert.Equal(1, session.NamespaceFlushCount);
     }
 
+    [Fact]
+    public async Task CheckpointFailureAfterImageNamespaceFlushPreservesPublishedImageWithoutMisreportingFlushFailure()
+    {
+        using var source = new MemorySource(new byte[96 * 1024]);
+        await using var session = new FakeDestinationSession();
+        var checkpointFailure = new InvalidOperationException("Synthetic post-image-flush checkpoint stop.");
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
+                source, session,
+                "capture.img.partial", "capture.img",
+                "capture.json.partial", "capture.json",
+                new { format = "test" },
+                checkpoint: phase => phase == PhysicalAcquisitionPublicationCheckpoint.ImageNamespaceFlushed
+                    ? ValueTask.FromException(checkpointFailure)
+                    : ValueTask.CompletedTask));
+
+        Assert.Same(checkpointFailure, error);
+        Assert.True(session.IsPublished("capture.img"));
+        Assert.False(session.IsPublished("capture.json"));
+        Assert.False(session.WasDeleted("capture.img.partial"));
+        Assert.Equal(1, session.NamespaceFlushCount);
+    }
+
+    [Fact]
+    public async Task CheckpointFailureAfterManifestNamespaceFlushPreservesBothPublishedEntries()
+    {
+        using var source = new MemorySource(new byte[96 * 1024]);
+        await using var session = new FakeDestinationSession();
+        var checkpointFailure = new InvalidOperationException("Synthetic post-manifest-flush checkpoint stop.");
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
+                source, session,
+                "capture.img.partial", "capture.img",
+                "capture.json.partial", "capture.json",
+                new { format = "test" },
+                checkpoint: phase => phase == PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed
+                    ? ValueTask.FromException(checkpointFailure)
+                    : ValueTask.CompletedTask));
+
+        Assert.Same(checkpointFailure, error);
+        Assert.True(session.IsPublished("capture.img"));
+        Assert.True(session.IsPublished("capture.json"));
+        Assert.False(session.WasDeleted("capture.img.partial"));
+        Assert.False(session.WasDeleted("capture.json.partial"));
+        Assert.Equal(2, session.NamespaceFlushCount);
+    }
+
     private sealed class FakeDestinationSession : IPhysicalAcquisitionDestinationSession
     {
         private readonly Dictionary<Stream, string> _owned = new();
