@@ -94,7 +94,12 @@ function Test-DiskRescueHyperVPreflightInventory {
             }
         }
         foreach ($flag in @("IsPassThrough", "IsShared", "IsDifferencing")) {
-            if ($attachment[$flag] -isnot [bool]) {
+            $flagValue = if ($attachment -is [System.Collections.IDictionary]) {
+                $attachment[$flag]
+            } else {
+                $attachment.PSObject.Properties[$flag].Value
+            }
+            if ($flagValue -isnot [bool]) {
                 throw "Attachment safety metadata '$flag' must be an explicit Boolean value."
             }
         }
