@@ -72,6 +72,8 @@ $cases = @(
     @{ Name="duplicate attachment"; Change={ param($x) $x.Inventory.Attachments[1].Path=$x.Expected.BootVhdxPath } }
     @{ Name="unexpected third VHDX"; Change={ param($x) $x.Inventory.Attachments += @{ Path="C:/HyperV/extra.vhdx"; ControllerType="SCSI"; IsPassThrough=$false; IsShared=$false; IsDifferencing=$false } } }
     @{ Name="missing attachment"; Change={ param($x) $x.Inventory.Attachments=@($x.Inventory.Attachments[0]) } }
+    @{ Name="shared boot attachment"; Change={ param($x) $x.Inventory.Attachments[0].IsShared=$true } }
+    @{ Name="pass-through boot attachment"; Change={ param($x) $x.Inventory.Attachments[0].IsPassThrough=$true } }
     @{ Name="differencing data disk"; Change={ param($x) $x.Inventory.Vhdx.Data.ParentPath="C:/HyperV/parent.vhdx" } }
     @{ Name="changed baseline hash"; Change={ param($x) $x.Inventory.Vhdx.Data.Sha256=("C" * 64) } }
     @{ Name="changed file identity"; Change={ param($x) $x.Inventory.Vhdx.Data.FileId="changed-file-id" } }
@@ -91,6 +93,8 @@ $expectedErrors = @{
     "duplicate attachment" = "Duplicate VHDX attachment"
     "unexpected third VHDX" = "Exactly two VHDX attachments"
     "missing attachment" = "Exactly two VHDX attachments"
+    "shared boot attachment" = "Pass-through, shared, and differencing attachments"
+    "pass-through boot attachment" = "Pass-through, shared, and differencing attachments"
     "differencing data disk" = "must be a standalone disk"
     "changed baseline hash" = "Data VHDX baseline SHA-256 mismatch"
     "changed file identity" = "Data VHDX baseline file identity mismatch"
