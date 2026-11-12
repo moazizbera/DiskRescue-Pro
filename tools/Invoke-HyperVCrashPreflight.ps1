@@ -197,6 +197,51 @@ try {
     }
     $result = Test-DiskRescueHyperVPreflightInventory -Expected $expected -Inventory $inventory
 
+    # Re-query VM identity/state and the complete attachment map after hashing
+    # both VHDX files. Any drift invalidates this point-in-time evidence.
+    $vmRecheckResults = @(Get-VM -Id $vmGuid -ErrorAction Stop)
+    if ($vmRecheckResults.Count -ne 1) {
+        throw "VM identity changed or became ambiguous during preflight."
+    }
+    $vmRecheck = $vmRecheckResults[0]
+    if ([string]$vmRecheck.Id -ne [string]$vm.Id -or
+        [string]$vmRecheck.Name -cne [string]$vm.Name -or
+        [string]$vmRecheck.State -ne "Off" -or
+        [string]$vmRecheck.Version -cne [string]$vm.Version) {
+        throw "VM identity, state, or configuration changed during preflight; evidence is invalid."
+    }
+    $driveRecheck = @(Get-VMHardDiskDrive -VM $vmRecheck -ErrorAction Stop)
+    if ($driveRecheck.Count -ne $attachments.Count) {
+        throw "VM disk attachment count changed during preflight; evidence is invalid."
+    }
+    $recheckedPaths = @()
+    foreach ($drive in $driveRecheck) {
+        foreach ($propertyName in @("Path", "ControllerType", "DiskNumber", "SupportPersistentReservations")) {
+            if ($null -eq $drive.PSObject.Properties[$propertyName] -or
+                $null -eq $drive.$propertyName) {
+                throw "VM attachment metadata became unavailable during preflight; evidence is invalid."
+            }
+        }
+        if ($drive.SupportPersistentReservations -isnot [bool] -or
+            [bool]$drive.SupportPersistentReservations -or
+            $null -ne $drive.DiskNumber) {
+            throw "VM attachment safety metadata changed or became unsafe during preflight."
+        }
+        $recheckedPaths += (Get-CanonicalPath ([string]$drive.Path)).ToUpperInvariant()
+    }
+    $originalPaths = @($attachments | ForEach-Object { (Get-CanonicalPath ([string]$_.Path)).ToUpperInvariant() })
+    if (@(Compare-Object -ReferenceObject ($originalPaths | Sort-Object) -DifferenceObject ($recheckedPaths | Sort-Object)).Count -ne 0) {
+        throw "VM disk attachment paths changed during preflight; evidence is invalid."
+    }
+    foreach ($pair in @(@{Before=$boot;Path=$BootVhdxPath},@{Before=$data;Path=$DataVhdxPath})) {
+        $after = Get-VhdxEvidence -Path $pair.Path
+        foreach ($field in @("FileId","LinkCount","FileLength","Sha256","VirtualDiskId","ParentPath","Type","Format")) {
+            if ([string]$after.$field -cne [string]$pair.Before.$field) {
+                throw "VHDX $field changed during preflight; evidence is invalid."
+            }
+        }
+    }
+
     $evidenceFullPath = [System.IO.Path]::GetFullPath($EvidencePath)
     if ($evidenceFullPath -notmatch '^[A-Za-z]:[\\/]') {
         throw "Evidence output must use a fully qualified local drive-letter path."
