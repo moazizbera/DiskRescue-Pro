@@ -220,6 +220,13 @@ try {
     }
 
     Write-Host "PASS: the native coordinator encountered real destination disk-full, removed its unpublished partial image, published no final image/manifest, and left the read-only source hash unchanged."
+
+    dotnet test $testProject --configuration Release --no-build --filter "FullyQualifiedName~PinnedVolumeHandleFlushesPublishedEntryOnDisposableNtfsVhdx" --logger "console;verbosity=normal"
+    $flushTestExitCode = $LASTEXITCODE
+    if ($flushTestExitCode -ne 0) {
+        throw "The disposable NTFS VHDX volume-handle flush integration test failed (dotnet test exit $flushTestExitCode)."
+    }
+    Write-Host "PASS: FlushFileBuffers completed through the pinned volume-GUID handle on the disposable NTFS destination VHDX."
 }
 finally {
     Remove-Item Env:\DISKRESCUE_TEST_VHDX_DISK_NUMBER -ErrorAction SilentlyContinue
