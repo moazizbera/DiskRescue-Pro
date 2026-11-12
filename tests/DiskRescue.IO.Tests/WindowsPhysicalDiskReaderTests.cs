@@ -528,4 +528,59 @@ public sealed class WindowsPhysicalDiskReaderTests
         Assert.Empty(issues);
     }
 
+
+    [Fact]
+    public void BootPartitionParserRejectsTruncatedMbrPartitionFields()
+    {
+        var data = new byte[39];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 0);
+
+        Assert.Throws<InvalidDataException>(() => WindowsBootDeviceMap.IsFirmwareSystemPartition(data));
+    }
+
+    [Fact]
+    public void VolumeExtentParserRejectsExcessiveExtentCount()
+    {
+        var data = new byte[8];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 1025);
+
+        Assert.Throws<InvalidDataException>(() => WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(data));
+    }
+
+    [Fact]
+    public void VolumeExtentParserRejectsNegativeStartingOffset()
+    {
+        var data = new byte[8 + 24];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(8, 4), 2);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(16, 8), -1);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(24, 8), 4096);
+
+        Assert.Throws<InvalidDataException>(() => WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(data));
+    }
+
+    [Fact]
+    public void VolumeExtentParserRejectsNonPositiveExtentLength()
+    {
+        var data = new byte[8 + 24];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(8, 4), 2);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(16, 8), 0);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(24, 8), 0);
+
+        Assert.Throws<InvalidDataException>(() => WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(data));
+    }
+
+    [Fact]
+    public void VolumeExtentParserRejectsOverflowingExtentEnd()
+    {
+        var data = new byte[8 + 24];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(8, 4), 2);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(16, 8), long.MaxValue);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(24, 8), 1);
+
+        Assert.Throws<OverflowException>(() => WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(data));
+    }
+
 }
