@@ -75,6 +75,9 @@ namespace DiskRescue.Preflight {
 }
 '@
 }
+if (-not ("DiskRescue.Preflight.PinnedEvidenceFile" -as [type])) {
+    Add-Type -Path (Join-Path $PSScriptRoot "PinnedEvidenceFile.cs") -ErrorAction Stop
+}
 
 function Get-ReadOnlyFileIdentity {
     param([Parameter(Mandatory)][string]$Path)
@@ -261,24 +264,12 @@ try {
         [string]::Equals($evidenceFullPath, $data.Path, [StringComparison]::OrdinalIgnoreCase)) {
         throw "Evidence output must not overwrite either VHDX."
     }
-    if (Test-Path -LiteralPath $evidenceFullPath) {
-        throw "Evidence output already exists; refusing to overwrite: $evidenceFullPath"
-    }
-    if (Test-Path -LiteralPath $evidenceFullPath -PathType Container) {
-        throw "Evidence output must be a new file path, not an existing directory."
-    }
-    if (-not (Test-Path -LiteralPath $evidenceFullPath -IsValid)) {
-        throw "Evidence output path is invalid."
-    }
-    $evidenceDirectory = Split-Path -Parent $evidenceFullPath
-    if (-not (Test-Path -LiteralPath $evidenceDirectory -PathType Container)) {
-        throw "Evidence directory must already exist; this preflight will not create directories."
-    }
-    Assert-NoReparsePointInPath $evidenceDirectory
     if ([string]::Equals($evidenceFullPath, [System.IO.Path]::GetFullPath($PSScriptRoot), [StringComparison]::OrdinalIgnoreCase)) {
         throw "Evidence output must be a file path, not a directory."
     }
 
+    $evidenceDirectory = Split-Path -Parent $evidenceFullPath
+    $evidenceLeaf = Split-Path -Leaf $evidenceFullPath
     $document = [ordered]@{
         Schema = "DiskRescue.HyperVPreflight.v1"
         Result = $result
@@ -288,7 +279,10 @@ try {
         DataVhdx = $data
     }
     $json = $document | ConvertTo-Json -Depth 8
-    $stream = [System.IO.File]::Open($evidenceFullPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::Read)
+    # The native helper pins each directory component and creates the new file
+    # relative to the retained final directory handle. It fails closed on reparse
+    # points and uses FILE_CREATE (atomic no-replace); no path-based fallback exists.
+    $stream = [DiskRescue.Preflight.PinnedEvidenceFile]::CreateNew($evidenceDirectory, $evidenceLeaf)
     try {
         $bytes = [Text.UTF8Encoding]::new($false).GetBytes($json + [Environment]::NewLine)
         $stream.Write($bytes, 0, $bytes.Length)
