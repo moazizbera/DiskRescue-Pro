@@ -60,11 +60,6 @@ function Invoke-Case([string]$Name, [scriptblock]$Action, [bool]$ShouldPass, [st
 
 $f = New-Fixture
 Invoke-Case "valid exact VM and two-disk inventory" { Test-DiskRescueHyperVPreflightInventory -Expected $f.Expected -Inventory $f.Inventory | Out-Null } $true
-$f = New-Fixture
-$f.Inventory.Vhdx.Boot.Remove("LinkCount")
-$f.Inventory.Vhdx.Data.Remove("LinkCount")
-Invoke-Case "valid inventory when optional link-count evidence is absent" { Test-DiskRescueHyperVPreflightInventory -Expected $f.Expected -Inventory $f.Inventory | Out-Null } $true
-
 $cases = @(
     @{ Name="wrong VM ID"; Change={ param($x) $x.Inventory.Vm.Id="a9f88428-ae55-4db9-bcca-cf1e23bfa210" } }
     @{ Name="same name but different VM ID"; Change={ param($x) $x.Inventory.Vm.Id="b9f88428-ae55-4db9-bcca-cf1e23bfa210" } }
@@ -88,6 +83,7 @@ $cases = @(
     @{ Name="duplicate virtual disk identity"; Change={ param($x) $x.Inventory.Vhdx.Data.VirtualDiskId=$x.Inventory.Vhdx.Boot.VirtualDiskId } }
     @{ Name="hard-link alias"; Change={ param($x) $x.Inventory.Vhdx.Data.LinkCount=2L } }
     @{ Name="unknown hard-link count"; Change={ param($x) $x.Inventory.Vhdx.Data.LinkCount=$null } }
+    @{ Name="missing hard-link count"; Change={ param($x) $x.Inventory.Vhdx.Data.Remove("LinkCount") } }
 )
 $expectedErrors = @{
     "wrong VM ID" = "VM ID mismatch"
@@ -112,6 +108,7 @@ $expectedErrors = @{
     "duplicate virtual disk identity" = "virtual-disk identities must be distinct"
     "hard-link alias" = "additional hard-link aliases"
     "unknown hard-link count" = "hard-link count is unknown"
+    "missing hard-link count" = "hard-link count evidence is missing"
 }
 foreach ($case in $cases) {
     $f = New-Fixture
