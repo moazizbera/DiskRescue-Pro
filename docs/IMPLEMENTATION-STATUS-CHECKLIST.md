@@ -1359,3 +1359,15 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] This validates response-buffer length handling in the automated Windows x64 test environment; it does not prove behavior across all Windows releases, storage drivers, filesystems, or physical hardware.
 - [ ] Independent native security review, supported Windows x86 runtime execution, publication namespace/power-loss durability evidence, broader compatibility, and manual UI/high-DPI/accessibility checks remain outstanding.
 - [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested; physical HDD testing is not authorized.
+
+
+### Volume-map fail-closed unmapped-disk conclusion — exact-head validation — 2026-11-12
+
+- [x] Tightened `PhysicalVolumeMappingResult.CanTreatDiskAsUnmapped`: a disk is treated as unmapped only when enumeration is complete, the disk has no volume-path entry, and the result contains no diagnostic issues.
+- [x] Added regression coverage proving that a nominally complete result with a volume-extent diagnostic cannot be used to conclude that a disk is unmapped; retained the clean-complete-map positive case.
+- [x] Implementation commit: `03aed431b8a194960c1495bc73c8ed3cf6183cbd`; regression-test commit / exact PR head: `93c41e5b97b265ffb86b30bc57058eb37df7f586`.
+- [x] Exact-head Windows CI run [43182609620](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43182609620) completed successfully on `93c41e5b97b265ffb86b30bc57058eb37df7f586`; all **24/24** workflow steps passed, including build, test invocation, disposable-VHDX read-only policy and ENOSPC integration, generated fixtures, CLI/NTFS smoke tests, WPF build, x64 desktop/CLI preview publishing, screenshot capture, and artifact uploads.
+- [x] Downloaded and parsed the exact-run TRX artifact: **385 passed, 0 failed, 0 errors; 388 test cases listed, 385 executed and 3 marked NotExecuted**. The three skipped cases are opt-in VHDX integration facts; the workflow separately ran the dedicated VHDX read-only policy and ENOSPC integration steps successfully.
+- [ ] This validates the helper's fail-closed behavior in the automated Windows x64 environment only; it does not prove physical disk inventory correctness, all storage-driver behavior, or compatibility across Windows/filesystem versions.
+- [ ] Independent native security review, supported Windows x86 runtime execution, publication namespace/power-loss durability evidence, broader compatibility, and manual UI/high-DPI/accessibility checks remain outstanding.
+- [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested; physical HDD testing is not authorized.
