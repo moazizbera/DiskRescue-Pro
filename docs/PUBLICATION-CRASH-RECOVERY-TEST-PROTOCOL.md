@@ -41,6 +41,22 @@ Exercise these phases independently, restoring a fresh copy of the generated bas
 
 The checkpoint seam must pause only after recording its exact phase. The host controller must verify the checkpoint run ID and phase before issuing an abrupt power-off. A timeout, stale marker, unexpected phase, or mismatched VM/VHDX identity means **Abort**, not power-off.
 
+## 3A. Test-only checkpoint seam
+
+The writer now has an internal optional checkpoint callback with these exact phases:
+
+- `ImageDataFlushedBeforeRename`
+- `ImageRenamedBeforeNamespaceFlush`
+- `ImageNamespaceFlushed`
+- `ManifestRenamedBeforeNamespaceFlush`
+- `ManifestNamespaceFlushed`
+
+The production acquisition coordinator does not expose or configure this callback; normal production calls leave it null. The callback is intended for the isolated test harness to publish a run-ID/phase marker and wait for an external controller. It must not change the writer's ordering or perform filesystem mutations. A test pause after a rename must leave the published entry intact; it must never be translated into a volume-flush failure.
+
+The deterministic writer tests assert the exact checkpoint order and verify that a synthetic pause failure immediately after image rename does not delete the published image or masquerade as a flush failure. These are unit-level seam tests, not crash/recovery evidence.
+
+The protocol's Phase C maps to `ImageNamespaceFlushed` followed by `ManifestRenamedBeforeNamespaceFlush`; Phase D maps to `ManifestNamespaceFlushed`. The test harness must select one checkpoint per run and use a fresh VHDX baseline for every run.
+
 ## 4. Crash, reboot, and verification procedure
 
 For each phase:
