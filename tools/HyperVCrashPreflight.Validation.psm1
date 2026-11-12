@@ -144,7 +144,9 @@ function Test-DiskRescueHyperVPreflightInventory {
         if ([bool]$disk.HasReparsePoint) { throw "$role VHDX path contains a reparse point." }
         if ([long]$disk.FileLength -le 0 -or [long]$disk.VirtualSize -le 0) { throw "$role VHDX sizes are invalid." }
         if ([string]::IsNullOrWhiteSpace([string]$disk.FileId)) { throw "$role VHDX file identity is missing." }
-        if ([string]$disk.Sha256 -notmatch '^[A-Fa-f0-9]{64}
+        if ([string]$disk.Sha256 -notmatch '^[A-Fa-f0-9]{64}$') { throw "$role VHDX SHA-256 evidence is invalid." }
+        $linkCountPresent = $false
+        $linkCount = 0L
         if ($disk -is [System.Collections.IDictionary]) {
             $linkCountPresent = $disk.Contains("LinkCount")
             if ($linkCountPresent) {
