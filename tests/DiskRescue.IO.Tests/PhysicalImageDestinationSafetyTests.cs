@@ -260,4 +260,23 @@ public sealed class PhysicalImageDestinationSafetyTests
         Assert.Contains(issues, issue => issue.Contains("does not have exactly one", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void PhysicalIdentityCheckRejectsAmbiguousDuplicateDiskNumberDescriptors()
+    {
+        var inventory = new PhysicalDiskDiscoveryResult(
+            new[]
+            {
+                PhysicalDisk(0, "SOURCE-A"),
+                PhysicalDisk(0, "SOURCE-B"),
+                PhysicalDisk(1, "DESTINATION")
+            },
+            Array.Empty<string>());
+
+        var issues = PhysicalImageDestinationSafety.ValidatePhysicalDiskIdentities(
+            inventory, new[] { 0 }, new[] { 1 });
+
+        Assert.Contains(issues, issue =>
+            issue.Contains("does not have exactly one current identity descriptor", StringComparison.OrdinalIgnoreCase));
+    }
+
 }
