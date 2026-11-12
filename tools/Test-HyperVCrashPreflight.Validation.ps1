@@ -23,7 +23,7 @@ function New-Fixture {
             @{ Path = $data; ControllerType = "SCSI"; IsPassThrough = $false; IsShared = $false; IsDifferencing = $false }
         )
         Vhdx = @{
-            Boot = @{ Path = $boot; Format = "VHDX"; Type = "Dynamic"; ParentPath = $null; VirtualDiskId = "d9f88428-ae55-4db9-bcca-cf1e23bfa210"; HasReparsePoint = $false; FileLength = 8192L; VirtualSize = 1073741824L; LinkCount = 1L }
+            Boot = @{ Path = $boot; Format = "VHDX"; Type = "Dynamic"; ParentPath = $null; VirtualDiskId = "d9f88428-ae55-4db9-bcca-cf1e23bfa210"; HasReparsePoint = $false; FileLength = 8192L; VirtualSize = 1073741824L; Sha256 = ("D" * 64); FileId = "volume-serial:00001234;file-id:000000000000abce"; LinkCount = 1L }
             Data = @{ Path = $data; Format = "VHDX"; Type = "Dynamic"; ParentPath = $null; VirtualDiskId = "e9f88428-ae55-4db9-bcca-cf1e23bfa210"; HasReparsePoint = $false; FileLength = 1048576L; VirtualSize = 1073741824L; Sha256 = ("B" * 64); FileId = $expected.BaselineFileId; LinkCount = 1L }
         }
     }
@@ -87,6 +87,9 @@ $cases = @(
     @{ Name="missing boot reparse status"; Change={ param($x) $x.Inventory.Vhdx.Boot.Remove("HasReparsePoint") } }
     @{ Name="unknown data reparse status"; Change={ param($x) $x.Inventory.Vhdx.Data.HasReparsePoint=$null } }
     @{ Name="missing boot VHDX type"; Change={ param($x) $x.Inventory.Vhdx.Boot.Remove("Type") } }
+    @{ Name="missing boot VHDX file identity"; Change={ param($x) $x.Inventory.Vhdx.Boot.Remove("FileId") } }
+    @{ Name="missing boot VHDX SHA-256"; Change={ param($x) $x.Inventory.Vhdx.Boot.Remove("Sha256") } }
+    @{ Name="invalid boot VHDX SHA-256"; Change={ param($x) $x.Inventory.Vhdx.Boot.Sha256="not-a-hash" } }
 )
 $expectedErrors = @{
     "wrong VM ID" = "VM ID mismatch"
@@ -115,6 +118,9 @@ $expectedErrors = @{
     "missing boot reparse status" = "VHDX metadata 'HasReparsePoint' is missing"
     "unknown data reparse status" = "reparse-point status must be an explicit Boolean"
     "missing boot VHDX type" = "VHDX metadata 'Type' is missing"
+    "missing boot VHDX file identity" = "Boot VHDX file identity is missing"
+    "missing boot VHDX SHA-256" = "VHDX metadata 'Sha256' is missing"
+    "invalid boot VHDX SHA-256" = "Boot VHDX SHA-256 evidence is invalid"
 }
 foreach ($case in $cases) {
     $f = New-Fixture
