@@ -1336,3 +1336,13 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] Synthetic metadata does not prove production physical-device identity reconciliation or real physical source/destination separation. No original or valuable physical HDD was opened or read.
 - [ ] Independent native security review, supported x86 runtime execution, broader filesystem/Windows compatibility, high-DPI/accessibility/manual workflow checks, and power-loss publication durability evidence remain outstanding.
 - [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled; physical HDD testing is not authorized.
+
+## Latest parser validation — unterminated storage identity strings
+
+- Parser rejects vendor/model/serial identity strings that have no NUL terminator within the declared descriptor size; unterminated strings are returned as null rather than consuming arbitrary trailing bytes.
+- Regression fixture fills the complete declared string region with non-zero bytes, ensuring the test cannot pass due to zero-initialized fixture padding.
+- Exact-head Windows CI passed on `120200b4d68709a2678adb6eb975c553cbf01477`: https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43168744497.
+- Test results: 380 passed, 0 failed, 0 errors, 380 executed (383 total); both the unterminated-string regression and valid bounded-identity parser test passed.
+- All 43 workflow steps passed, including disposable VHDX read-only policy and ENOSPC cleanup integration, generated fixtures, CLI/NTFS smoke tests, WPF build, x64 desktop/CLI preview publishing, and dashboard screenshot capture.
+- This evidence validates parser behavior and the listed CI harnesses only. It does not authorize physical HDD acquisition or replace independent security review, supported-Windows compatibility testing, x86 runtime proof, power-loss durability validation, or manual UI/accessibility review.
+
