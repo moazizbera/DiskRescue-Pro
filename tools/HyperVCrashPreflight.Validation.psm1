@@ -117,7 +117,8 @@ function Test-DiskRescueHyperVPreflightInventory {
         }
         if ([bool]$disk.HasReparsePoint) { throw "$role VHDX path contains a reparse point." }
         if ([long]$disk.FileLength -le 0 -or [long]$disk.VirtualSize -le 0) { throw "$role VHDX sizes are invalid." }
-        if ($null -ne $disk.LinkCount -and [long]$disk.LinkCount -ne 1) {
+        $linkCountProperty = $disk.PSObject.Properties["LinkCount"]
+        if ($null -ne $linkCountProperty -and [long]$linkCountProperty.Value -ne 1) {
             throw "$role VHDX must not have additional hard-link aliases."
         }
     }
