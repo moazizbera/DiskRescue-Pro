@@ -92,7 +92,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         var volumePath = VolumeGuidPath.TrimEnd('\\');
         using var volumeHandle = CreateFileW(
             volumePath,
-            GenericWrite,
+            GenericWrite | FileReadAttributes,
             ShareRead | ShareWrite,
             IntPtr.Zero,
             OpenExisting,
