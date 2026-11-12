@@ -16,7 +16,7 @@ public sealed record PhysicalVolumeMappingResult(
     IReadOnlyList<string> Issues)
 {
     public bool CanTreatDiskAsUnmapped(int diskNumber) =>
-        IsComplete && !VolumePathsByDisk.ContainsKey(diskNumber);
+        IsComplete && Issues.Count == 0 && !VolumePathsByDisk.ContainsKey(diskNumber);
 }
 
 public static class WindowsPhysicalDiskVolumeMap
