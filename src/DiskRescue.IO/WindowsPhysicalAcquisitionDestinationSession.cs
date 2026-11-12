@@ -46,6 +46,7 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
     private const int FileIdInfoClass = 18;
     private const uint DriveFixed = 3;
     private const int FileRenameInformationClass = 10;
+    private const int FileModeInformationClass = 16;
     private const uint StatusObjectNameCollision = 0xC0000035;
 
     private readonly SafeFileHandle _directoryHandle;
@@ -301,18 +302,13 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
 
     private SafeFileHandle CreateRelativeFile(string leafName)
     {
-        // Keep FILE_WRITE_THROUGH on the same file object used for the
-        // handle-relative rename. Microsoft documents that NTFS flushes metadata
-        // changes (including rename) resulting from requests on a write-through
-        // file handle. This supplements FlushToDiskAsync; it is not a guarantee
-        // against storage hardware that does not honor flush/write-through requests.
         var handle = OpenRelative(
             _directoryHandle,
             leafName,
             GenericRead | GenericWrite | DeleteAccess | FileReadAttributes | Synchronize,
             ShareRead,
             FileCreate,
-            FileNonDirectoryFile | FileWriteThrough | FileSynchronousIoNonAlert | FileOpenReparsePoint);
+            FileNonDirectoryFile | FileSynchronousIoNonAlert | FileOpenReparsePoint);
         return handle;
     }
 
@@ -409,6 +405,68 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         {
             Marshal.FreeHGlobal(unicodeStringBuffer);
             Marshal.FreeHGlobal(nameBuffer);
+        }
+    }
+
+    private static void EnableWriteThroughForPublication(SafeFileHandle fileHandle)
+    {
+        // The large sequential image write has already been flushed by the caller.
+        // Enable write-through only now, on the same file object used for the
+        // handle-relative rename, so the copy phase does not pay write-through cost.
+        var modeBuffer = Marshal.AllocHGlobal(sizeof(uint));
+        try
+        {
+            var queryStatus = NtQueryInformationFile(
+                fileHandle,
+                out _,
+                modeBuffer,
+                sizeof(uint),
+                FileModeInformationClass);
+            if (queryStatus < 0)
+                throw new IOException(
+                    $"Could not query destination file mode before publication (NTSTATUS 0x{unchecked((uint)queryStatus):X8}).");
+
+            var mode = unchecked((uint)Marshal.ReadInt32(modeBuffer));
+            if ((mode & FileSynchronousIoNonAlert) == 0 &&
+                (mode & FileSynchronousIoAlert) == 0)
+            {
+                throw new IOException(
+                    "Destination file lost its required synchronous I/O mode before publication.");
+            }
+
+            var publicationMode = mode | FileWriteThrough;
+            Marshal.WriteInt32(modeBuffer, unchecked((int)publicationMode));
+            var setStatus = NtSetInformationFile(
+                fileHandle,
+                out _,
+                modeBuffer,
+                sizeof(uint),
+                FileModeInformationClass);
+            if (setStatus < 0)
+                throw new IOException(
+                    $"Could not enable write-through for destination publication (NTSTATUS 0x{unchecked((uint)setStatus):X8}).");
+
+            var verifyStatus = NtQueryInformationFile(
+                fileHandle,
+                out _,
+                modeBuffer,
+                sizeof(uint),
+                FileModeInformationClass);
+            if (verifyStatus < 0)
+                throw new IOException(
+                    $"Could not verify destination publication mode (NTSTATUS 0x{unchecked((uint)verifyStatus):X8}).");
+
+            var verifiedMode = unchecked((uint)Marshal.ReadInt32(modeBuffer));
+            if ((verifiedMode & FileWriteThrough) == 0 ||
+                (verifiedMode & FileSynchronousIoNonAlert) == 0)
+            {
+                throw new IOException(
+                    "Destination file did not retain write-through and synchronous I/O modes for publication.");
+            }
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(modeBuffer);
         }
     }
 
@@ -657,6 +715,13 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr handle);
 
+    [DllImport("ntdll.dll")]
+    private static extern int NtQueryInformationFile(
+        SafeFileHandle fileHandle,
+        out IoStatusBlock ioStatusBlock,
+        IntPtr fileInformation,
+        uint length,
+        int fileInformationClass);
     [DllImport("ntdll.dll")]
     private static extern int NtSetInformationFile(
         SafeFileHandle fileHandle,
