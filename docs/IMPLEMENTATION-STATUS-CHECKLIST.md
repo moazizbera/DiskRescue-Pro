@@ -1346,3 +1346,16 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - All 43 workflow steps passed, including disposable VHDX read-only policy and ENOSPC cleanup integration, generated fixtures, CLI/NTFS smoke tests, WPF build, x64 desktop/CLI preview publishing, and dashboard screenshot capture.
 - This evidence validates parser behavior and the listed CI harnesses only. It does not authorize physical HDD acquisition or replace independent security review, supported-Windows compatibility testing, x86 runtime proof, power-loss durability validation, or manual UI/accessibility review.
 
+
+
+### Disk metadata IOCTL response-length guard — exact-head validation — 2026-11-12
+
+- [x] Hardened Windows disk geometry and disk capacity discovery: successful `DeviceIoControl` responses are now rejected unless `bytesReturned` contains the complete expected structure.
+- [x] Added regression coverage for zero-byte and truncated responses, plus complete-response acceptance.
+- [x] Implementation commit: `ed0fce83b4770f0fa71da4680cfd20aae94aa2bf`; regression-test commit / exact code head: `f9c8eee7efdec4faa7a5727eca9a4ffcd511dace`.
+- [x] Exact-head Windows CI run [43173580462](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43173580462) completed successfully on `f9c8eee7efdec4faa7a5727eca9a4ffcd511dace`; all **24/24** workflow steps passed, including build, tests, disposable-VHDX read-only policy, disposable-VHDX ENOSPC cleanup, generated fixtures, CLI/recovery smoke tests, WPF build, x64 desktop/CLI preview publishing, screenshot capture, and artifact uploads.
+- [x] Downloaded and parsed the exact-run TRX artifact: **384 passed, 0 failed, 0 errors, 384 executed; 3 additional tests marked NotExecuted (387 total)**. All 384 executed tests passed.
+- [x] The three IOCTL response cases are covered by `DiscoveryRejectsIncompleteGeometryOrCapacityIoctlResponses` (zero-byte, truncated, and complete-sized case) and `DiscoveryAcceptsCompleteIoctlResponse`; the exact-head test suite passed.
+- [ ] This validates response-buffer length handling in the automated Windows x64 test environment; it does not prove behavior across all Windows releases, storage drivers, filesystems, or physical hardware.
+- [ ] Independent native security review, supported Windows x86 runtime execution, publication namespace/power-loss durability evidence, broader compatibility, and manual UI/high-DPI/accessibility checks remain outstanding.
+- [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested; physical HDD testing is not authorized.
