@@ -137,12 +137,18 @@ function Test-DiskRescueHyperVPreflightInventory {
         $linkCount = 1L
         if ($disk -is [System.Collections.IDictionary]) {
             $linkCountPresent = $disk.Contains("LinkCount")
-            if ($linkCountPresent) { $linkCount = [long]$disk["LinkCount"] }
+            if ($linkCountPresent) {
+                if ($null -eq $disk["LinkCount"]) { throw "$role VHDX hard-link count is unknown." }
+                $linkCount = [long]$disk["LinkCount"]
+            }
         }
         else {
             $linkCountProperty = $disk.PSObject.Properties["LinkCount"]
             $linkCountPresent = ($null -ne $linkCountProperty)
-            if ($linkCountPresent) { $linkCount = [long]$linkCountProperty.Value }
+            if ($linkCountPresent) {
+                if ($null -eq $linkCountProperty.Value) { throw "$role VHDX hard-link count is unknown." }
+                $linkCount = [long]$linkCountProperty.Value
+            }
         }
         if ($linkCountPresent -and $linkCount -ne 1) {
             throw "$role VHDX must not have additional hard-link aliases."
