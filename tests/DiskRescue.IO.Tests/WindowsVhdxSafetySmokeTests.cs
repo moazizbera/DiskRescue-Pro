@@ -152,16 +152,20 @@ public sealed class WindowsVhdxSafetySmokeTests(ITestOutputHelper output)
         var payload = Enumerable.Range(0, 64 * 1024).Select(index => (byte)((index * 17 + 3) % 251)).ToArray();
         try
         {
-            await using var session = WindowsPhysicalAcquisitionDestinationSession.Open(directory);
-            var stream = await session.CreateNewFileAsync("flush.partial");
-            await stream.WriteAsync(payload);
-            await session.FlushToDiskAsync(stream);
-            await session.PublishNoReplaceAsync(stream, "published.bin");
+            await using (var session = WindowsPhysicalAcquisitionDestinationSession.Open(directory))
+            {
+                var stream = await session.CreateNewFileAsync("flush.partial");
+                await stream.WriteAsync(payload);
+                await session.FlushToDiskAsync(stream);
+                await session.PublishNoReplaceAsync(stream, "published.bin");
 
-            // This opens only the volume GUID associated with the pinned directory
-            // on the disposable NTFS VHDX; it never opens a physical-disk handle.
-            session.FlushVolumeBuffers();
+                // This opens only the volume GUID associated with the pinned directory
+                // on the disposable NTFS VHDX; it never opens a physical-disk handle.
+                session.FlushVolumeBuffers();
+            }
 
+            // Close the session first: its intentionally restrictive sharing mode
+            // blocks independent read opens while the owned file handle remains live.
             Assert.Equal(payload, await File.ReadAllBytesAsync(Path.Combine(directory, "published.bin")));
             output.WriteLine("FlushFileBuffers succeeded on the verified disposable NTFS destination VHDX volume handle.");
         }
