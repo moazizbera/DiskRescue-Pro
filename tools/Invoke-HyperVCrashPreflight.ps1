@@ -170,11 +170,18 @@ try {
     $result = Test-DiskRescueHyperVPreflightInventory -Expected $expected -Inventory $inventory
 
     $evidenceFullPath = [System.IO.Path]::GetFullPath($EvidencePath)
-    if ([System.IO.Path]::GetPathRoot($evidenceFullPath) -ne [System.IO.Path]::GetPathRoot($boot.Path)) {
-        throw "Evidence output must be on the same local volume as the boot VHDX for this first implementation."
+    if ($evidenceFullPath -notmatch '^[A-Za-z]:[\\/]') {
+        throw "Evidence output must use a fully qualified local drive-letter path."
+    }
+    if ([string]::Equals($evidenceFullPath, $boot.Path, [StringComparison]::OrdinalIgnoreCase) -or
+        [string]::Equals($evidenceFullPath, $data.Path, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Evidence output must not overwrite either VHDX."
     }
     if (Test-Path -LiteralPath $evidenceFullPath) {
         throw "Evidence output already exists; refusing to overwrite: $evidenceFullPath"
+    }
+    if (Test-Path -LiteralPath $evidenceFullPath -IsValid -eq $false) {
+        throw "Evidence output path is invalid."
     }
     $evidenceDirectory = Split-Path -Parent $evidenceFullPath
     if (-not (Test-Path -LiteralPath $evidenceDirectory -PathType Container)) {
