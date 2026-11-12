@@ -93,6 +93,9 @@ function Get-ReadOnlyFileIdentity {
             $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
             throw [ComponentModel.Win32Exception]::new($code, "Could not query VHDX file identity.")
         }
+        if ($info.NumberOfLinks -ne 1) {
+            throw "VHDX path has $($info.NumberOfLinks) hard links; aliases are not permitted."
+        }
         return "volume-serial:{0:X8};file-id:{1:X8}{2:X8}" -f $info.VolumeSerialNumber, $info.FileIndexHigh, $info.FileIndexLow
     }
     finally { $handle.Dispose() }
@@ -180,7 +183,7 @@ try {
     if (Test-Path -LiteralPath $evidenceFullPath) {
         throw "Evidence output already exists; refusing to overwrite: $evidenceFullPath"
     }
-    if (Test-Path -LiteralPath $evidenceFullPath -IsValid -eq $false) {
+    if (-not (Test-Path -LiteralPath $evidenceFullPath -IsValid)) {
         throw "Evidence output path is invalid."
     }
     $evidenceDirectory = Split-Path -Parent $evidenceFullPath
@@ -188,6 +191,9 @@ try {
         throw "Evidence directory must already exist; this preflight will not create directories."
     }
     Assert-NoReparsePointInPath $evidenceDirectory
+    if ([string]::Equals($evidenceFullPath, [System.IO.Path]::GetFullPath($PSScriptRoot), [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Evidence output must be a file path, not a directory."
+    }
 
     $document = [ordered]@{
         Schema = "DiskRescue.HyperVPreflight.v1"
