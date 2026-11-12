@@ -24,6 +24,16 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
             Assert.True(Guid.TryParse(session.VolumeGuidPath.AsSpan(guidStart, guidEnd - guidStart), out _));
 
             var stream = await session.CreateNewFileAsync("capture.partial");
+            var nativeStream = Assert.IsType<FileStream>(stream);
+            var mode = new FileModeInformation();
+            var modeStatus = NtQueryInformationFile(
+                nativeStream.SafeFileHandle,
+                out _,
+                ref mode,
+                (uint)Marshal.SizeOf<FileModeInformation>(),
+                FileModeInformationClass);
+            Assert.Equal(0, modeStatus);
+            Assert.NotEqual(0u, mode.Mode & FileWriteThrough);
             await stream.WriteAsync(new byte[] { 4, 8, 15, 16, 23, 42 });
 
             var identity = await session.GetFileIdentityAsync(stream);
@@ -545,6 +555,30 @@ public sealed class WindowsPhysicalAcquisitionDestinationSessionTests
             error => Assert.Same(firstFailure, error),
             error => Assert.Same(thirdFailure, error));
     }
+
+    private const int FileModeInformationClass = 16;
+    private const uint FileWriteThrough = 0x00000002;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FileModeInformation
+    {
+        public uint Mode;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct IoStatusBlock
+    {
+        public IntPtr Status;
+        public UIntPtr Information;
+    }
+
+    [DllImport("ntdll.dll")]
+    private static extern int NtQueryInformationFile(
+        SafeFileHandle fileHandle,
+        out IoStatusBlock ioStatusBlock,
+        ref FileModeInformation fileInformation,
+        uint length,
+        int fileInformationClass);
 
     private const uint DeleteAccess = 0x00010000;
     private const uint ShareRead = 0x00000001;
