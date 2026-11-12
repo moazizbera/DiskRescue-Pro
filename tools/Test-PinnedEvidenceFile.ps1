@@ -58,19 +58,26 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using DiskRescue.Preflight;
+using System.Linq;
+using System.Reflection;
 
 public static class PinnedEvidenceConcurrencyTest
 {
     public static int Run(string directory)
     {
+        var helperType = AppDomain.CurrentDomain.GetAssemblies()
+            .Select(a => a.GetType("DiskRescue.Preflight.PinnedEvidenceFile", false))
+            .FirstOrDefault(t => t != null);
+        if (helperType == null) throw new InvalidOperationException("Pinned evidence helper type was not loaded.");
+        var create = helperType.GetMethod("CreateNew", BindingFlags.Public | BindingFlags.Static);
+        if (create == null) throw new InvalidOperationException("Pinned evidence CreateNew method was not found.");
         int created = 0;
         int rejected = 0;
         Parallel.For(0, 16, i =>
         {
             try
             {
-                using (var stream = PinnedEvidenceFile.CreateNew(directory, "single-winner.json"))
+                using (var stream = (FileStream)create.Invoke(null, new object[] { directory, "single-winner.json" }))
                 {
                     var bytes = Encoding.UTF8.GetBytes("winner");
                     stream.Write(bytes, 0, bytes.Length);
@@ -78,7 +85,7 @@ public static class PinnedEvidenceConcurrencyTest
                 }
                 Interlocked.Increment(ref created);
             }
-            catch (IOException)
+            catch (TargetInvocationException ex) when (ex.InnerException is IOException)
             {
                 Interlocked.Increment(ref rejected);
             }
