@@ -521,6 +521,13 @@ public sealed class PhysicalDiskAcquisitionCoordinatorTests
             return ValueTask.CompletedTask;
         }
 
+        public ValueTask FlushPublishedNamespaceAsync(CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.CompletedTask;
+        }
+
         public ValueTask DeleteUnpublishedAsync(Stream file, CancellationToken cancellationToken = default)
         {
             EnsureOwned(file);
