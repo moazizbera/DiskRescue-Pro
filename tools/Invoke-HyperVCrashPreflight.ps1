@@ -103,11 +103,6 @@ function Get-VhdxEvidence {
     $canonical = Get-CanonicalPath $Path
     Assert-NoReparsePointInPath $canonical
     $vhd = Get-VHD -Path $canonical -ErrorAction Stop
-    if ($vhd.Attached) {
-        # Attached is not itself destructive, but this preflight expects static,
-        # operator-controlled files and rejects an already attached VHDX.
-        throw "VHDX is already attached; this preflight will not alter attachment state: $canonical"
-    }
     $item = Get-Item -LiteralPath $canonical -Force -ErrorAction Stop
     $hash = Get-FileHash -LiteralPath $canonical -Algorithm SHA256 -ErrorAction Stop
     [pscustomobject]@{
