@@ -146,12 +146,12 @@ internal static class PhysicalAcquisitionDestinationWriter
             try
             {
                 await session.FlushPublishedNamespaceAsync(CancellationToken.None).ConfigureAwait(false);
-                await RunCheckpointAsync(checkpoint, PhysicalAcquisitionPublicationCheckpoint.ImageNamespaceFlushed).ConfigureAwait(false);
             }
             catch (Exception flushFailure)
             {
                 throw new PhysicalAcquisitionPublicationDurabilityException(imageFinalLeaf, flushFailure);
             }
+            await RunCheckpointAsync(checkpoint, PhysicalAcquisitionPublicationCheckpoint.ImageNamespaceFlushed).ConfigureAwait(false);
         }
         catch (Exception failure)
         {
@@ -181,12 +181,12 @@ internal static class PhysicalAcquisitionDestinationWriter
             try
             {
                 await session.FlushPublishedNamespaceAsync(CancellationToken.None).ConfigureAwait(false);
-                await RunCheckpointAsync(checkpoint, PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed).ConfigureAwait(false);
             }
             catch (Exception flushFailure)
             {
                 throw new PhysicalAcquisitionPublicationDurabilityException(manifestFinalLeaf, flushFailure);
             }
+            await RunCheckpointAsync(checkpoint, PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed).ConfigureAwait(false);
 
             return new PhysicalAcquisitionDestinationWriteResult(
                 imageFinalLeaf, image.BytesCopied, image.Sha256, manifestFinalLeaf);
