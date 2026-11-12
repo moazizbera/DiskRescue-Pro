@@ -6,8 +6,8 @@ Import-Module (Join-Path $PSScriptRoot "HyperVCrashPreflight.Validation.psm1") -
 
 function New-Fixture {
     $vmId = "c9f88428-ae55-4db9-bcca-cf1e23bfa210"
-    $boot = "C:\\HyperV\\Disposable\\boot.vhdx"
-    $data = "C:\\HyperV\\Disposable\\data.vhdx"
+    $boot = "C:/HyperV/Disposable/boot.vhdx"
+    $data = "C:/HyperV/Disposable/data.vhdx"
     $expected = @{
         VmId = $vmId; VmName = "DiskRescue-CrashTest-Disposable"
         BootVhdxPath = $boot; DataVhdxPath = $data
@@ -53,12 +53,12 @@ $cases = @(
     @{ Name="same name but different VM ID"; Change={ param($x) $x.Inventory.Vm.Id="b9f88428-ae55-4db9-bcca-cf1e23bfa210" } }
     @{ Name="boot/data path swap"; Change={ param($x) $x.Inventory.Vhdx.Boot.Path=$x.Expected.DataVhdxPath } }
     @{ Name="duplicate attachment"; Change={ param($x) $x.Inventory.Attachments[1].Path=$x.Expected.BootVhdxPath } }
-    @{ Name="unexpected third VHDX"; Change={ param($x) $x.Inventory.Attachments += @{ Path="C:\\HyperV\\extra.vhdx"; ControllerType="SCSI"; IsPassThrough=$false; IsShared=$false; IsDifferencing=$false } } }
+    @{ Name="unexpected third VHDX"; Change={ param($x) $x.Inventory.Attachments += @{ Path="C:/HyperV/extra.vhdx"; ControllerType="SCSI"; IsPassThrough=$false; IsShared=$false; IsDifferencing=$false } } }
     @{ Name="missing attachment"; Change={ param($x) $x.Inventory.Attachments=@($x.Inventory.Attachments[0]) } }
-    @{ Name="differencing data disk"; Change={ param($x) $x.Inventory.Vhdx.Data.ParentPath="C:\\HyperV\\parent.vhdx" } }
+    @{ Name="differencing data disk"; Change={ param($x) $x.Inventory.Vhdx.Data.ParentPath="C:/HyperV/parent.vhdx" } }
     @{ Name="changed baseline hash"; Change={ param($x) $x.Inventory.Vhdx.Data.Sha256=("C" * 64) } }
     @{ Name="changed file identity"; Change={ param($x) $x.Inventory.Vhdx.Data.FileId="changed-file-id" } }
-    @{ Name="UNC path"; Change={ param($x) $x.Expected.DataVhdxPath="\\\\server\\share\\data.vhdx" } }
+    @{ Name="UNC path"; Change={ param($x) $x.Expected.DataVhdxPath="//server/share/data.vhdx" } }
     @{ Name="reparse-point path"; Change={ param($x) $x.Inventory.Vhdx.Data.HasReparsePoint=$true } }
     @{ Name="stale run ID"; Change={ param($x) $x.Expected.RunId="old" } }
     @{ Name="mismatched phase"; Change={ param($x) $x.Expected.Phase="OtherPhase" } }
