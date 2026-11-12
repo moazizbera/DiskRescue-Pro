@@ -56,6 +56,28 @@ public sealed class WindowsPhysicalDiskReaderTests
             Assert.Throws<PlatformNotSupportedException>(() => WindowsPhysicalDiskReader.Open(descriptor));
     }
 
+    [Theory]
+    [InlineData(0, 24)]
+    [InlineData(23, 24)]
+    [InlineData(8, 8)]
+    public void DiscoveryRejectsIncompleteGeometryOrCapacityIoctlResponses(int bytesReturned, int expectedSize)
+    {
+        if (bytesReturned >= expectedSize)
+        {
+            WindowsPhysicalDiskDiscovery.EnsureCompleteIoctlResponse(bytesReturned, expectedSize, "test metadata");
+            return;
+        }
+
+        Assert.Throws<InvalidDataException>(() =>
+            WindowsPhysicalDiskDiscovery.EnsureCompleteIoctlResponse(bytesReturned, expectedSize, "test metadata"));
+    }
+
+    [Fact]
+    public void DiscoveryAcceptsCompleteIoctlResponse()
+    {
+        WindowsPhysicalDiskDiscovery.EnsureCompleteIoctlResponse(24, 24, "test metadata");
+    }
+
     [Fact]
     public void StorageDescriptorParserReadsBoundedHardwareIdentityFields()
     {
