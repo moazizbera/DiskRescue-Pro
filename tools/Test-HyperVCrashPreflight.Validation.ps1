@@ -84,6 +84,9 @@ $cases = @(
     @{ Name="hard-link alias"; Change={ param($x) $x.Inventory.Vhdx.Data.LinkCount=2L } }
     @{ Name="unknown hard-link count"; Change={ param($x) $x.Inventory.Vhdx.Data.LinkCount=$null } }
     @{ Name="missing hard-link count"; Change={ param($x) $x.Inventory.Vhdx.Data.Remove("LinkCount") } }
+    @{ Name="missing boot reparse status"; Change={ param($x) $x.Inventory.Vhdx.Boot.Remove("HasReparsePoint") } }
+    @{ Name="unknown data reparse status"; Change={ param($x) $x.Inventory.Vhdx.Data.HasReparsePoint=$null } }
+    @{ Name="missing boot VHDX type"; Change={ param($x) $x.Inventory.Vhdx.Boot.Remove("Type") } }
 )
 $expectedErrors = @{
     "wrong VM ID" = "VM ID mismatch"
@@ -109,6 +112,9 @@ $expectedErrors = @{
     "hard-link alias" = "additional hard-link aliases"
     "unknown hard-link count" = "hard-link count is unknown"
     "missing hard-link count" = "hard-link count evidence is missing"
+    "missing boot reparse status" = "VHDX metadata 'HasReparsePoint' is missing"
+    "unknown data reparse status" = "reparse-point status must be an explicit Boolean"
+    "missing boot VHDX type" = "VHDX metadata 'Type' is missing"
 }
 foreach ($case in $cases) {
     $f = New-Fixture
