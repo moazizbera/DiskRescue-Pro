@@ -123,7 +123,7 @@ function Test-DiskRescueHyperVPreflightInventory {
         $path = if ($role -eq "Boot") { $bootPath } else { $dataPath }
         $disk = $Inventory.Vhdx[$role]
         if ($null -eq $disk) { throw "$role VHDX metadata is missing." }
-        foreach ($field in @("Path", "Format", "Type", "ParentPath", "VirtualDiskId", "HasReparsePoint", "FileLength", "VirtualSize", "LinkCount")) {
+        foreach ($field in @("Path", "Format", "Type", "ParentPath", "VirtualDiskId", "HasReparsePoint", "FileLength", "VirtualSize", "Sha256", "FileId", "LinkCount")) {
             $present = if ($disk -is [System.Collections.IDictionary]) {
                 $disk.Contains($field)
             } else {
@@ -143,6 +143,64 @@ function Test-DiskRescueHyperVPreflightInventory {
         }
         if ([bool]$disk.HasReparsePoint) { throw "$role VHDX path contains a reparse point." }
         if ([long]$disk.FileLength -le 0 -or [long]$disk.VirtualSize -le 0) { throw "$role VHDX sizes are invalid." }
+        if ([string]::IsNullOrWhiteSpace([string]$disk.FileId)) { throw "$role VHDX file identity is missing." }
+        if ([string]$disk.Sha256 -notmatch '^[A-Fa-f0-9]{64}
+        $linkCount = 0L
+        if ($disk -is [System.Collections.IDictionary]) {
+            $linkCountPresent = $disk.Contains("LinkCount")
+            if ($linkCountPresent) {
+                if ($null -eq $disk["LinkCount"]) { throw "$role VHDX hard-link count is unknown." }
+                $linkCount = [long]$disk["LinkCount"]
+            }
+        }
+        else {
+            $linkCountProperty = $disk.PSObject.Properties["LinkCount"]
+            $linkCountPresent = ($null -ne $linkCountProperty)
+            if ($linkCountPresent) {
+                if ($null -eq $linkCountProperty.Value) { throw "$role VHDX hard-link count is unknown." }
+                $linkCount = [long]$linkCountProperty.Value
+            }
+        }
+        if (-not $linkCountPresent) { throw "$role VHDX hard-link count evidence is missing." }
+        if ($linkCount -ne 1) {
+            throw "$role VHDX must not have additional hard-link aliases."
+        }
+    }
+
+    $bootId = [string]$Inventory.Vhdx.Boot.VirtualDiskId
+    $dataId = [string]$Inventory.Vhdx.Data.VirtualDiskId
+    if ([string]::Equals($bootId, $dataId, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Boot and data VHDX virtual-disk identities must be distinct."
+    }
+
+    $data = $Inventory.Vhdx.Data
+    Assert-DiskRescueEqual $data.FileLength $Expected.BaselineLength "Data VHDX baseline length"
+    Assert-DiskRescueEqual ([string]$data.Sha256).ToUpperInvariant() ([string]$Expected.BaselineSha256).ToUpperInvariant() "Data VHDX baseline SHA-256"
+    Assert-DiskRescueEqual $data.FileId $Expected.BaselineFileId "Data VHDX baseline file identity"
+
+    [pscustomobject]@{
+        Status = "PreflightValidated"
+        VmId = $vmGuid.ToString()
+        VmName = [string]$vm.Name
+        Generation = [int]$vm.Generation
+        State = [string]$vm.State
+        ConfigurationVersion = [string]$vm.ConfigurationVersion
+        BootVhdxPath = $bootPath
+        DataVhdxPath = $dataPath
+        RunId = [string]$Expected.RunId
+        Phase = [string]$Expected.Phase
+        FixtureLength = [long]$Expected.FixtureLength
+        FixtureSha256 = ([string]$Expected.FixtureSha256).ToUpperInvariant()
+        DataBaselineLength = [long]$data.FileLength
+        DataBaselineSha256 = ([string]$data.Sha256).ToUpperInvariant()
+        DataBaselineFileId = [string]$data.FileId
+        ValidatedAtUtc = [DateTime]::UtcNow.ToString("O")
+        DestructiveActionAuthorized = $false
+    }
+}
+
+Export-ModuleMember -Function Test-DiskRescueHyperVPreflightInventory
+) { throw "$role VHDX SHA-256 evidence is invalid." }
         $linkCountPresent = $false
         $linkCount = 0L
         if ($disk -is [System.Collections.IDictionary]) {
