@@ -128,7 +128,7 @@ public sealed class WindowsPhysicalDiskReaderTests
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(12, 4), 36);
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(16, 4), 36);
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(24, 4), 36);
-        data[36] = (byte)'X';
+        Array.Fill(data, (byte)'X', 36, data.Length - 36);
 
         var result = WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor(data);
 
