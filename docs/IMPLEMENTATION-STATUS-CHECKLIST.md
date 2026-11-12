@@ -1,3 +1,19 @@
+# Current status update — 2026-11-12 (storage descriptor fixed-header offset validation CI accepted)
+
+## Defensive storage identity descriptor parsing
+
+- [x] Tightened `WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor`: optional vendor/model/serial offsets must point to the variable-length descriptor data at or after byte 36, not into the fixed `STORAGE_DEVICE_DESCRIPTOR` header.
+- [x] Added `StorageDescriptorParserIgnoresStringOffsetsIntoFixedHeader` to `tests/DiskRescue.IO.Tests/WindowsPhysicalDiskReaderTests.cs`. The regression supplies offsets 12, 35, and 1 and confirms all three parsed identity strings are null.
+- [x] Implementation commit: `fcad75b2498c794c9bf1aebdee8183e62bb4e4af`; regression test commit: `37c481ac8782851dbdb8040140698a0093f1710d`.
+- [x] Exact-head Windows CI run [43168015244](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43168015244) completed successfully on `37c481ac8782851dbdb8040140698a0093f1710d`; the `build-and-test` job and all 43 workflow steps succeeded.
+- [x] Downloaded and parsed the exact-run TRX artifact: **379 passed, 0 failed, 0 errors; 379 executed tests passed**. The new fixed-header-offset regression is explicitly recorded as **Passed**.
+- [x] Disposable VHDX read-only policy/coordinator integration and NTFS ENOSPC cleanup integration passed; generated-fixture, CLI/recovery smoke tests, WPF build/screenshot capture, Windows x64 desktop/CLI publishing, and artifact uploads passed.
+- [ ] This parser test validates malformed offsets in a synthetic descriptor; it does not establish the correctness of every real storage driver descriptor or physical-device inventory.
+- [ ] Independent native security review, supported x86 runtime execution, broader Windows/filesystem/filter-driver compatibility, high-DPI/accessibility/manual workflow validation, and publication namespace/power-loss durability remain open.
+- [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No original or valuable physical HDD has been opened or read; physical HDD testing is not authorized.
+
+---
+
 # Current status update — 2026-11-12 (ambiguous physical identity inventory regression CI accepted)
 
 ## Duplicate disk-number descriptor regression
