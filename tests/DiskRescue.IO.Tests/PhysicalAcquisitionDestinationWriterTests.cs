@@ -276,6 +276,31 @@ public sealed class PhysicalAcquisitionDestinationWriterTests
         Assert.Equal(0, session.NamespaceFlushCount);
     }
 
+    [Fact]
+    public async Task CheckpointFailureAfterManifestRenamePreservesBothPublishedEntriesWithoutMisreportingFlushFailure()
+    {
+        using var source = new MemorySource(new byte[96 * 1024]);
+        await using var session = new FakeDestinationSession();
+        var checkpointFailure = new InvalidOperationException("Synthetic manifest checkpoint stop.");
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
+                source, session,
+                "capture.img.partial", "capture.img",
+                "capture.json.partial", "capture.json",
+                new { format = "test" },
+                checkpoint: phase => phase == PhysicalAcquisitionPublicationCheckpoint.ManifestRenamedBeforeNamespaceFlush
+                    ? ValueTask.FromException(checkpointFailure)
+                    : ValueTask.CompletedTask));
+
+        Assert.Same(checkpointFailure, error);
+        Assert.True(session.IsPublished("capture.img"));
+        Assert.True(session.IsPublished("capture.json"));
+        Assert.False(session.WasDeleted("capture.img.partial"));
+        Assert.False(session.WasDeleted("capture.json.partial"));
+        Assert.Equal(1, session.NamespaceFlushCount);
+    }
+
     private sealed class FakeDestinationSession : IPhysicalAcquisitionDestinationSession
     {
         private readonly Dictionary<Stream, string> _owned = new();
