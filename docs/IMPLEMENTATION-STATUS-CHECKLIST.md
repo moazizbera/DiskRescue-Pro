@@ -1382,3 +1382,17 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] This validates parser rejection behavior in the automated Windows x64 environment; it does not establish complete boot-chain attestation, physical-device identity correctness, or compatibility across all Windows/storage-driver/filesystem combinations.
 - [ ] Independent native security review, supported Windows x86 runtime execution, publication namespace/power-loss durability evidence, broader compatibility, and manual UI/high-DPI/accessibility checks remain outstanding.
 - [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested; physical HDD testing is not authorized.
+
+## Publication write-through scope correction — 2026-11-12
+
+- [x] Rejected the first write-through prototype that set `FILE_WRITE_THROUGH` in the initial `NtCreateFile` options. That would have applied write-through behavior throughout the large sequential image-copy phase and contradicted the publication-only performance constraint.
+- [x] Replaced it with a publication-stage mode transition on the existing session-owned file handle: after the writer's explicit `FlushToDiskAsync`, query `FileModeInformation`, preserve the synchronous-I/O mode, set `FILE_WRITE_THROUGH` with `NtSetInformationFile(FileModeInformation)`, query the mode again, and fail closed unless the flag is present before the pinned-directory handle-relative no-replace rename.
+- [x] Kept the same open file object and the existing restrictive sharing / handle-relative rename model. No close-and-reopen pathname gap was introduced.
+- [x] Added a Windows-native regression assertion that the handle is **not** write-through immediately after creation and **is** write-through only after publication begins.
+- [ ] Exact-head Windows CI must pass for the mode-transition implementation and regression assertion before accepting the prototype.
+- [ ] Benchmark a large generated sequential image to confirm the write-through transition does not affect the copy phase and to quantify publication-stage cost.
+- [ ] Independently review the user-mode `NtSetInformationFile(FileModeInformation)` contract and verify behavior on every supported Windows/filesystem combination. Microsoft protocol documentation describes `FileModeInformation` as queryable/settable and defines the `FILE_WRITE_THROUGH` mode bit; the Win32 `CreateFile` documentation describes NTFS metadata flushing for write-through requests, including rename metadata. This is supporting API evidence, not a complete proof that this exact native mode-transition/rename sequence survives sudden power loss.
+- [ ] Perform controlled crash/recovery validation only on newly generated disposable NTFS VHDX media. A guest/VM crash test must be described as filesystem crash-recovery evidence only; it does not prove host power-loss behavior or that physical storage hardware honors flush requests.
+- [ ] Do not claim power-loss durability, filesystem-wide compatibility, or hardware-cache guarantees until the exact contract and limits are independently established.
+
+**Safety boundary:** no physical HDD access or testing. Source remains read-only; all validation uses generated disk images and disposable VHDX media. Public physical acquisition remains hard-disabled; PR #30 remains draft/open/unmerged.
