@@ -313,6 +313,17 @@ public sealed class WindowsPhysicalDiskReaderTests
     }
 
     [Fact]
+    public void VolumeMapDoesNotTreatDiskAsUnmappedWhenDiagnosticsExistEvenIfMarkedComplete()
+    {
+        var result = new PhysicalVolumeMappingResult(
+            true,
+            new Dictionary<int, IReadOnlyList<string>>(),
+            new[] { "A volume extent query reported an error." });
+
+        Assert.False(result.CanTreatDiskAsUnmapped(12));
+    }
+
+    [Fact]
     public void IdentitySnapshotRequiresMatchingSerialAndKnownHardwareFields()
     {
         var expected = new PhysicalDiskDescriptor(
