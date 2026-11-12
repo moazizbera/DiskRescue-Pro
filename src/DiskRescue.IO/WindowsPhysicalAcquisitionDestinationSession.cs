@@ -301,6 +301,11 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
 
     private SafeFileHandle CreateRelativeFile(string leafName)
     {
+        // Keep FILE_WRITE_THROUGH on the same file object used for the
+        // handle-relative rename. Microsoft documents that NTFS flushes metadata
+        // changes (including rename) resulting from requests on a write-through
+        // file handle. This supplements FlushToDiskAsync; it is not a guarantee
+        // against storage hardware that does not honor flush/write-through requests.
         var handle = OpenRelative(
             _directoryHandle,
             leafName,
