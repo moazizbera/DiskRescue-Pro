@@ -63,6 +63,9 @@ $cases = @(
     @{ Name="stale run ID"; Change={ param($x) $x.Expected.RunId="old" } }
     @{ Name="mismatched phase"; Change={ param($x) $x.Expected.Phase="OtherPhase" } }
     @{ Name="missing Hyper-V VM inspection"; Change={ param($x) $x.Inventory.Vm=$null } }
+    @{ Name="VM not powered off"; Change={ param($x) $x.Inventory.Vm.State="Running" } }
+    @{ Name="duplicate virtual disk identity"; Change={ param($x) $x.Inventory.Vhdx.Data.VirtualDiskId=$x.Inventory.Vhdx.Boot.VirtualDiskId } }
+    @{ Name="hard-link alias"; Change={ param($x) $x.Inventory.Vhdx.Data.LinkCount=2L } }
 )
 foreach ($case in $cases) {
     $f = New-Fixture
