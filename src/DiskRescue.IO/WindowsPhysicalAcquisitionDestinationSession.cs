@@ -76,6 +76,28 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
         return QueryCurrentDirectoryPath(_directoryHandle);
     }
 
+    // Prototype only: flushes all open files on the pinned destination volume.
+    // This is deliberately invoked only by the disposable-VHDX acceptance test
+    // until its publication semantics and operational cost are independently reviewed.
+    internal void FlushVolumeBuffers()
+    {
+        ThrowIfDisposed();
+        var volumePath = VolumeGuidPath.TrimEnd('\\');
+        using var volumeHandle = CreateFileW(
+            volumePath,
+            GenericWrite,
+            ShareRead | ShareWrite,
+            IntPtr.Zero,
+            OpenExisting,
+            0,
+            IntPtr.Zero);
+        if (volumeHandle.IsInvalid)
+            ThrowLastWin32IOException("Could not open the pinned destination volume for flush");
+
+        if (!FlushFileBuffers(volumeHandle))
+            ThrowLastWin32IOException("Could not flush all open files on the pinned destination volume");
+    }
+
     /// <summary>
     /// Opens a local drive-letter directory without following any reparse-point
     /// component. UNC paths, mapped/network drives, and volume mount-point components
@@ -647,6 +669,9 @@ internal sealed class WindowsPhysicalAcquisitionDestinationSession : IPhysicalAc
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool SetFileInformationByHandle(
         SafeFileHandle file, int fileInformationClass, IntPtr fileInformation, uint bufferSize);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool FlushFileBuffers(SafeFileHandle file);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr handle);
