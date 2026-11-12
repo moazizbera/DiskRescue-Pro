@@ -87,8 +87,19 @@ function Test-DiskRescueHyperVPreflightInventory {
     }
     $canonicalAttachments = @()
     foreach ($attachment in $attachments) {
+        foreach ($field in @("Path", "ControllerType", "IsPassThrough", "IsShared", "IsDifferencing")) {
+            if ($null -eq $attachment.PSObject.Properties[$field] -and
+                ($attachment -isnot [System.Collections.IDictionary] -or -not $attachment.Contains($field))) {
+                throw "Attachment metadata '$field' is missing."
+            }
+        }
+        foreach ($flag in @("IsPassThrough", "IsShared", "IsDifferencing")) {
+            if ($attachment[$flag] -isnot [bool]) {
+                throw "Attachment safety metadata '$flag' must be an explicit Boolean value."
+            }
+        }
         if ($attachment.ControllerType -notin @("IDE", "SCSI")) { throw "Unexpected controller type." }
-        if ([bool]$attachment.IsPassThrough -or [bool]$attachment.IsShared -or [bool]$attachment.IsDifferencing) {
+        if ($attachment.IsPassThrough -or $attachment.IsShared -or $attachment.IsDifferencing) {
             throw "Pass-through, shared, and differencing attachments are not permitted."
         }
         $canonicalAttachments += ConvertTo-DiskRescueCanonicalLocalPath ([string]$attachment.Path)
