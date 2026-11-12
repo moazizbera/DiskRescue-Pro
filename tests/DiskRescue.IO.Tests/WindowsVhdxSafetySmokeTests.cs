@@ -161,7 +161,7 @@ public sealed class WindowsVhdxSafetySmokeTests(ITestOutputHelper output)
 
                 // This opens only the volume GUID associated with the pinned directory
                 // on the disposable NTFS VHDX; it never opens a physical-disk handle.
-                session.FlushVolumeBuffers();
+                await session.FlushPublishedNamespaceAsync();
             }
 
             // Close the session first: its intentionally restrictive sharing mode
