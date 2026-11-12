@@ -144,6 +144,7 @@ public static class WindowsPhysicalDiskDiscovery
             var start = checked((int)offset);
             var end = start;
             while (end < size && bytes[end] != 0) end++;
+            if (end == size) return null; // Storage descriptor strings are NUL-terminated.
             var value = System.Text.Encoding.ASCII.GetString(bytes[start..end]).Trim();
             return value.Length == 0 ? null : value;
         }
