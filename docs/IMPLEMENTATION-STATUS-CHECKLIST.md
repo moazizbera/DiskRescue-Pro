@@ -1371,3 +1371,14 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] This validates the helper's fail-closed behavior in the automated Windows x64 environment only; it does not prove physical disk inventory correctness, all storage-driver behavior, or compatibility across Windows/filesystem versions.
 - [ ] Independent native security review, supported Windows x86 runtime execution, publication namespace/power-loss durability evidence, broader compatibility, and manual UI/high-DPI/accessibility checks remain outstanding.
 - [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested; physical HDD testing is not authorized.
+
+### Boot/volume metadata malformed-input regression coverage — exact-head validation — 2026-11-12
+
+- [x] Added five regression cases for truncated MBR partition fields, excessive volume-extent count, negative extent start, non-positive extent length, and overflowing extent end.
+- [x] Regression-test commit / exact code head: `d1625db0ae6c52e7d11c285adc90a5cd4e6aa491`.
+- [x] Exact-head Windows CI run [43199347292](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43199347292) completed successfully on the exact code head; all **24/24 workflow steps** passed, including build, test invocation, disposable-VHDX read-only policy and ENOSPC cleanup integration, generated fixtures, CLI/NTFS recovery smoke tests, WPF build, Windows x64 desktop/CLI preview publishing, dashboard screenshot capture, and artifact uploads.
+- [x] Downloaded and parsed the exact-run TRX artifact: **390 passed, 0 failed, 0 errors; 393 test results listed, 390 executed and 3 marked NotExecuted**. The three skipped cases are opt-in VHDX integration facts. The workflow separately ran the dedicated read-only VHDX policy and ENOSPC cleanup integration steps successfully.
+- [x] The five new malformed-metadata regression cases were included in the successful exact-head test run.
+- [ ] This validates parser rejection behavior in the automated Windows x64 environment; it does not establish complete boot-chain attestation, physical-device identity correctness, or compatibility across all Windows/storage-driver/filesystem combinations.
+- [ ] Independent native security review, supported Windows x86 runtime execution, publication namespace/power-loss durability evidence, broader compatibility, and manual UI/high-DPI/accessibility checks remain outstanding.
+- [ ] PR #30 remains draft/open/unmerged. Public physical acquisition remains hard-disabled. No physical HDD was opened or tested; physical HDD testing is not authorized.
