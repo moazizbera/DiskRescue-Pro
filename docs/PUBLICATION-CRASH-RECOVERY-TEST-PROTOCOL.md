@@ -28,7 +28,7 @@ If Hyper-V is unavailable, permissions are insufficient, or any identity check c
 
 ## 3. Deterministic publication checkpoints
 
-Add a test-only checkpoint seam around the existing writer operations. It must be disabled in production builds and must not change the production publication sequence. Each run uses a unique run ID and writes a durable host-readable checkpoint record containing the run ID, phase, expected image hash, expected manifest hash (when known), and the guest VHDX identity.
+Use an internal checkpoint callback around the existing writer operations. The production coordinator must not expose or configure this callback; only an isolated test harness may supply it. The callback does not change the production publication sequence when omitted. Each run uses a unique run ID and writes a durable host-readable checkpoint record containing the run ID, phase, expected image hash, expected manifest hash (when known), and the guest VHDX identity.
 
 Exercise these phases independently, restoring a fresh copy of the generated baseline before each run:
 
