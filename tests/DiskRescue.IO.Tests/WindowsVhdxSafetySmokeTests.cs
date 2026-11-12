@@ -132,6 +132,48 @@ public sealed class WindowsVhdxSafetySmokeTests(ITestOutputHelper output)
 
     [WindowsVhdxEnospcFact]
     [Trait("Category", "WindowsVhdxIntegration")]
+    public async Task PinnedVolumeHandleFlushesPublishedEntryOnDisposableNtfsVhdx()
+    {
+        Assert.True(OperatingSystem.IsWindows(), "The volume-flush integration test requires Windows.");
+        var destinationRoot = Environment.GetEnvironmentVariable("DISKRESCUE_TEST_DESTINATION_ROOT");
+        Assert.False(string.IsNullOrWhiteSpace(destinationRoot), "The disposable NTFS destination root was not supplied.");
+        var fullDestinationRoot = Path.GetFullPath(destinationRoot!);
+        var root = Path.GetPathRoot(fullDestinationRoot);
+        Assert.False(string.IsNullOrWhiteSpace(root));
+        Assert.Equal(root, fullDestinationRoot, StringComparer.OrdinalIgnoreCase);
+
+        var destinationDrive = new DriveInfo(root!);
+        Assert.True(destinationDrive.IsReady);
+        Assert.Equal("NTFS", destinationDrive.DriveFormat, ignoreCase: true);
+        Assert.Equal(DriveType.Fixed, destinationDrive.DriveType);
+
+        var directory = Path.Combine(fullDestinationRoot, "DiskRescue-volume-flush-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var payload = Enumerable.Range(0, 64 * 1024).Select(index => (byte)((index * 17 + 3) % 251)).ToArray();
+        try
+        {
+            await using var session = WindowsPhysicalAcquisitionDestinationSession.Open(directory);
+            var stream = await session.CreateNewFileAsync("flush.partial");
+            await stream.WriteAsync(payload);
+            await session.FlushToDiskAsync(stream);
+            await session.PublishNoReplaceAsync(stream, "published.bin");
+
+            // This opens only the volume GUID associated with the pinned directory
+            // on the disposable NTFS VHDX; it never opens a physical-disk handle.
+            session.FlushVolumeBuffers();
+
+            Assert.Equal(payload, await File.ReadAllBytesAsync(Path.Combine(directory, "published.bin")));
+            output.WriteLine("FlushFileBuffers succeeded on the verified disposable NTFS destination VHDX volume handle.");
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [WindowsVhdxEnospcFact]
+    [Trait("Category", "WindowsVhdxIntegration")]
     public async Task UndersizedNtfsDestinationVhdxProducesRealDiskFullAndCleansPartialImage()
     {
         Assert.True(OperatingSystem.IsWindows(), "The VHDX integration test requires Windows.");
