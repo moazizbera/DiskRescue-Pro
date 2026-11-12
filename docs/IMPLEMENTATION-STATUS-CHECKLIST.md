@@ -1,3 +1,18 @@
+# Current status update — 2026-11-12 (unterminated storage identity strings fail closed)
+
+## Descriptor string termination
+
+- [x] Tightened `ParseStorageDeviceDescriptor` so identity strings without a NUL terminator before the declared descriptor boundary are ignored rather than accepted as partial vendor/model/serial values.
+- [x] Updated the valid descriptor fixture to include explicit NUL terminators for vendor, product, and serial strings.
+- [x] Added `StorageDescriptorParserIgnoresUnterminatedIdentityStrings`, which verifies unterminated vendor/model/serial offsets all resolve to null.
+- [x] Implementation commit: `bcb614260443b935622ddae3a89cb098cf86878b`; test commit: `2638317551061def4924d0595762095f51115026`.
+- [ ] Exact-head Windows CI for `2638317551061def4924d0595762095f51115026` is pending. The prior successful run [43168015244](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43168015244) validates the preceding fixed-header-offset change only, not this additional NUL-termination change.
+- [ ] Confirm the new regression and updated valid-descriptor fixture pass in the exact-head TRX before accepting this change.
+- [ ] This remains synthetic parser coverage, not proof of every real storage driver descriptor or physical-device inventory.
+- PR #30 remains draft/open/unmerged; public physical acquisition remains hard-disabled. No original or valuable physical HDD has been opened or read; physical HDD testing is not authorized.
+
+---
+
 # Current status update — 2026-11-12 (storage descriptor fixed-header offset validation CI accepted)
 
 ## Defensive storage identity descriptor parsing
