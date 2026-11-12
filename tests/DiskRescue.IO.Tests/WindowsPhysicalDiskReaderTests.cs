@@ -68,8 +68,11 @@ public sealed class WindowsPhysicalDiskReaderTests
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(24, 4), 53);
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(28, 4), 7);
         "ACME"u8.CopyTo(data.AsSpan(36));
+        data[40] = 0;
         "DiskModel"u8.CopyTo(data.AsSpan(42));
+        data[51] = 0;
         "SERIAL123"u8.CopyTo(data.AsSpan(53));
+        data[62] = 0;
 
         var result = WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor(data);
 
@@ -108,6 +111,24 @@ public sealed class WindowsPhysicalDiskReaderTests
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(16, 4), 35);
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(24, 4), 1);
         data[36] = (byte)'V';
+
+        var result = WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor(data);
+
+        Assert.Null(result.Vendor);
+        Assert.Null(result.Model);
+        Assert.Null(result.SerialNumber);
+    }
+
+    [Fact]
+    public void StorageDescriptorParserIgnoresUnterminatedIdentityStrings()
+    {
+        var data = new byte[48];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 36);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4, 4), 48);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(12, 4), 36);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(16, 4), 36);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(24, 4), 36);
+        data[36] = (byte)'X';
 
         var result = WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor(data);
 
