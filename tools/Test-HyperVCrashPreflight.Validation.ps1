@@ -88,6 +88,7 @@ $cases = @(
     @{ Name="unknown data reparse status"; Change={ param($x) $x.Inventory.Vhdx.Data.HasReparsePoint=$null } }
     @{ Name="missing boot VHDX type"; Change={ param($x) $x.Inventory.Vhdx.Boot.Remove("Type") } }
     @{ Name="missing boot VHDX file identity"; Change={ param($x) $x.Inventory.Vhdx.Boot.Remove("FileId") } }
+    @{ Name="blank boot VHDX file identity"; Change={ param($x) $x.Inventory.Vhdx.Boot.FileId=" " } }
     @{ Name="missing boot VHDX SHA-256"; Change={ param($x) $x.Inventory.Vhdx.Boot.Remove("Sha256") } }
     @{ Name="invalid boot VHDX SHA-256"; Change={ param($x) $x.Inventory.Vhdx.Boot.Sha256="not-a-hash" } }
 )
@@ -118,7 +119,8 @@ $expectedErrors = @{
     "missing boot reparse status" = "VHDX metadata 'HasReparsePoint' is missing"
     "unknown data reparse status" = "reparse-point status must be an explicit Boolean"
     "missing boot VHDX type" = "VHDX metadata 'Type' is missing"
-    "missing boot VHDX file identity" = "Boot VHDX file identity is missing"
+    "missing boot VHDX file identity" = "VHDX metadata 'FileId' is missing"
+    "blank boot VHDX file identity" = "Boot VHDX file identity is missing"
     "missing boot VHDX SHA-256" = "VHDX metadata 'Sha256' is missing"
     "invalid boot VHDX SHA-256" = "Boot VHDX SHA-256 evidence is invalid"
 }
