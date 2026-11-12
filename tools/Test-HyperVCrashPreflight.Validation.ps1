@@ -23,8 +23,8 @@ function New-Fixture {
             @{ Path = $data; ControllerType = "SCSI"; IsPassThrough = $false; IsShared = $false; IsDifferencing = $false }
         )
         Vhdx = @{
-            Boot = @{ Path = $boot; Format = "VHDX"; Type = "Dynamic"; ParentPath = $null; VirtualDiskId = "d9f88428-ae55-4db9-bcca-cf1e23bfa210"; HasReparsePoint = $false; FileLength = 8192L; VirtualSize = 1073741824L }
-            Data = @{ Path = $data; Format = "VHDX"; Type = "Dynamic"; ParentPath = $null; VirtualDiskId = "e9f88428-ae55-4db9-bcca-cf1e23bfa210"; HasReparsePoint = $false; FileLength = 1048576L; VirtualSize = 1073741824L; Sha256 = ("B" * 64); FileId = $expected.BaselineFileId }
+            Boot = @{ Path = $boot; Format = "VHDX"; Type = "Dynamic"; ParentPath = $null; VirtualDiskId = "d9f88428-ae55-4db9-bcca-cf1e23bfa210"; HasReparsePoint = $false; FileLength = 8192L; VirtualSize = 1073741824L; LinkCount = 1L }
+            Data = @{ Path = $data; Format = "VHDX"; Type = "Dynamic"; ParentPath = $null; VirtualDiskId = "e9f88428-ae55-4db9-bcca-cf1e23bfa210"; HasReparsePoint = $false; FileLength = 1048576L; VirtualSize = 1073741824L; Sha256 = ("B" * 64); FileId = $expected.BaselineFileId; LinkCount = 1L }
         }
     }
     return @{ Expected = $expected; Inventory = $inventory }
@@ -32,16 +32,29 @@ function New-Fixture {
 
 $passed = 0
 $failed = 0
-function Invoke-Case([string]$Name, [scriptblock]$Action, [bool]$ShouldPass) {
+function Invoke-Case([string]$Name, [scriptblock]$Action, [bool]$ShouldPass, [string]$ExpectedError = $null) {
     try {
         & $Action
-        if (-not $ShouldPass) { throw "Expected rejection but validation succeeded." }
+        if (-not $ShouldPass) {
+            Write-Host "FAIL $Name : validation unexpectedly succeeded."
+            $script:failed++
+            return
+        }
         Write-Host "PASS $Name"; $script:passed++
     }
     catch {
-        if ($ShouldPass) { Write-Host "FAIL $Name : $_"; $script:failed++ }
-        elseif ($_.Exception.Message -eq "Expected rejection but validation succeeded.") { Write-Host "FAIL $Name : $_"; $script:failed++ }
-        else { Write-Host "PASS $Name (rejected: $($_.Exception.Message))"; $script:passed++ }
+        if ($ShouldPass) {
+            Write-Host "FAIL $Name : $($_.Exception.Message)"
+            $script:failed++
+            return
+        }
+        if ($ExpectedError -and $_.Exception.Message -notlike "*$ExpectedError*") {
+            Write-Host "FAIL $Name : expected '$ExpectedError', got '$($_.Exception.Message)'"
+            $script:failed++
+            return
+        }
+        Write-Host "PASS $Name (expected rejection: $($_.Exception.Message))"
+        $script:passed++
     }
 }
 
@@ -67,10 +80,29 @@ $cases = @(
     @{ Name="duplicate virtual disk identity"; Change={ param($x) $x.Inventory.Vhdx.Data.VirtualDiskId=$x.Inventory.Vhdx.Boot.VirtualDiskId } }
     @{ Name="hard-link alias"; Change={ param($x) $x.Inventory.Vhdx.Data.LinkCount=2L } }
 )
+$expectedErrors = @{
+    "wrong VM ID" = "VM ID mismatch"
+    "same name but different VM ID" = "VM ID mismatch"
+    "boot/data path swap" = "Boot VHDX path mismatch"
+    "duplicate attachment" = "Duplicate VHDX attachment"
+    "unexpected third VHDX" = "Exactly two VHDX attachments"
+    "missing attachment" = "Exactly two VHDX attachments"
+    "differencing data disk" = "must be a standalone disk"
+    "changed baseline hash" = "Data VHDX baseline SHA-256 mismatch"
+    "changed file identity" = "Data VHDX baseline file identity mismatch"
+    "UNC path" = "UNC/network paths are not permitted"
+    "reparse-point path" = "path contains a reparse point"
+    "stale run ID" = "RunId must be a unique"
+    "mismatched phase" = "Phase is not a supported"
+    "missing Hyper-V VM inspection" = "VM inspection result is missing"
+    "VM not powered off" = "must be Off"
+    "duplicate virtual disk identity" = "virtual-disk identities must be distinct"
+    "hard-link alias" = "additional hard-link aliases"
+}
 foreach ($case in $cases) {
     $f = New-Fixture
     & $case.Change $f
-    Invoke-Case $case.Name { Test-DiskRescueHyperVPreflightInventory -Expected $f.Expected -Inventory $f.Inventory | Out-Null } $false
+    Invoke-Case $case.Name { Test-DiskRescueHyperVPreflightInventory -Expected $f.Expected -Inventory $f.Inventory | Out-Null } $false $expectedErrors[$case.Name]
 }
 Write-Host "RESULT passed=$passed failed=$failed total=$($passed + $failed)"
 if ($failed -ne 0) { exit 1 }
