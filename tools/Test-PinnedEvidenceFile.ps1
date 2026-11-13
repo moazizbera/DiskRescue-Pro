@@ -67,6 +67,50 @@ try {
         throw "Pinned evidence writer created a file through a reparse-point directory."
     }
 
+    # Deterministically attempt to replace the directory after the helper has
+    # pinned and validated it, but before it creates the leaf relative to that handle.
+    $raceDirectory = Join-Path $root "race-original"
+    $movedDirectory = Join-Path $root "race-original-moved"
+    [IO.Directory]::CreateDirectory($raceDirectory) | Out-Null
+    $moveState = @{ Moved = $false; Blocked = $false }
+    $afterPinned = [Action] {
+        try {
+            [IO.Directory]::Move($raceDirectory, $movedDirectory)
+            [IO.Directory]::CreateDirectory($raceDirectory) | Out-Null
+            $moveState.Moved = $true
+        }
+        catch [Exception] {
+            $moveState.Blocked = $true
+        }
+    }
+    $testSeam = [DiskRescue.Preflight.PinnedEvidenceFile].GetMethod(
+        "CreateNewForTest",
+        [Reflection.BindingFlags]::NonPublic -bor [Reflection.BindingFlags]::Static)
+    if ($null -eq $testSeam) { throw "Pinned-directory race test seam was not found." }
+    $raceStream = $testSeam.Invoke($null, @($raceDirectory, "race-evidence.json", $afterPinned))
+    try {
+        $raceBytes = [Text.Encoding]::UTF8.GetBytes("pinned-directory-winner")
+        $raceStream.Write($raceBytes, 0, $raceBytes.Length)
+        $raceStream.Flush($true)
+    }
+    finally { $raceStream.Dispose() }
+
+    if ($moveState.Moved) {
+        $pinnedTarget = Join-Path $movedDirectory "race-evidence.json"
+        $substituteTarget = Join-Path $raceDirectory "race-evidence.json"
+        if (-not (Test-Path -LiteralPath $pinnedTarget) -or (Test-Path -LiteralPath $substituteTarget)) {
+            throw "Evidence creation followed the substituted directory instead of the pinned directory handle."
+        }
+    }
+    elseif ($moveState.Blocked) {
+        if (-not (Test-Path -LiteralPath (Join-Path $raceDirectory "race-evidence.json"))) {
+            throw "Directory replacement was blocked, but evidence was not created in the original directory."
+        }
+    }
+    else {
+        throw "Directory replacement race callback did not record an outcome."
+    }
+
     $concurrentDirectory = Join-Path $root "concurrent"
     [IO.Directory]::CreateDirectory($concurrentDirectory) | Out-Null
     Add-Type -TypeDefinition @'
@@ -119,7 +163,7 @@ public static class PinnedEvidenceConcurrencyTest
     $winnerCount = [PinnedEvidenceConcurrencyTest]::Run($concurrentDirectory)
     if ($winnerCount -ne 1) { throw "Concurrent create test did not produce one winner." }
 
-    Write-Output "Pinned evidence writer: create-new, durable flush, collision preservation, leaf validation, and concurrent single-winner creation passed."
+    Write-Output "Pinned evidence writer: create-new, durable flush, collision preservation, leaf validation, reparse-point rejection, controlled directory-replacement race, and concurrent single-winner creation passed."
 }
 finally {
     if (Test-Path -LiteralPath $root) {
