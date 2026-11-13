@@ -274,4 +274,36 @@ public sealed class PublicationRecoveryEvidenceVerifierTests
 
 
 
+
+    [Fact]
+    public void SnapshotFactory_UsesOnlyExplicitInMemoryEntries()
+    {
+        byte[] image = [1, 2, 3, 4];
+        byte[] manifest = [5, 6];
+
+        var snapshot = PublicationRecoveryEvidenceSnapshotFactory.FromInMemoryEntries(
+            PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed,
+            imageFinal: image,
+            manifestFinal: manifest);
+
+        Assert.Equal(4, snapshot.ImageFinal!.Length);
+        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(image)), snapshot.ImageFinal.Sha256);
+        Assert.Equal(2, snapshot.ManifestFinal!.Length);
+        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(manifest)), snapshot.ManifestFinal.Sha256);
+        Assert.Null(snapshot.ImageTemporary);
+        Assert.Null(snapshot.ManifestTemporary);
+    }
+
+    [Fact]
+    public void SnapshotFactory_PreservesAbsentEntries()
+    {
+        var snapshot = PublicationRecoveryEvidenceSnapshotFactory.FromInMemoryEntries(
+            PhysicalAcquisitionPublicationCheckpoint.ImageDataFlushedBeforeRename);
+
+        Assert.Null(snapshot.ImageFinal);
+        Assert.Null(snapshot.ManifestFinal);
+        Assert.Null(snapshot.ImageTemporary);
+        Assert.Null(snapshot.ManifestTemporary);
+    }
+
 }
