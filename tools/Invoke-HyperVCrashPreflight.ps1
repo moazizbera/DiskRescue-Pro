@@ -283,12 +283,8 @@ try {
     # relative to the retained final directory handle. It fails closed on reparse
     # points and uses FILE_CREATE (atomic no-replace); no path-based fallback exists.
     $stream = [DiskRescue.Preflight.PinnedEvidenceFile]::CreateNew($evidenceDirectory, $evidenceLeaf)
-    try {
-        $bytes = [Text.UTF8Encoding]::new($false).GetBytes($json + [Environment]::NewLine)
-        $stream.Write($bytes, 0, $bytes.Length)
-        $stream.Flush($true)
-    }
-    finally { $stream.Dispose() }
+    $bytes = [Text.UTF8Encoding]::new($false).GetBytes($json + [Environment]::NewLine)
+    [DiskRescue.Preflight.PinnedEvidenceFile]::WriteAndFlush($stream, $bytes)
 
     Write-Output $result
     Write-Host "Read-only Hyper-V preflight evidence written: $evidenceFullPath"
