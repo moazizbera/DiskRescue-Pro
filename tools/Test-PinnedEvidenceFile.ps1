@@ -115,6 +115,80 @@ try {
         throw "Directory replacement race callback did not record an outcome."
     }
 
+    # Inject write and flush failures through the same disposal contract used in production.
+    $failureTestType = @'
+using System;
+using System.IO;
+
+public sealed class FaultInjectingEvidenceStream : MemoryStream
+{
+    private readonly bool failWrite;
+    private readonly bool failFlush;
+    public bool WasDisposed { get; private set; }
+
+    public FaultInjectingEvidenceStream(bool failWrite, bool failFlush)
+    {
+        this.failWrite = failWrite;
+        this.failFlush = failFlush;
+    }
+
+    public override void Write(byte[] buffer, int offset, int count)
+    {
+        if (failWrite) throw new IOException("Injected evidence write failure.");
+        base.Write(buffer, offset, count);
+    }
+
+    public override void Flush()
+    {
+        if (failFlush) throw new IOException("Injected evidence flush failure.");
+        base.Flush();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        WasDisposed = true;
+        base.Dispose(disposing);
+    }
+}
+
+public static class EvidenceWriteFailureTests
+{
+    public static void Run()
+    {
+        var helper = typeof(DiskRescue.Preflight.PinnedEvidenceFile).GetMethod(
+            "WriteAndFlushForTest",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        if (helper == null) throw new InvalidOperationException("Write/flush failure seam was not found.");
+        var bytes = new byte[] { 1, 2, 3 };
+
+        foreach (var failWrite in new[] { true, false })
+        {
+            var stream = new FaultInjectingEvidenceStream(failWrite, !failWrite);
+            var arguments = new object[] {
+                stream, bytes,
+                new Action<Stream, byte[]>((target, data) => target.Write(data, 0, data.Length)),
+                new Action<Stream>(target => target.Flush())
+            };
+            bool failed = false;
+            try { helper.Invoke(null, arguments); }
+            catch (System.Reflection.TargetInvocationException ex)
+            {
+                if (!(ex.InnerException is IOException)) throw;
+                failed = true;
+            }
+            if (!failed) throw new InvalidOperationException("Injected write/flush failure was not propagated.");
+            if (!stream.WasDisposed) throw new InvalidOperationException("Evidence stream was not disposed after injected failure.");
+        }
+    }
+}
+'@
+    if (-not ("EvidenceWriteFailureTests" -as [type])) {
+        Add-Type -TypeDefinition $failureTestType -ReferencedAssemblies @(
+            [DiskRescue.Preflight.PinnedEvidenceFile].Assembly.Location
+        ) -ErrorAction Stop
+    }
+    [EvidenceWriteFailureTests]::Run()
+
     $concurrentDirectory = Join-Path $root "concurrent"
     [IO.Directory]::CreateDirectory($concurrentDirectory) | Out-Null
     Add-Type -TypeDefinition @'
@@ -167,7 +241,7 @@ public static class PinnedEvidenceConcurrencyTest
     $winnerCount = [PinnedEvidenceConcurrencyTest]::Run($concurrentDirectory)
     if ($winnerCount -ne 1) { throw "Concurrent create test did not produce one winner." }
 
-    Write-Output "Pinned evidence writer: create-new, durable flush, collision preservation, leaf validation, reparse-point rejection, controlled directory-replacement race, and concurrent single-winner creation passed."
+    Write-Output "Pinned evidence writer: create-new, durable flush, collision preservation, leaf validation, reparse-point rejection, controlled directory-replacement race, injected write/flush failure disposal, and concurrent single-winner creation passed."
 }
 finally {
     if (Test-Path -LiteralPath $root) {
