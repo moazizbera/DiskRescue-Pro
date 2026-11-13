@@ -32,11 +32,11 @@ The Windows temporary-directory test currently covers:
 - rejection of an invalid traversal leaf;
 - concurrent creation with exactly one winner and no overwrite.
 
-The latest recorded CI run for the branch passed these tests, but the following verification remains outstanding before making a broader race-resistance or durability claim:
+The latest completed full CI run on commit `329d46b` passed. The following verification remains outstanding before making a broader race-resistance or durability claim:
 
 - controlled directory replacement while the directory handle is retained, proving the operation remains bound to the originally opened directory or safely fails;
-- actual reparse-point parent/ancestor tests against the native helper (mocked validator metadata is not a substitute);
-- injected write and flush failures proving both exceptions propagate and the evidence stream is disposed (the dedicated Windows CI test step passed on commit `ad8c884`; full workflow #1500 is still running);
+- nested reparse-point ancestor rejection against the native helper (first-level junction and a junction several components below the volume root);
+- injected write and flush failures proving both exceptions propagate and the evidence stream is disposed (dedicated Windows CI and full workflow #1500 passed);
 - review of native status handling, access/share flags, object attributes, and supported Windows-version behavior;
 - a documented decision on whether directory namespace flushing is required and supported for this evidence contract.
 
@@ -44,6 +44,6 @@ All tests must use a dedicated temporary host directory and synthetic evidence c
 
 ## Consequences
 
-The helper now performs handle-relative, no-replace creation and holds directory handles without delete-sharing through the create operation. The junction rejection and controlled directory-replacement regression are covered by passing Windows CI, but this does not establish that every filesystem, Windows version, or namespace race is handled. Retain the qualification above until the broader native review and durability questions are resolved. `Flush(true)` provides the caller's file-data flush request; namespace durability is not claimed.
+The helper now performs handle-relative, no-replace creation and holds directory handles without delete-sharing through the create operation. First-level and nested junction rejection plus the controlled directory-replacement regression are covered by Windows CI. This does not establish that every filesystem, Windows version, or namespace race is handled. Retain the qualification above until the broader native review and durability questions are resolved. `Flush(true)` provides the caller's file-data flush request; namespace durability is not claimed.
 
 This ADR does not authorize physical HDD access, physical-device testing, source writes, mounting or dismounting VHDX files, VM state changes, formatting, initialization, partitioning, or repair operations. Public physical acquisition remains hard-disabled.
