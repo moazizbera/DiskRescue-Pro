@@ -206,14 +206,21 @@ public sealed class PublicationRecoveryEvidenceVerifierTests
 
 
     [Fact]
-    public void UnsupportedIntermediateCheckpointFailsClosed()
+    public void AfterImageNamespaceFlush_RequiresFinalImageAndNoManifestEntries()
     {
-        var result = PublicationRecoveryEvidenceVerifier.Verify(Expected, new(
+        var valid = PublicationRecoveryEvidenceVerifier.Verify(Expected, new(
             PhysicalAcquisitionPublicationCheckpoint.ImageNamespaceFlushed,
             Image(), null, null, null));
+        var missingImage = PublicationRecoveryEvidenceVerifier.Verify(Expected, new(
+            PhysicalAcquisitionPublicationCheckpoint.ImageNamespaceFlushed,
+            null, null, null, null));
+        var prematureManifest = PublicationRecoveryEvidenceVerifier.Verify(Expected, new(
+            PhysicalAcquisitionPublicationCheckpoint.ImageNamespaceFlushed,
+            Image(), Manifest(), null, null));
 
-        Assert.False(result.Passed);
-        Assert.Contains(result.Findings, finding => finding.Contains("not a supported", StringComparison.OrdinalIgnoreCase));
+        Assert.True(valid.Passed);
+        Assert.False(missingImage.Passed);
+        Assert.False(prematureManifest.Passed);
     }
 
     [Fact]
