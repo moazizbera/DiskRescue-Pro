@@ -67,6 +67,26 @@ try {
         throw "Pinned evidence writer created a file through a reparse-point directory."
     }
 
+    # A reparse point several components below the volume root must be
+    # rejected just like a reparse point at the first directory component.
+    $nestedBase = Join-Path $root "nested-base"
+    $nestedLevel = Join-Path $nestedBase "level-one"
+    $nestedTarget = Join-Path $root "nested-target"
+    $nestedRedirect = Join-Path $nestedLevel "redirected"
+    [IO.Directory]::CreateDirectory($nestedLevel) | Out-Null
+    [IO.Directory]::CreateDirectory($nestedTarget) | Out-Null
+    New-Item -ItemType Junction -Path $nestedRedirect -Target $nestedTarget -ErrorAction Stop | Out-Null
+    $nestedRejected = $false
+    try {
+        $throughNestedJunction = [DiskRescue.Preflight.PinnedEvidenceFile]::CreateNew($nestedRedirect, "nested-must-not-exist.json")
+        $throughNestedJunction.Dispose()
+    }
+    catch [IO.IOException] { $nestedRejected = $true }
+    if (-not $nestedRejected) { throw "Pinned evidence writer followed a nested reparse-point ancestor." }
+    if (Test-Path -LiteralPath (Join-Path $nestedTarget "nested-must-not-exist.json")) {
+        throw "Pinned evidence writer created a file through a nested reparse-point ancestor."
+    }
+
     # Deterministically attempt to replace the directory after the helper has
     # pinned and validated it, but before it creates the leaf relative to that handle.
     $raceDirectory = Join-Path $root "race-original"
@@ -245,7 +265,7 @@ public static class PinnedEvidenceConcurrencyTest
     $winnerCount = [PinnedEvidenceConcurrencyTest]::Run($concurrentDirectory)
     if ($winnerCount -ne 1) { throw "Concurrent create test did not produce one winner." }
 
-    Write-Output "Pinned evidence writer: create-new, durable flush, collision preservation, leaf validation, reparse-point rejection, controlled directory-replacement race, injected write/flush failure disposal, and concurrent single-winner creation passed."
+    Write-Output "Pinned evidence writer: create-new, durable flush, collision preservation, leaf validation, first-level and nested reparse-point rejection, controlled directory-replacement race, injected write/flush failure disposal, and concurrent single-winner creation passed."
 }
 finally {
     if (Test-Path -LiteralPath $root) {
