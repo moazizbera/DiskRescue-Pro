@@ -231,4 +231,21 @@ public sealed class PublicationRecoveryEvidenceVerifierTests
     }
 
 
+    [Fact]
+    public void NullExpectedArgumentThrows()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            PublicationRecoveryEvidenceVerifier.Verify(null!, new(
+                PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed,
+                Image(), Manifest(), null, null)));
+    }
+
+    [Fact]
+    public void NullObservedSnapshotThrows()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            PublicationRecoveryEvidenceVerifier.Verify(Expected, null!));
+    }
+
+
 }
