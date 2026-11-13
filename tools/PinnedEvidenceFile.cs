@@ -36,6 +36,19 @@ namespace DiskRescue.Preflight
 
         public static FileStream CreateNew(string directoryPath, string leafName)
         {
+            return CreateNewCore(directoryPath, leafName, null);
+        }
+
+        // Internal deterministic seam for the Windows regression test. Production
+        // callers use CreateNew and never supply code to run while handles are pinned.
+        internal static FileStream CreateNewForTest(string directoryPath, string leafName, Action afterDirectoryPinned)
+        {
+            if (afterDirectoryPinned == null) throw new ArgumentNullException(nameof(afterDirectoryPinned));
+            return CreateNewCore(directoryPath, leafName, afterDirectoryPinned);
+        }
+
+        private static FileStream CreateNewCore(string directoryPath, string leafName, Action afterDirectoryPinned)
+        {
             if (String.IsNullOrWhiteSpace(directoryPath)) throw new ArgumentException("Evidence directory is required.", nameof(directoryPath));
             if (String.IsNullOrWhiteSpace(leafName) || leafName == "." || leafName == ".." ||
                 leafName.IndexOfAny(new[] {'\\', '/', ':'}) >= 0 ||
@@ -78,6 +91,10 @@ namespace DiskRescue.Preflight
                     EnsureDirectory(next);
                     current = next;
                 }
+
+                // The test seam runs only after every directory component is open
+                // and validated, immediately before the handle-relative leaf create.
+                afterDirectoryPinned?.Invoke();
 
                 var file = OpenRelative(current, leafName,
                     0x80000000 | 0x40000000 | 0x00010000 | FileReadAttributes | Synchronize,
