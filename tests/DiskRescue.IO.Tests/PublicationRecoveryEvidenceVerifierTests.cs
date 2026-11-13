@@ -143,4 +143,66 @@ public sealed class PublicationRecoveryEvidenceVerifierTests
         Assert.False(result.Passed);
         Assert.Contains(result.Findings, finding => finding.Contains("64 hexadecimal", StringComparison.OrdinalIgnoreCase));
     }
+    [Fact]
+    public void BeforeImageRename_RejectsTemporaryManifest()
+    {
+        var result = PublicationRecoveryEvidenceVerifier.Verify(Expected, new(
+            PhysicalAcquisitionPublicationCheckpoint.ImageDataFlushedBeforeRename,
+            null, null, Image(), Manifest()));
+
+        Assert.False(result.Passed);
+        Assert.Contains(result.Findings, finding => finding.Contains("temporary manifest", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void AfterManifestRename_RejectsTemporaryImageEvenWhenImageFinalExists()
+    {
+        var result = PublicationRecoveryEvidenceVerifier.Verify(Expected, new(
+            PhysicalAcquisitionPublicationCheckpoint.ManifestRenamedBeforeNamespaceFlush,
+            Image(), null, Image(), null));
+
+        Assert.False(result.Passed);
+        Assert.Contains(result.Findings, finding => finding.Contains("temporary image", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void AfterManifestFlush_RejectsTemporaryManifest()
+    {
+        var result = PublicationRecoveryEvidenceVerifier.Verify(Expected, new(
+            PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed,
+            Image(), Manifest(), null, Manifest()));
+
+        Assert.False(result.Passed);
+        Assert.Contains(result.Findings, finding => finding.Contains("temporary manifest", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void SurvivingTemporaryEntriesMustAlsoMatchExpectedEvidence()
+    {
+        var wrongTemporaryImage = PublicationRecoveryEvidenceVerifier.Verify(Expected, new(
+            PhysicalAcquisitionPublicationCheckpoint.ImageRenamedBeforeNamespaceFlush,
+            null, null, new PublicationRecoveryFileEvidence(4096, ManifestHash), null));
+        var wrongTemporaryManifest = PublicationRecoveryEvidenceVerifier.Verify(Expected, new(
+            PhysicalAcquisitionPublicationCheckpoint.ManifestRenamedBeforeNamespaceFlush,
+            Image(), null, null, new PublicationRecoveryFileEvidence(511, ManifestHash)));
+
+        Assert.False(wrongTemporaryImage.Passed);
+        Assert.False(wrongTemporaryManifest.Passed);
+        Assert.Contains(wrongTemporaryImage.Findings, finding => finding.Contains("temporary image", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(wrongTemporaryManifest.Findings, finding => finding.Contains("temporary manifest", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void NegativeExpectedLengthFailsClosed()
+    {
+        var invalid = Expected with { ImageLength = -1 };
+        var result = PublicationRecoveryEvidenceVerifier.Verify(invalid, new(
+            PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed,
+            Image(), Manifest(), null, null));
+
+        Assert.False(result.Passed);
+        Assert.Contains(result.Findings, finding => finding.Contains("negative", StringComparison.OrdinalIgnoreCase));
+    }
+
+
 }
