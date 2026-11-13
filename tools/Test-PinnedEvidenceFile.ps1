@@ -74,16 +74,18 @@ try {
     $nestedTarget = Join-Path $root "nested-target"
     $nestedRedirect = Join-Path $nestedLevel "redirected"
     [IO.Directory]::CreateDirectory($nestedLevel) | Out-Null
-    [IO.Directory]::CreateDirectory($nestedTarget) | Out-Null
+    [IO.Directory]::CreateDirectory((Join-Path $nestedTarget "child")) | Out-Null
     New-Item -ItemType Junction -Path $nestedRedirect -Target $nestedTarget -ErrorAction Stop | Out-Null
     $nestedRejected = $false
     try {
-        $throughNestedJunction = [DiskRescue.Preflight.PinnedEvidenceFile]::CreateNew($nestedRedirect, "nested-must-not-exist.json")
+        # "child" follows the junction, making the reparse point an
+        # intermediate ancestor rather than the final directory component.
+        $throughNestedJunction = [DiskRescue.Preflight.PinnedEvidenceFile]::CreateNew((Join-Path $nestedRedirect "child"), "nested-must-not-exist.json")
         $throughNestedJunction.Dispose()
     }
     catch [IO.IOException] { $nestedRejected = $true }
     if (-not $nestedRejected) { throw "Pinned evidence writer followed a nested reparse-point ancestor." }
-    if (Test-Path -LiteralPath (Join-Path $nestedTarget "nested-must-not-exist.json")) {
+    if (Test-Path -LiteralPath (Join-Path (Join-Path $nestedTarget "child") "nested-must-not-exist.json")) {
         throw "Pinned evidence writer created a file through a nested reparse-point ancestor."
     }
 
