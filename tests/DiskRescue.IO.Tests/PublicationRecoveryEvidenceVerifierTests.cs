@@ -205,4 +205,30 @@ public sealed class PublicationRecoveryEvidenceVerifierTests
     }
 
 
+    [Fact]
+    public void UnsupportedIntermediateCheckpointFailsClosed()
+    {
+        var result = PublicationRecoveryEvidenceVerifier.Verify(Expected, new(
+            PhysicalAcquisitionPublicationCheckpoint.ImageNamespaceFlushed,
+            Image(), null, null, null));
+
+        Assert.False(result.Passed);
+        Assert.Contains(result.Findings, finding => finding.Contains("not a supported", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Sha256ComparisonIsCaseInsensitive()
+    {
+        var lowerCaseImage = new PublicationRecoveryFileEvidence(4096, ImageHash.ToLowerInvariant());
+        var lowerCaseManifest = new PublicationRecoveryFileEvidence(512, ManifestHash.ToLowerInvariant());
+
+        var result = PublicationRecoveryEvidenceVerifier.Verify(Expected, new(
+            PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed,
+            lowerCaseImage, lowerCaseManifest, null, null));
+
+        Assert.True(result.Passed);
+        Assert.Empty(result.Findings);
+    }
+
+
 }
