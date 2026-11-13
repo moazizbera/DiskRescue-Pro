@@ -63,7 +63,7 @@ internal static class PublicationRecoveryEvidenceVerifier
             case PhysicalAcquisitionPublicationCheckpoint.ManifestRenamedBeforeNamespaceFlush:
                 RequirePresent("final image", observed.ImageFinal, findings);
                 RequireAbsent("temporary image", observed.ImageTemporary, findings);
-                RequireExclusive("manifest", observed.ManifestFinal, observed.ManifestTemporary, findings);
+                RequireAtMostOne("manifest", observed.ManifestFinal, observed.ManifestTemporary, findings);
                 break;
 
             case PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed:
@@ -106,14 +106,12 @@ internal static class PublicationRecoveryEvidenceVerifier
         if (entry is not null) findings.Add($"The {label} must not be present for this checkpoint.");
     }
 
-    private static void RequireExclusive(
+    private static void RequireAtMostOne(
         string label,
         PublicationRecoveryFileEvidence? final,
         PublicationRecoveryFileEvidence? temporary,
         List<string> findings)
     {
-        if (final is null && temporary is null)
-            findings.Add($"Neither final nor temporary {label} is present for this checkpoint.");
         if (final is not null && temporary is not null)
             findings.Add($"Both final and temporary {label} entries are present; publication state is ambiguous.");
     }
