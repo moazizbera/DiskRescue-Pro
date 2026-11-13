@@ -1,6 +1,6 @@
 # Disposable NTFS VHDX crash/recovery acceptance protocol
 
-**Status: design only. No crash test has been executed.**
+**Status: design plus pure snapshot evaluator. No crash test has been executed.**
 
 This protocol is for a dedicated, disposable Hyper-V guest and generated VHDX files only. It is not authorization to access a physical HDD, and it does not enable the public physical-acquisition API. PR #30 remains draft/open/unmerged.
 
@@ -76,6 +76,19 @@ For each phase:
 - **Phase D:** Both final entries are expected to be present and valid after guest recovery. Any absence, hash mismatch, malformed manifest, or unexplained duplicate/orphan is a failure.
 
 A successful run is evidence for this exact guest/virtual-disk configuration only. In particular, Phase D success does not establish host power-loss or physical-device power-loss durability.
+
+## 5A. Pure recovery-snapshot verifier
+
+A pure verifier now evaluates a caller-supplied snapshot of observed entry names, lengths, and SHA-256 values against the selected publication checkpoint and precomputed expectations. It performs no filesystem enumeration, file opening, VM operation, volume operation, or device access. Its unit tests use synthetic metadata only.
+
+The verifier enforces these phase-specific rules:
+
+- Phase A: no final image or manifest; a matching temporary image may survive or may be absent.
+- Phase B: final image, temporary image, or neither may survive; both image names together are ambiguous. No manifest entry is expected.
+- Phase C: the final image must exist and match its expected length/hash; a manifest may be absent or survive under one name, but both manifest names together are ambiguous.
+- Phase D: both final image and final manifest must exist and match their expected lengths/hashes; no temporary entries may remain.
+
+Every surviving entry must match its expected length and SHA-256. The verifier reports findings rather than modifying or cleaning up evidence. It is not a directory scanner, does not parse manifest contents, and does not establish that a crash/recovery experiment has run. A future read-only guest verifier must collect and independently validate the snapshot before passing it to this evaluator.
 
 ## 6. Required evidence and acceptance
 
