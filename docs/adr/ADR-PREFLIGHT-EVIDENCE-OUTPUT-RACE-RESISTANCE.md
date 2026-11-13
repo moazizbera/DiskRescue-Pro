@@ -21,7 +21,7 @@ Use a Windows handle-relative evidence writer and fail closed. The current imple
 - uses restrictive sharing for the created file, returns the opened file handle as a `FileStream`, and has no path-based fallback;
 - leaves durable file-data flushing to the caller, which writes UTF-8 and calls `Flush(true)` before disposing the stream.
 
-The implementation is materially stronger than the former path-check plus path-based create sequence. However, it must **not** yet be described as fully race-proof or as providing complete namespace durability. In particular, the controlled directory-replacement regression test and explicit Windows-version/native-API review remain outstanding. The current flush contract covers file data; it does not claim that the containing directory namespace has been flushed to stable storage.
+The implementation is materially stronger than the former path-check plus path-based create sequence. However, it must **not** yet be described as fully race-proof or as providing complete namespace durability. The controlled directory-replacement regression test now passes in Windows CI. Explicit Windows-version/native-API review remains outstanding. The current flush contract covers file data; it does not claim that the containing directory namespace has been flushed to stable storage.
 
 ## Verification status
 
@@ -44,6 +44,6 @@ All tests must use a dedicated temporary host directory and synthetic evidence c
 
 ## Consequences
 
-The helper now performs handle-relative, no-replace creation and holds directory handles without delete-sharing through the create operation. That is the implemented mitigation. Until the outstanding regression and native review are complete, retain the qualification above and do not claim the complete workflow is race-free. `Flush(true)` provides the caller's file-data flush request; namespace durability is not claimed.
+The helper now performs handle-relative, no-replace creation and holds directory handles without delete-sharing through the create operation. The junction rejection and controlled directory-replacement regression are covered by passing Windows CI, but this does not establish that every filesystem, Windows version, or namespace race is handled. Retain the qualification above until the broader native review and durability questions are resolved. `Flush(true)` provides the caller's file-data flush request; namespace durability is not claimed.
 
 This ADR does not authorize physical HDD access, physical-device testing, source writes, mounting or dismounting VHDX files, VM state changes, formatting, initialization, partitioning, or repair operations. Public physical acquisition remains hard-disabled.
