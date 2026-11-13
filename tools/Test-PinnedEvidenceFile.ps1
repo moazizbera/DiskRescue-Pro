@@ -155,8 +155,14 @@ public static class EvidenceWriteFailureTests
 {
     public static void Run()
     {
-        var helper = typeof(DiskRescue.Preflight.PinnedEvidenceFile).GetMethod(
-            "WriteAndFlushForTest",
+        Type helperType = null;
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            helperType = assembly.GetType("DiskRescue.Preflight.PinnedEvidenceFile", false);
+            if (helperType != null) break;
+        }
+        if (helperType == null) throw new InvalidOperationException("Pinned evidence helper type was not loaded.");
+        var helper = helperType.GetMethod("WriteAndFlushForTest",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
         if (helper == null) throw new InvalidOperationException("Write/flush failure seam was not found.");
         var bytes = new byte[] { 1, 2, 3 };
