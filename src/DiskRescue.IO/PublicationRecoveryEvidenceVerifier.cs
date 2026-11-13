@@ -60,6 +60,13 @@ internal static class PublicationRecoveryEvidenceVerifier
                     findings.Add("Both final and temporary image entries are present; publication state is ambiguous.");
                 break;
 
+            case PhysicalAcquisitionPublicationCheckpoint.ImageNamespaceFlushed:
+                RequirePresent("final image", observed.ImageFinal, findings);
+                RequireAbsent("temporary image", observed.ImageTemporary, findings);
+                RequireAbsent("final manifest", observed.ManifestFinal, findings);
+                RequireAbsent("temporary manifest", observed.ManifestTemporary, findings);
+                break;
+
             case PhysicalAcquisitionPublicationCheckpoint.ManifestRenamedBeforeNamespaceFlush:
                 RequirePresent("final image", observed.ImageFinal, findings);
                 RequireAbsent("temporary image", observed.ImageTemporary, findings);
