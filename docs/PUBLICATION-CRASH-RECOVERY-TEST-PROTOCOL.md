@@ -88,6 +88,8 @@ The verifier enforces these phase-specific rules:
 - Phase C: the final image must exist and match its expected length/hash; a manifest may be absent or survive under one name, but both manifest names together are ambiguous.
 - Phase D: both final image and final manifest must exist and match their expected lengths/hashes; no temporary entries may remain.
 
+The writer's `ImageNamespaceFlushed` callback is an additional intermediate checkpoint between Phases B and C. At that instant, the final image must exist, and no manifest has yet been created. The pure evaluator supports this exact intermediate state independently; it does not redefine the four crash/recovery experiment phases in Section 3. Phase C's recovery snapshot is taken at `ManifestRenamedBeforeNamespaceFlush`, after the image namespace flush and manifest rename.
+
 Every surviving entry must match its expected length and SHA-256. The verifier reports findings rather than modifying or cleaning up evidence. It is not a directory scanner, does not parse manifest contents, and does not establish that a crash/recovery experiment has run. A future read-only guest verifier must collect and independently validate the snapshot before passing it to this evaluator.
 
 ## 6. Required evidence and acceptance
