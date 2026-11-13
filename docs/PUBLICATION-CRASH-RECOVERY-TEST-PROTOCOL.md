@@ -72,7 +72,7 @@ For each phase:
 
 - **Phase A:** No final image or manifest should be published. A temporary file may be present or may be removed by recovery/cleanup; record the observed state rather than assuming cleanup.
 - **Phase B:** The final image name may or may not survive recovery. If present, its content must match the precomputed image hash. The manifest must not be treated as committed unless it independently exists and validates.
-- **Phase C:** The image and manifest may have different persistence outcomes. Any surviving final image must match its expected hash. Any surviving manifest must parse and match the image identity/hash/length. A missing or mismatched sidecar is a failed consistency outcome requiring investigation.
+- **Phase C:** The image namespace flush has already completed, so the final image must be present and match its expected hash/length. The manifest rename has occurred but its namespace flush has not; after recovery, the manifest may be absent or may survive under its final or temporary name. Any surviving manifest must parse and match the image identity/hash/length. Both manifest names present together, or any mismatch, is a failed consistency outcome requiring investigation.
 - **Phase D:** Both final entries are expected to be present and valid after guest recovery. Any absence, hash mismatch, malformed manifest, or unexplained duplicate/orphan is a failure.
 
 A successful run is evidence for this exact guest/virtual-disk configuration only. In particular, Phase D success does not establish host power-loss or physical-device power-loss durability.
