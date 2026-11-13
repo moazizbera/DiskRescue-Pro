@@ -306,4 +306,39 @@ public sealed class PublicationRecoveryEvidenceVerifierTests
         Assert.Null(snapshot.ManifestTemporary);
     }
 
+
+    [Fact]
+    public void SnapshotFactory_PreservesCheckpointAndHashesTemporaryEntries()
+    {
+        byte[] temporaryImage = [9, 8, 7];
+        byte[] temporaryManifest = [6, 5];
+
+        var snapshot = PublicationRecoveryEvidenceSnapshotFactory.FromInMemoryEntries(
+            PhysicalAcquisitionPublicationCheckpoint.ManifestRenamedBeforeNamespaceFlush,
+            imageFinal: new byte[] { 1 },
+            imageTemporary: temporaryImage,
+            manifestTemporary: temporaryManifest);
+
+        Assert.Equal(PhysicalAcquisitionPublicationCheckpoint.ManifestRenamedBeforeNamespaceFlush, snapshot.Checkpoint);
+        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(temporaryImage)), snapshot.ImageTemporary!.Sha256);
+        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(temporaryManifest)), snapshot.ManifestTemporary!.Sha256);
+        Assert.Null(snapshot.ManifestFinal);
+    }
+
+    [Fact]
+    public void SnapshotFactory_EvidenceDoesNotChangeWhenCallerMutatesSourceBuffers()
+    {
+        byte[] image = [1, 2, 3];
+        var expectedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(image));
+
+        var snapshot = PublicationRecoveryEvidenceSnapshotFactory.FromInMemoryEntries(
+            PhysicalAcquisitionPublicationCheckpoint.ImageRenamedBeforeNamespaceFlush,
+            imageFinal: image);
+
+        Array.Fill(image, (byte)0);
+
+        Assert.Equal(expectedHash, snapshot.ImageFinal!.Sha256);
+        Assert.Equal(3, snapshot.ImageFinal.Length);
+    }
+
 }
