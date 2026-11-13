@@ -87,7 +87,11 @@ try {
         "CreateNewForTest",
         [Reflection.BindingFlags]::NonPublic -bor [Reflection.BindingFlags]::Static)
     if ($null -eq $testSeam) { throw "Pinned-directory race test seam was not found." }
-    $raceStream = $testSeam.Invoke($null, @($raceDirectory, "race-evidence.json", $afterPinned))
+    $invokeArguments = [object[]]::new(3)
+    $invokeArguments[0] = [string]$raceDirectory
+    $invokeArguments[1] = [string]"race-evidence.json"
+    $invokeArguments[2] = [Action]$afterPinned
+    $raceStream = $testSeam.Invoke($null, $invokeArguments)
     try {
         $raceBytes = [Text.Encoding]::UTF8.GetBytes("pinned-directory-winner")
         $raceStream.Write($raceBytes, 0, $raceBytes.Length)
