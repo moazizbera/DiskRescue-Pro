@@ -1,53 +1,49 @@
 # ADR: Race-Resistant Preflight Evidence Output
 
-- Status: Accepted as a security requirement; implementation deferred
-- Date: 2026-11-12
-- Scope: `tools/Invoke-HyperVCrashPreflight.ps1`
+- Status: Handle-relative implementation in place; security verification incomplete
+- Date: 2026-11-12 (implementation status updated 2026-11-13)
+- Scope: `tools/Invoke-HyperVCrashPreflight.ps1` and `tools/PinnedEvidenceFile.cs`
 - Safety classification: Host-side evidence output only; no source VHDX writes
 
 ## Context
 
-The Hyper-V preflight adapter writes a JSON evidence document to a caller-selected local path. The current implementation:
-
-1. Requires a fully qualified local drive-letter path.
-2. Requires the parent directory to exist.
-3. checks the directory ancestry for reparse points.
-4. rejects an existing evidence target and refuses to overwrite.
-5. opens the target with `FileMode.CreateNew`, which atomically fails if the target name already exists.
-6. writes UTF-8 without a BOM and calls `Flush(true)` before disposing the stream.
-
-These controls provide useful path-policy, no-overwrite, and file-data-flush guarantees. They do **not** pin the checked parent directory. A directory or ancestor can potentially be replaced after the reparse-point check and before the file is created. Therefore the current sequence does not eliminate a directory-replacement / time-of-check-to-time-of-use (TOCTOU) race.
+The Hyper-V preflight adapter writes a JSON evidence document to a caller-selected local path. A path-based sequence of checking directory ancestry and then calling `FileMode.CreateNew` leaves a directory-replacement / time-of-check-to-time-of-use (TOCTOU) window: an ancestor can potentially be substituted after the check and before file creation.
 
 ## Decision
 
-Do not describe the current evidence writer as race-free or fully protected against directory replacement.
+Use a Windows handle-relative evidence writer and fail closed. The current implementation in `tools/PinnedEvidenceFile.cs`:
 
-A future implementation may claim this property only after it:
+- accepts only fully qualified drive-letter paths on a locally attached fixed drive;
+- opens the volume root, then opens each directory component relative to its already-open parent handle;
+- opens directory components with reparse-point opening semantics and rejects handles whose attributes identify a reparse point or non-directory;
+- omits delete-sharing on the traversed directory handles, retaining those handles until the evidence file has been created. This is intended to prevent those directory objects from being renamed or deleted during the handle-relative create operation;
+- creates the leaf relative to the retained final directory handle using `NtCreateFile` with `FILE_CREATE`, so an existing target is not replaced;
+- uses restrictive sharing for the created file, returns the opened file handle as a `FileStream`, and has no path-based fallback;
+- leaves durable file-data flushing to the caller, which writes UTF-8 and calls `Flush(true)` before disposing the stream.
 
-- opens the intended parent directory and retains a handle to that exact directory object;
-- verifies the opened directory's identity and rejects reparse-point traversal according to an explicitly tested policy;
-- creates the evidence file relative to that retained directory handle (rather than resolving the original path again);
-- uses create-new semantics and restrictive sharing for the new file;
-- verifies the created file's identity and that it is a regular file, not a reparse point;
-- flushes file data and, where supported and required by the durability contract, the containing directory namespace;
-- closes all handles deterministically and reports failures without silently falling back to path-based creation.
+The implementation is materially stronger than the former path-check plus path-based create sequence. However, it must **not** yet be described as fully race-proof or as providing complete namespace durability. In particular, the controlled directory-replacement regression test and explicit Windows-version/native-API review remain outstanding. The current flush contract covers file data; it does not claim that the containing directory namespace has been flushed to stable storage.
 
-On Windows, a handle-relative native create operation (for example, a carefully reviewed `NtCreateFile` call with a parent `RootDirectory` handle) may be needed. Its status handling, access/share flags, object attributes, path encoding, and behavior on supported Windows versions must be reviewed and tested on Windows before adoption. A second path-based recheck is not an equivalent fix.
+## Verification status
 
-## Required verification before implementation is accepted
+The Windows temporary-directory test currently covers:
+
+- successful creation with exact expected bytes;
+- refusal to replace an existing target, with original bytes preserved;
+- rejection of an invalid traversal leaf;
+- concurrent creation with exactly one winner and no overwrite.
+
+The latest recorded CI run for the branch passed these tests, but the following verification remains outstanding before making a broader race-resistance or durability claim:
+
+- controlled directory replacement while the directory handle is retained, proving the operation remains bound to the originally opened directory or safely fails;
+- actual reparse-point parent/ancestor tests against the native helper (mocked validator metadata is not a substitute);
+- injected write/flush failure proving failure is reported and handles are closed;
+- review of native status handling, access/share flags, object attributes, and supported Windows-version behavior;
+- a documented decision on whether directory namespace flushing is required and supported for this evidence contract.
 
 All tests must use a dedicated temporary host directory and synthetic evidence content. They must not open, enumerate, or access physical HDD device handles, and must not modify source VHDX files.
 
-- Existing target: creation fails and original bytes remain unchanged.
-- New target: exactly one file is created and its contents match the expected JSON bytes.
-- Concurrent target creation: one creator wins; the other fails without truncating or replacing the winner.
-- Reparse-point parent/ancestor: preflight rejects it.
-- Directory replacement race: a controlled Windows test proves creation remains bound to the originally opened directory object, or safely fails; it must not silently write into a substituted directory.
-- Flush/write failure: the operation reports failure and closes handles; no success result is emitted.
-- Regression: existing preflight validator and disposable-VHDX tests remain green.
-
 ## Consequences
 
-Until the handle-relative design is implemented and verified, the current adapter retains a documented residual race. Its existing `CreateNew` and `Flush(true)` guarantees remain valid but are narrower than race resistance or full namespace durability.
+The helper now performs handle-relative, no-replace creation and holds directory handles without delete-sharing through the create operation. That is the implemented mitigation. Until the outstanding regression and native review are complete, retain the qualification above and do not claim the complete workflow is race-free. `Flush(true)` provides the caller's file-data flush request; namespace durability is not claimed.
 
 This ADR does not authorize physical HDD access, physical-device testing, source writes, mounting or dismounting VHDX files, VM state changes, formatting, initialization, partitioning, or repair operations. Public physical acquisition remains hard-disabled.
