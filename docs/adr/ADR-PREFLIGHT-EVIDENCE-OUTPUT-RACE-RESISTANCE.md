@@ -36,7 +36,7 @@ The latest recorded CI run for the branch passed these tests, but the following 
 
 - controlled directory replacement while the directory handle is retained, proving the operation remains bound to the originally opened directory or safely fails;
 - actual reparse-point parent/ancestor tests against the native helper (mocked validator metadata is not a substitute);
-- injected write/flush failure proving failure is reported and handles are closed;
+- injected write and flush failures proving both exceptions propagate and the evidence stream is disposed (the dedicated Windows CI test step passed on commit `ad8c884`; full workflow #1500 is still running);
 - review of native status handling, access/share flags, object attributes, and supported Windows-version behavior;
 - a documented decision on whether directory namespace flushing is required and supported for this evidence contract.
 
