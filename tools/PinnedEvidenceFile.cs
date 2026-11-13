@@ -47,6 +47,40 @@ namespace DiskRescue.Preflight
             return CreateNewCore(directoryPath, leafName, afterDirectoryPinned);
         }
 
+        public static void WriteAndFlush(FileStream stream, byte[] bytes)
+        {
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (bytes == null) throw new ArgumentNullException(nameof(bytes));
+            WriteAndFlushCore(stream, bytes,
+                (target, data) => target.Write(data, 0, data.Length),
+                target => ((FileStream)target).Flush(true));
+        }
+
+        // Deterministic failure-injection seam. Production callers use WriteAndFlush.
+        internal static void WriteAndFlushForTest(Stream stream, byte[] bytes,
+            Action<Stream, byte[]> write, Action<Stream> flush)
+        {
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (bytes == null) throw new ArgumentNullException(nameof(bytes));
+            if (write == null) throw new ArgumentNullException(nameof(write));
+            if (flush == null) throw new ArgumentNullException(nameof(flush));
+            WriteAndFlushCore(stream, bytes, write, flush);
+        }
+
+        private static void WriteAndFlushCore(Stream stream, byte[] bytes,
+            Action<Stream, byte[]> write, Action<Stream> flush)
+        {
+            try
+            {
+                write(stream, bytes);
+                flush(stream);
+            }
+            finally
+            {
+                stream.Dispose();
+            }
+        }
+
         private static FileStream CreateNewCore(string directoryPath, string leafName, Action afterDirectoryPinned)
         {
             if (String.IsNullOrWhiteSpace(directoryPath)) throw new ArgumentException("Evidence directory is required.", nameof(directoryPath));
