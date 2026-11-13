@@ -50,6 +50,23 @@ try {
     if (-not $invalidLeafRejected) { throw "Pinned evidence writer accepted a path traversal leaf." }
 
 
+    # A junction is a reparse-point directory. The native helper must reject
+    # the component itself rather than traversing into its target.
+    $junctionTarget = Join-Path $root "junction-target"
+    $junctionPath = Join-Path $root "junction"
+    [IO.Directory]::CreateDirectory($junctionTarget) | Out-Null
+    New-Item -ItemType Junction -Path $junctionPath -Target $junctionTarget -ErrorAction Stop | Out-Null
+    $reparseRejected = $false
+    try {
+        $throughJunction = [DiskRescue.Preflight.PinnedEvidenceFile]::CreateNew($junctionPath, "must-not-exist.json")
+        $throughJunction.Dispose()
+    }
+    catch [IO.IOException] { $reparseRejected = $true }
+    if (-not $reparseRejected) { throw "Pinned evidence writer followed a reparse-point directory." }
+    if (Test-Path -LiteralPath (Join-Path $junctionTarget "must-not-exist.json")) {
+        throw "Pinned evidence writer created a file through a reparse-point directory."
+    }
+
     $concurrentDirectory = Join-Path $root "concurrent"
     [IO.Directory]::CreateDirectory($concurrentDirectory) | Out-Null
     Add-Type -TypeDefinition @'
