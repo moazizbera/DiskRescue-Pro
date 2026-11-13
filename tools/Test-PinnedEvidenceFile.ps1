@@ -183,9 +183,7 @@ public static class EvidenceWriteFailureTests
 }
 '@
     if (-not ("EvidenceWriteFailureTests" -as [type])) {
-        Add-Type -TypeDefinition $failureTestType -ReferencedAssemblies @(
-            [DiskRescue.Preflight.PinnedEvidenceFile].Assembly.Location
-        ) -ErrorAction Stop
+        Add-Type -TypeDefinition $failureTestType -ErrorAction Stop
     }
     [EvidenceWriteFailureTests]::Run()
 
