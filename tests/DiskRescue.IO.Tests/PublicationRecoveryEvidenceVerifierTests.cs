@@ -254,5 +254,24 @@ public sealed class PublicationRecoveryEvidenceVerifierTests
             PublicationRecoveryEvidenceVerifier.Verify(Expected, null!));
     }
 
+    [Fact]
+    public void EvidenceFactory_UsesByteLengthAndSha256ForInMemoryContent()
+    {
+        var evidence = PublicationRecoveryEvidenceFactory.FromBytes("abc"u8);
+
+        Assert.Equal(3, evidence.Length);
+        Assert.Equal("BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD", evidence.Sha256);
+    }
+
+    [Fact]
+    public void EvidenceFactory_HandlesEmptyInMemoryContent()
+    {
+        var evidence = PublicationRecoveryEvidenceFactory.FromBytes(ReadOnlySpan<byte>.Empty);
+
+        Assert.Equal(0, evidence.Length);
+        Assert.Equal("E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855", evidence.Sha256);
+    }
+
+
 
 }
