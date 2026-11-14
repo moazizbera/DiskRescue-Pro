@@ -15,6 +15,12 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+      - name: Validate read-only Hyper-V preflight logic (mocked inventory only)
+        shell: pwsh
+        run: ./tools/Test-HyperVCrashPreflight.Validation.ps1
+      - name: Test pinned evidence writer (temporary host directory only)
+        shell: pwsh
+        run: ./tools/Test-PinnedEvidenceFile.ps1
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
         with:
@@ -25,6 +31,12 @@ jobs:
         run: dotnet build DiskRescue.sln --configuration Release --no-restore
       - name: Test
         run: dotnet test DiskRescue.sln --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+      - name: Run disposable VHDX read-only policy smoke test
+        shell: pwsh
+        run: ./tools/Test-WindowsVhdxSafety.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiskRescue-Vhdx-Smoke"
+      - name: Run disposable VHDX ENOSPC cleanup integration test
+        shell: pwsh
+        run: ./tools/Test-WindowsVhdxEnospc.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiskRescue-Vhdx-Enospc"
       - name: Generate safe disk-image fixtures
         shell: pwsh
         run: |

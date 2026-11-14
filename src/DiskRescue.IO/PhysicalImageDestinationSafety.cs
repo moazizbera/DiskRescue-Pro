@@ -241,6 +241,38 @@ public static class PhysicalImageDestinationSafety
         return issues.AsReadOnly();
     }
 
+    /// <summary>
+    /// Reconciles the volume-GUID root obtained from the pinned directory handle with
+    /// both the complete volume map and the destination extent numbers captured by preflight.
+    /// </summary>
+    internal static IReadOnlyList<string> ValidatePinnedDestinationVolume(
+        int sourceDiskNumber,
+        string pinnedVolumeGuidPath,
+        PhysicalVolumeMappingResult volumeMap,
+        IReadOnlyList<int> preflightDestinationDiskNumbers)
+    {
+        ArgumentNullException.ThrowIfNull(volumeMap);
+        ArgumentNullException.ThrowIfNull(preflightDestinationDiskNumbers);
+
+        IReadOnlyList<int> mappedDiskNumbers;
+        try
+        {
+            mappedDiskNumbers = WindowsPhysicalDiskVolumeMap.ResolveDiskNumbersForVolumeGuidPath(
+                volumeMap, pinnedVolumeGuidPath);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            return new[]
+            {
+                "Pinned destination volume could not be reconciled with the complete Windows volume map: " +
+                exception.Message
+            };
+        }
+
+        return ValidateDiskMappings(
+            sourceDiskNumber, mappedDiskNumbers, preflightDestinationDiskNumbers);
+    }
+
     internal static IReadOnlyList<string> ValidateDiskMappings(
         int sourceDiskNumber,
         IReadOnlyList<int> mappedDiskNumbers,

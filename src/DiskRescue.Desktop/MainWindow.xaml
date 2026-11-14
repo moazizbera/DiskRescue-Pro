@@ -318,48 +318,58 @@
                           ShowsPreview="True" ResizeDirection="Columns"
                           ResizeBehavior="PreviousAndNext" Cursor="SizeWE"/>
 
-            <!-- Findings panel is a readable report surface, not a console -->
+            <!-- Compact inspector: findings keep a useful minimum height; the panel scrolls on short work areas. -->
             <Border Grid.Column="2" Background="{StaticResource Panel}" BorderBrush="#263A52"
-                    BorderThickness="1" CornerRadius="11" Padding="12">
-                <DockPanel LastChildFill="True">
-                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,11">
-                        <TextBlock Text="03  /  SELECTED ITEM" Foreground="{StaticResource Muted}"
-                                   FontSize="10" FontWeight="Bold"/>
-                        <TextBlock Text="Partition inspector" Foreground="{StaticResource Text}"
-                                   FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0"/>
-                        <TextBox x:Name="SelectedPartitionDetailsBox" AutomationProperties.Name="Selected partition geometry and interpretation" IsReadOnly="True"
-                                 TextWrapping="Wrap" AcceptsReturn="True"
-                                 VerticalScrollBarVisibility="Visible" Height="126" MinHeight="104"
-                                 Margin="0,8,0,12" BorderThickness="1"
-                                 BorderBrush="#263A52" Background="#0C1726" Padding="10"
-                                 Text="Inspect an image and select a partition to review its geometry and validation context."/>
-                        <TextBlock Text="03  /  INSPECTION REPORT" Foreground="{StaticResource Muted}"
-                                   FontSize="10" FontWeight="Bold"/>
-                        <TextBlock Text="Findings &amp; guidance" Foreground="{StaticResource Text}"
-                                   FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0"/>
-                        <TextBlock Text="Validation results, warnings, and limitations"
-                                   Foreground="{StaticResource Muted}" FontSize="11" Margin="0,3,0,0"/>
-                        <Border Background="#2D2222" BorderBrush="#8E4545" BorderThickness="1"
-                                CornerRadius="6" Padding="9" Margin="0,9,0,0">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="⚠" Foreground="#F07878" FontWeight="Bold"
-                                           FontSize="14" Margin="0,0,8,0" VerticalAlignment="Top"/>
-                                <TextBlock Grid.Column="1"
-                                           Text="Image inspection is read-only. Physical partition scanning, repair, and recovery are disabled."
-                                           Foreground="#F0DADA" FontSize="10" TextWrapping="Wrap"/>
-                            </Grid>
-                        </Border>
-                    </StackPanel>
-                    <TextBox x:Name="FindingsBox" AutomationProperties.Name="Inspection findings, warnings, and limitations" IsReadOnly="True" TextWrapping="Wrap"
-                             AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
-                             BorderThickness="1" BorderBrush="#263A52"
-                             Background="#0C1726" Padding="12"
-                             Text="No inspection has been run. Choose a regular disk-image file to begin."/>
-                </DockPanel>
+                    BorderThickness="1" CornerRadius="11" Padding="10">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              CanContentScroll="True">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="Partition inspector" Foreground="{StaticResource Text}"
+                                   FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                        <Expander Grid.Row="1" Header="Selected partition details"
+                                  IsExpanded="False" Margin="0,0,0,7"
+                                  Foreground="{StaticResource Text}"
+                                  AutomationProperties.Name="Expand selected partition geometry and interpretation">
+                            <TextBox x:Name="SelectedPartitionDetailsBox" AutomationProperties.Name="Selected partition geometry and interpretation" IsReadOnly="True"
+                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Auto" MinHeight="72" MaxHeight="140"
+                                     Margin="0,6,0,2" BorderThickness="1"
+                                     BorderBrush="#263A52" Background="#0C1726" Padding="9"
+                                     Text="Inspect an image and select a partition to review its geometry and validation context."/>
+                        </Expander>
+                        <StackPanel Grid.Row="2" Margin="0,0,0,6">
+                            <TextBlock Text="Findings &amp; guidance" Foreground="{StaticResource Text}"
+                                       FontSize="16" FontWeight="SemiBold"/>
+                            <Border Background="#2D2222" BorderBrush="#8E4545" BorderThickness="1"
+                                    CornerRadius="6" Padding="6" Margin="0,6,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="⚠" Foreground="#F07878" FontWeight="Bold"
+                                               FontSize="12" Margin="0,0,6,0" VerticalAlignment="Top"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="Read-only image inspection. Physical partition scanning, repair, and recovery are disabled."
+                                               Foreground="#F0DADA" FontSize="9" TextWrapping="Wrap"/>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                        <TextBox Grid.Row="3" x:Name="FindingsBox"
+                                 AutomationProperties.Name="Inspection findings, warnings, and limitations"
+                                 IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
+                                 VerticalScrollBarVisibility="Auto" MinHeight="112" MaxHeight="260"
+                                 BorderThickness="1" BorderBrush="#263A52"
+                                 Background="#0C1726" Padding="10"
+                                 Text="No inspection has been run. Choose a regular disk-image file to begin."/>
+                    </Grid>
+                </ScrollViewer>
             </Border>
         </Grid>
 

@@ -13,7 +13,7 @@ public sealed class PhysicalDiskImageAcquisitionTests
         new(new[] { descriptor ?? Descriptor() }, Array.Empty<string>());
 
     [Fact]
-    public async Task PublicAcquisitionEntryPointFailsClosedUntilPinnedDestinationSessionExists()
+    public async Task PublicAcquisitionEntryPointRemainsDisabledPendingEndToEndReview()
     {
         Assert.False(PhysicalDiskImageAcquisition.IsAcquisitionEnabled);
 
@@ -24,7 +24,8 @@ public sealed class PhysicalDiskImageAcquisitionTests
         var error = await Assert.ThrowsAsync<NotSupportedException>(() =>
             PhysicalDiskImageAcquisition.AcquireAsync(Descriptor(), destination));
 
-        Assert.Contains("handle-pinned Windows destination session", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("independent security review", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("disposable-VHDX", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.False(File.Exists(destination));
         Assert.False(File.Exists(destination + ".diskrescue.json"));
     }
