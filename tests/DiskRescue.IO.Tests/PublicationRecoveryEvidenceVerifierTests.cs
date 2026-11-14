@@ -343,14 +343,14 @@ public sealed class PublicationRecoveryEvidenceVerifierTests
 
 
     [Theory]
-    [InlineData(PhysicalAcquisitionPublicationCheckpoint.ImageDataFlushedBeforeRename)]
-    [InlineData(PhysicalAcquisitionPublicationCheckpoint.ImageRenamedBeforeNamespaceFlush)]
-    [InlineData(PhysicalAcquisitionPublicationCheckpoint.ImageNamespaceFlushed)]
-    [InlineData(PhysicalAcquisitionPublicationCheckpoint.ManifestRenamedBeforeNamespaceFlush)]
-    [InlineData(PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed)]
-    public void SnapshotFactory_OutputVerifiesAcrossEveryPublicationCheckpoint(
-        PhysicalAcquisitionPublicationCheckpoint checkpoint)
+    [InlineData(nameof(PhysicalAcquisitionPublicationCheckpoint.ImageDataFlushedBeforeRename))]
+    [InlineData(nameof(PhysicalAcquisitionPublicationCheckpoint.ImageRenamedBeforeNamespaceFlush))]
+    [InlineData(nameof(PhysicalAcquisitionPublicationCheckpoint.ImageNamespaceFlushed))]
+    [InlineData(nameof(PhysicalAcquisitionPublicationCheckpoint.ManifestRenamedBeforeNamespaceFlush))]
+    [InlineData(nameof(PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed))]
+    public void SnapshotFactory_OutputVerifiesAcrossEveryPublicationCheckpoint(string checkpointName)
     {
+        var checkpoint = Enum.Parse<PhysicalAcquisitionPublicationCheckpoint>(checkpointName);
         byte[] image = [10, 20, 30, 40];
         byte[] manifest = [50, 60, 70];
         var imageEvidence = PublicationRecoveryEvidenceFactory.FromBytes(image);
