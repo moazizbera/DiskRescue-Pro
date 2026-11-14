@@ -341,4 +341,72 @@ public sealed class PublicationRecoveryEvidenceVerifierTests
         Assert.Equal(3, snapshot.ImageFinal.Length);
     }
 
+
+    [Theory]
+    [InlineData(PhysicalAcquisitionPublicationCheckpoint.ImageDataFlushedBeforeRename)]
+    [InlineData(PhysicalAcquisitionPublicationCheckpoint.ImageRenamedBeforeNamespaceFlush)]
+    [InlineData(PhysicalAcquisitionPublicationCheckpoint.ImageNamespaceFlushed)]
+    [InlineData(PhysicalAcquisitionPublicationCheckpoint.ManifestRenamedBeforeNamespaceFlush)]
+    [InlineData(PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed)]
+    public void SnapshotFactory_OutputVerifiesAcrossEveryPublicationCheckpoint(
+        PhysicalAcquisitionPublicationCheckpoint checkpoint)
+    {
+        byte[] image = [10, 20, 30, 40];
+        byte[] manifest = [50, 60, 70];
+        var imageEvidence = PublicationRecoveryEvidenceFactory.FromBytes(image);
+        var manifestEvidence = PublicationRecoveryEvidenceFactory.FromBytes(manifest);
+        var expected = new PublicationRecoveryExpectation(
+            imageEvidence.Length, imageEvidence.Sha256,
+            manifestEvidence.Length, manifestEvidence.Sha256);
+
+        var snapshot = checkpoint switch
+        {
+            PhysicalAcquisitionPublicationCheckpoint.ImageDataFlushedBeforeRename =>
+                PublicationRecoveryEvidenceSnapshotFactory.FromInMemoryEntries(
+                    checkpoint, imageTemporary: image),
+            PhysicalAcquisitionPublicationCheckpoint.ImageRenamedBeforeNamespaceFlush =>
+                PublicationRecoveryEvidenceSnapshotFactory.FromInMemoryEntries(
+                    checkpoint, imageFinal: image),
+            PhysicalAcquisitionPublicationCheckpoint.ImageNamespaceFlushed =>
+                PublicationRecoveryEvidenceSnapshotFactory.FromInMemoryEntries(
+                    checkpoint, imageFinal: image),
+            PhysicalAcquisitionPublicationCheckpoint.ManifestRenamedBeforeNamespaceFlush =>
+                PublicationRecoveryEvidenceSnapshotFactory.FromInMemoryEntries(
+                    checkpoint, imageFinal: image, manifestTemporary: manifest),
+            PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed =>
+                PublicationRecoveryEvidenceSnapshotFactory.FromInMemoryEntries(
+                    checkpoint, imageFinal: image, manifestFinal: manifest),
+            _ => throw new ArgumentOutOfRangeException(nameof(checkpoint))
+        };
+
+        var result = PublicationRecoveryEvidenceVerifier.Verify(expected, snapshot);
+
+        Assert.True(result.Passed, string.Join(Environment.NewLine, result.Findings));
+        Assert.Empty(result.Findings);
+    }
+
+    [Fact]
+    public void SnapshotFactory_OutputFailsVerificationWhenSuppliedBytesDifferFromExpectation()
+    {
+        byte[] expectedImage = [1, 2, 3];
+        byte[] observedImage = [1, 2, 4];
+        byte[] manifest = [5, 6];
+
+        var imageExpectation = PublicationRecoveryEvidenceFactory.FromBytes(expectedImage);
+        var manifestExpectation = PublicationRecoveryEvidenceFactory.FromBytes(manifest);
+        var expected = new PublicationRecoveryExpectation(
+            imageExpectation.Length, imageExpectation.Sha256,
+            manifestExpectation.Length, manifestExpectation.Sha256);
+        var snapshot = PublicationRecoveryEvidenceSnapshotFactory.FromInMemoryEntries(
+            PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed,
+            imageFinal: observedImage,
+            manifestFinal: manifest);
+
+        var result = PublicationRecoveryEvidenceVerifier.Verify(expected, snapshot);
+
+        Assert.False(result.Passed);
+        Assert.Contains(result.Findings, finding =>
+            finding.Contains("SHA-256", StringComparison.OrdinalIgnoreCase));
+    }
+
 }
