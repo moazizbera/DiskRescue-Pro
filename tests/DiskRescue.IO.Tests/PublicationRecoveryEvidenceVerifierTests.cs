@@ -425,4 +425,45 @@ public sealed class PublicationRecoveryEvidenceVerifierTests
         Assert.Null(snapshot.ManifestFinal);
     }
 
+
+    [Fact]
+    public void UnsupportedCheckpointFailsClosed()
+    {
+        var snapshot = new PublicationRecoverySnapshot(
+            (PhysicalAcquisitionPublicationCheckpoint)int.MaxValue,
+            Image(), Manifest(), null, null);
+
+        var result = PublicationRecoveryEvidenceVerifier.Verify(Expected, snapshot);
+
+        Assert.False(result.Passed);
+        Assert.Contains(result.Findings, finding =>
+            finding.Contains("not a supported", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void ObservedEvidenceWithMalformedSha256FailsClosed()
+    {
+        var malformedImage = new PublicationRecoveryFileEvidence(4096, "xyz");
+        var result = PublicationRecoveryEvidenceVerifier.Verify(Expected, new(
+            PhysicalAcquisitionPublicationCheckpoint.ImageRenamedBeforeNamespaceFlush,
+            malformedImage, null, null, null));
+
+        Assert.False(result.Passed);
+        Assert.Contains(result.Findings, finding =>
+            finding.Contains("SHA-256", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void ObservedEvidenceWithNegativeLengthFailsClosed()
+    {
+        var negativeImage = new PublicationRecoveryFileEvidence(-1, ImageHash);
+        var result = PublicationRecoveryEvidenceVerifier.Verify(Expected, new(
+            PhysicalAcquisitionPublicationCheckpoint.ImageRenamedBeforeNamespaceFlush,
+            negativeImage, null, null, null));
+
+        Assert.False(result.Passed);
+        Assert.Contains(result.Findings, finding =>
+            finding.Contains("length", StringComparison.OrdinalIgnoreCase));
+    }
+
 }
