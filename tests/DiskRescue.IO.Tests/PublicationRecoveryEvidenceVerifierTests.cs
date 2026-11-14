@@ -409,4 +409,20 @@ public sealed class PublicationRecoveryEvidenceVerifierTests
             finding.Contains("SHA-256", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void SnapshotFactory_DistinguishesPresentEmptyEntryFromAbsentEntry()
+    {
+        var snapshot = PublicationRecoveryEvidenceSnapshotFactory.FromInMemoryEntries(
+            PhysicalAcquisitionPublicationCheckpoint.ImageNamespaceFlushed,
+            imageFinal: ReadOnlyMemory<byte>.Empty,
+            manifestFinal: null);
+
+        Assert.NotNull(snapshot.ImageFinal);
+        Assert.Equal(0, snapshot.ImageFinal!.Length);
+        Assert.Equal(
+            "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+            snapshot.ImageFinal.Sha256);
+        Assert.Null(snapshot.ManifestFinal);
+    }
+
 }
