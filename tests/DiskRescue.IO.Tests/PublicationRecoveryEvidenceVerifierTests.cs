@@ -495,4 +495,30 @@ public sealed class PublicationRecoveryEvidenceVerifierTests
         Assert.Equal(4, result.Findings.Count);
     }
 
+
+    [Fact]
+    public void VerificationReportsStructuralAndContentFindingsTogether()
+    {
+        var observed = new PublicationRecoverySnapshot(
+            PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed,
+            new PublicationRecoveryFileEvidence(4096, ManifestHash),
+            null,
+            Image(),
+            null);
+
+        var result = PublicationRecoveryEvidenceVerifier.Verify(Expected, observed);
+
+        Assert.False(result.Passed);
+        Assert.Contains(result.Findings, finding =>
+            finding.Contains("final image", StringComparison.OrdinalIgnoreCase) &&
+            finding.Contains("SHA-256", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Findings, finding =>
+            finding.Contains("final manifest", StringComparison.OrdinalIgnoreCase) &&
+            finding.Contains("missing", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Findings, finding =>
+            finding.Contains("temporary image", StringComparison.OrdinalIgnoreCase) &&
+            finding.Contains("must not be present", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(3, result.Findings.Count);
+    }
+
 }
