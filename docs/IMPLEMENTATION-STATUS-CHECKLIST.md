@@ -6,8 +6,8 @@
 - [x] Updated the valid descriptor fixture to include explicit NUL terminators for vendor, product, and serial strings.
 - [x] Added `StorageDescriptorParserIgnoresUnterminatedIdentityStrings`, which verifies unterminated vendor/model/serial offsets all resolve to null.
 - [x] Implementation commit: `bcb614260443b935622ddae3a89cb098cf86878b`; test commit: `2638317551061def4924d0595762095f51115026`.
-- [ ] Exact-head Windows CI for `2638317551061def4924d0595762095f51115026` is pending. The prior successful run [43168015244](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43168015244) validates the preceding fixed-header-offset change only, not this additional NUL-termination change.
-- [ ] Confirm the new regression and updated valid-descriptor fixture pass in the exact-head TRX before accepting this change.
+- [x] Superseded by exact-head CI #1527 on `716cde9a9acd395280d375c74ac0484c537a088b`; the exact-run TRX records `StorageDescriptorParserIgnoresUnterminatedIdentityStrings` as Passed.
+- [x] Exact-head TRX from CI #1527 confirms the unterminated-string regression and updated descriptor fixture pass.
 - [ ] This remains synthetic parser coverage, not proof of every real storage driver descriptor or physical-device inventory.
 - PR #30 remains draft/open/unmerged; public physical acquisition remains hard-disabled. No original or valuable physical HDD has been opened or read; physical HDD testing is not authorized.
 
@@ -1412,3 +1412,39 @@ This acceptance proves cleanup behavior when a **test-only internal coordinator*
 - [ ] Do not claim survival through every sudden-power-loss scenario or hardware-cache behavior. Storage devices that fail to honor flush requests remain outside this software guarantee.
 
 **Safety boundary:** no physical HDD access or testing. Source remains read-only; all validation uses generated disk images and disposable VHDX media. Public physical acquisition remains hard-disabled; PR #30 remains draft/open/unmerged.
+
+---
+
+# Bounded validation closeout — 2026-11-15
+
+## Exact-head evidence
+
+- [x] Reviewed PR #30 branch head: `716cde9a9acd395280d375c74ac0484c537a088b`.
+- [x] Exact-head Windows CI #1527 completed successfully: [workflow run](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43686338720). All 23 primary workflow steps, setup, post-job cleanup, and artifact uploads succeeded.
+- [x] Exact-run TRX: **437 passed, 0 failed, 4 opt-in tests skipped by the default test invocation** (441 total). The skipped tests require the dedicated disposable-VHDX harness and were not counted as default-suite passes.
+- [x] The dedicated read-only VHDX harness then passed its two selected integration cases, including internal coordinator acquisition from the read-only disposable source, real pinned destination publication, image SHA-256 verification, manifest verification, and unchanged source hash.
+- [x] The dedicated disposable NTFS VHDX harness passed both the real destination-ENOSPC cleanup case and pinned-volume-handle flush case. The source VHDX was attached read-only; only the newly created destination VHDX was initialized/formatted by the harness.
+- [x] Generated MBR/GPT/NTFS/FAT32/exFAT fixtures, lost-NTFS discovery and extraction, CLI smoke tests, WPF build, Windows x64 desktop/CLI publishing, screenshot capture, and artifact uploads passed in the same exact-head workflow.
+- [x] The exact-run TRX confirms `StorageDescriptorParserIgnoresUnterminatedIdentityStrings` and `BeforeImageRename_SurvivingTemporaryImageMustMatchExpectedEvidence` passed.
+
+## What this closeout establishes
+
+This closes the **synthetic recovery and Windows x64 CI validation milestone** for the current branch head. The internal coordinator VHDX test uses injected synthetic inventory metadata to traverse coordinator gates; it validates the read-only VHDX data path and real destination writer, but does **not** establish production physical-source identity or independent physical source/destination mapping. The public acquisition API remains hard-disabled.
+
+## Remaining gates — explicitly not completed
+
+- [ ] Independent review of the Windows native interop and complete threat model by a reviewer other than the implementation author.
+- [ ] Decide whether legitimate volume mount points will be supported. The current destination adapter rejects reparse points, including mount points; do not claim mount-point compatibility.
+- [ ] Execute supported x86 runtime tests or formally keep x86 unsupported. ABI layout assertions are not a substitute for x86 runtime validation.
+- [ ] Broader Windows version, filesystem, filter-driver, and storage-stack compatibility testing beyond the hosted Windows x64/NTFS environment.
+- [ ] Manual desktop workflow, high-DPI, accessibility, and representative user-acceptance testing.
+- [ ] Any controlled guest crash/recovery experiment described in `PUBLICATION-CRASH-RECOVERY-TEST-PROTOCOL.md` remains unexecuted. The pure snapshot verifier and VHDX flush test do not establish crash consistency, host power-loss durability, or hardware-cache behavior.
+- [ ] Reassess the complete source/destination physical identity chain only in a separately authorized future phase. No physical disk handle, physical HDD read, or physical HDD test is authorized in this milestone.
+
+## Final safety disposition
+
+- PR #30 remains draft/open/unmerged; this closeout does not approve merging or release.
+- `PhysicalDiskImageAcquisition.IsAcquisitionEnabled` remains `false`; the public API must continue to reject acquisition.
+- No physical HDD/SSD access or testing. All acquisition integration used a newly generated disposable VHDX source opened read-only and a disposable destination VHDX, plus generated image fixtures.
+- Source data remains read-only; no original, valuable, production, or user data was used.
+- Do not describe this milestone as physical-HDD-ready, forensic-certified, hardware-write-blocked, or power-loss-durable.
