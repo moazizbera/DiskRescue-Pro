@@ -521,4 +521,22 @@ public sealed class PublicationRecoveryEvidenceVerifierTests
         Assert.Equal(3, result.Findings.Count);
     }
 
+    [Fact]
+    public void BeforeImageRename_SurvivingTemporaryImageMustMatchExpectedEvidence()
+    {
+        var result = PublicationRecoveryEvidenceVerifier.Verify(Expected, new(
+            PhysicalAcquisitionPublicationCheckpoint.ImageDataFlushedBeforeRename,
+            null, null,
+            new PublicationRecoveryFileEvidence(4095, ManifestHash),
+            null));
+
+        Assert.False(result.Passed);
+        Assert.Contains(result.Findings, finding =>
+            finding.Contains("temporary image", StringComparison.OrdinalIgnoreCase) &&
+            finding.Contains("length", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Findings, finding =>
+            finding.Contains("temporary image", StringComparison.OrdinalIgnoreCase) &&
+            finding.Contains("SHA-256", StringComparison.OrdinalIgnoreCase));
+    }
+
 }
