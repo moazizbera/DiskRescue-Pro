@@ -466,4 +466,33 @@ public sealed class PublicationRecoveryEvidenceVerifierTests
             finding.Contains("length", StringComparison.OrdinalIgnoreCase));
     }
 
+
+    [Fact]
+    public void VerificationReportsIndependentImageAndManifestMismatchesTogether()
+    {
+        var observed = new PublicationRecoverySnapshot(
+            PhysicalAcquisitionPublicationCheckpoint.ManifestNamespaceFlushed,
+            new PublicationRecoveryFileEvidence(4095, ManifestHash),
+            new PublicationRecoveryFileEvidence(511, ImageHash),
+            null,
+            null);
+
+        var result = PublicationRecoveryEvidenceVerifier.Verify(Expected, observed);
+
+        Assert.False(result.Passed);
+        Assert.Contains(result.Findings, finding =>
+            finding.Contains("final image", StringComparison.OrdinalIgnoreCase) &&
+            finding.Contains("length", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Findings, finding =>
+            finding.Contains("final image", StringComparison.OrdinalIgnoreCase) &&
+            finding.Contains("SHA-256", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Findings, finding =>
+            finding.Contains("final manifest", StringComparison.OrdinalIgnoreCase) &&
+            finding.Contains("length", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Findings, finding =>
+            finding.Contains("final manifest", StringComparison.OrdinalIgnoreCase) &&
+            finding.Contains("SHA-256", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(4, result.Findings.Count);
+    }
+
 }
