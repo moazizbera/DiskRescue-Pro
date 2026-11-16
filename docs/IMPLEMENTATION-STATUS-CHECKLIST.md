@@ -1490,3 +1490,11 @@ This closes the **synthetic recovery and Windows x64 CI validation milestone** f
 - [x] README and PR #30 description now accurately state the disabled boundary and current validation limits.
 - [ ] Independent security review, manual UI/accessibility/high-DPI acceptance, broader compatibility, and any separately approved disposable-VM crash/recovery experiment remain external gates. They are not inferred from CI success.
 - [x] No physical HDD/SSD was accessed or tested. PR #30 remains draft/open/unmerged.
+
+
+## WPF screenshot review — exact-head CI #1540 — 2026-11-16
+
+- [x] Reviewed the actual WPF screenshot artifact from exact-head CI #1540: [workflow](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43813339767).
+- [x] The inspector now allocates remaining workspace height to the findings text area; its own scrollbar is internal to the findings box rather than scrolling the entire inspector panel.
+- [x] Physical-device access is presented as a non-interactive disabled status label, not an enabled-looking action button.
+- [ ] This is one automated screenshot at one runner resolution. Manual resize, 100–200% DPI, constrained work-area, keyboard-only, screen-reader, and representative workflow acceptance remain outstanding.
