@@ -36,6 +36,20 @@ public partial class PhysicalAcquisitionWindow : Window
 
     private async Task RefreshInventoryAsync()
     {
+        if (!PhysicalDiskImageAcquisition.IsAcquisitionEnabled)
+        {
+            RefreshButton.IsEnabled = false;
+            DiskCombo.IsEnabled = false;
+            AcquireButton.IsEnabled = false;
+            BrowseDestinationButton.IsEnabled = false;
+            DestinationBox.IsEnabled = false;
+            ConfirmationBox.IsEnabled = false;
+            PreflightBox.Text = "Physical-device inventory and acquisition are disabled in this build. No physical-disk handles or device metadata will be opened.";
+            DestinationStatusText.Text = "Physical-device access is disabled.";
+            ProgressText.Text = "Physical-device access disabled";
+            return;
+        }
+
         if (_busy) return;
         RefreshButton.IsEnabled = false;
         DiskCombo.IsEnabled = false;
