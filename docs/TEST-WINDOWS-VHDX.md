@@ -41,3 +41,24 @@ No diskpart command in this test initializes, partitions, formats, mounts, or wr
 ## Safety boundary
 
 Do not change this test to attach the VHDX read-write, read source sectors, or enable the physical acquisition method. The public API call is intentionally limited to verifying its immediate disabled rejection. Do not use the test script as a reason to test against the damaged HDD. Physical acquisition remains experimental until separate review and representative Windows hardware validation are complete.
+
+## Internal coordinator and destination integration (CI)
+
+The CI workflow also runs `tools/Test-WindowsVhdxEnospc.ps1`. This is a separate, opt-in integration harness from the read-only policy smoke test described above.
+
+The harness creates two new disposable VHDX backing files:
+- A generated source VHDX, attached read-only and hashed before and after the test.
+- A separate destination VHDX, attached writable, initialized/formatted only after the script correlates its backing-file path to the newly created virtual disk and verifies its non-boot/non-system status.
+
+The harness exercises the internal coordinator with **synthetic inventory metadata** and the real pinned destination adapter. It verifies copied image bytes and SHA-256, manifest publication, unchanged source hash, destination-volume flush, and a genuine destination ENOSPC failure with unpublished temporary-image cleanup. The script detaches each VHDX and preserves its backing file if detach cannot be confirmed.
+
+This provides integration evidence for the tested hosted Windows x64/NTFS VHDX configuration. Synthetic inventory metadata does not prove production physical source identity or real physical source/destination separation. It does not enable the public physical-acquisition API.
+
+Run only on a disposable Windows test host with administrator PowerShell 7 and .NET 10:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-WindowsVhdxEnospc.ps1
+```
+
+Never substitute a physical HDD, an existing user VHDX, or a production VM. No physical HDD test is authorized by this procedure.
+
