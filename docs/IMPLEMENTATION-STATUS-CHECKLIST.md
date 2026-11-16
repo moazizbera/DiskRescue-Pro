@@ -1448,3 +1448,35 @@ This closes the **synthetic recovery and Windows x64 CI validation milestone** f
 - No physical HDD/SSD access or testing. All acquisition integration used a newly generated disposable VHDX source opened read-only and a disposable destination VHDX, plus generated image fixtures.
 - Source data remains read-only; no original, valuable, production, or user data was used.
 - Do not describe this milestone as physical-HDD-ready, forensic-certified, hardware-write-blocked, or power-loss-durable.
+
+---
+
+# Scope and safety hardening — 2026-11-16
+
+## Physical-device entry-point shutdown
+
+- [x] The CLI `list-physical-disks` command returns the hard-disabled message before physical-device enumeration. It does not open a `PhysicalDriveN` handle or query device metadata.
+- [x] The CLI `acquire-physical` command returns the hard-disabled message before argument-dependent inventory, source preflight, confirmation, or handle access.
+- [x] The WPF physical-device entry point is disabled. Its click handler has a second disabled-gate check.
+- [x] The physical-acquisition window has a defensive early gate in its inventory refresh method; even if opened directly, it disables its controls and returns before calling physical-disk discovery, volume mapping, or boot mapping.
+- [x] Added `tools/Test-PhysicalAcquisitionDisabled.ps1` and a required Windows CI step to invoke both CLI commands and assert they reject before device access.
+- [x] Corrected README claims and command instructions so users are not told that physical acquisition is available.
+- [ ] Exact-head CI for these changes must pass before this hardening is accepted.
+
+## Explicit scope decisions for this milestone
+
+- [x] Physical-device inventory/acquisition is not part of the current user-facing preview. The public API remains hard-disabled.
+- [x] Volume mount points, junctions, symlinks, UNC/network paths, and other reparse-point redirections are unsupported by the native destination adapter in this milestone; fail closed. No mount-point compatibility is claimed.
+- [x] Windows x64 is the only published desktop/CLI preview target. x86 runtime compatibility is **not supported or claimed** for this milestone; no x86 ABI/runtime certification is implied.
+- [x] Automated compatibility evidence is limited to the hosted Windows x64 runner and the tested local NTFS disposable-VHDX configuration. No broader Windows-version, filesystem, filter-driver, or storage-stack compatibility is claimed.
+
+## External/manual gates — not replaceable by more CI commits
+
+- [ ] Independent security review by a reviewer other than the implementation author.
+- [ ] Manual Windows desktop workflow, keyboard-only, screen-reader, high-DPI, constrained-work-area, and visual acceptance.
+- [ ] Controlled guest crash/recovery experiment on generated disposable VHDX media, only under a separately approved isolated test plan. No VM state changes or guest shutdown actions are part of this current work.
+- [ ] Broader Windows/filesystem/filter-driver compatibility testing beyond the current hosted Windows x64/NTFS evidence.
+- [ ] A separate future authorization and threat-model review before any proposal to enable physical-device inventory or acquisition. No physical HDD access or testing is authorized by this milestone.
+
+**Current acceptance boundary:** synthetic image recovery and hosted Windows x64/disposable-NTFS-VHDX integration only. PR #30 remains draft/open/unmerged; public physical acquisition remains hard-disabled.
+
