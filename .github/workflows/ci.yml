@@ -31,6 +31,9 @@ jobs:
         run: dotnet build DiskRescue.sln --configuration Release --no-restore
       - name: Test
         run: dotnet test DiskRescue.sln --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+      - name: Verify physical-device CLI commands remain disabled before device access
+        shell: pwsh
+        run: ./tools/Test-PhysicalAcquisitionDisabled.ps1
       - name: Run disposable VHDX read-only policy smoke test
         shell: pwsh
         run: ./tools/Test-WindowsVhdxSafety.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiskRescue-Vhdx-Smoke"
