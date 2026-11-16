@@ -27,3 +27,5 @@ foreach ($case in $cases) {
 
     Write-Output "PASS: $($case.Name) rejected before physical-device inventory or handle access."
 }
+
+exit 0
