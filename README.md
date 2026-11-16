@@ -71,16 +71,16 @@ Copy a regular image file to a **new** destination and calculate SHA-256 during 
 dotnet run --project src/DiskRescue.Cli -- image-copy "C:\Images\source.img" "D:\DiskRescue\source-copy.img"
 ```
 
-The destination directory must already exist and the destination file must not exist. The command reports progress and the resulting SHA-256; Ctrl+C cancels and removes incomplete temporary output when possible. This command accepts regular image files only. The experimental Windows physical-acquisition workflow is available through the desktop button “Physical disks / acquire image…” and the CLI commands below. It has not been validated on physical hardware.
+The destination directory must already exist and the destination file must not exist. The command reports progress and the resulting SHA-256; Ctrl+C cancels and removes incomplete temporary output when possible. This command accepts regular image files only.
 
-Experimental Windows physical acquisition (not yet hardware-validated):
+Physical-device commands are retained only to return an explicit disabled response. They do not enumerate physical disks, open `PhysicalDriveN` handles, query device metadata, or create output:
 
 ```powershell
 dotnet run --project src/DiskRescue.Cli -- list-physical-disks
 dotnet run --project src/DiskRescue.Cli -- acquire-physical 2 "EXACT-REPORTED-SERIAL" "D:\DiskRescue\physical-drive-2.img"
 ```
 
-**This command is intentionally disabled in the current build.** It returns a disabled message before enumerating devices, opening a `PhysicalDriveN` handle, or creating an output. The desktop physical-device entry point is disabled as well. Do not attempt physical-device acquisition; the internal implementation remains gated pending independent security review and a separate future authorization.
+The desktop physical-device entry point is disabled too. Do not attempt physical-device acquisition; the internal implementation remains gated pending independent security review and a separate future authorization.
 
 Search a regular disk-image file for NTFS volumes missing from its MBR/GPT partition tables:
 
@@ -173,7 +173,7 @@ The next critical milestones are:
 3. Extend multi-extent stream handling to additional live-file layouts; add sparse-file handling, compressed/encrypted stream diagnostics, and stronger recovered-content integrity verification.
 4. Extend image-based lost-partition discovery to FAT32 and exFAT, improve candidate deduplication/conflict analysis, and expand generated regression fixtures. The current scanner is NTFS-only and does not access physical disks.
 5. Deleted-stream CLI end-to-end validation covers resident/single-extent and synthetic fragmented multi-extent image workflows, with manifest run-map provenance. Destination separation is enforced by a Windows-only fail-closed preflight and a second pre-publication check; unit tests cover physical disk identity, bus type, serial uniqueness, and mapping failures. CI run 42513427158 passed the full successful export and packaging path on a runner exposing disk identities. Runners without unique serial metadata or with virtualized/layered device descriptions correctly refuse export; the harness reports those environment limitations instead of weakening the production gate. Injected disk-full, permission, output-publication, manifest-publication, and rollback failures are covered. Abandoned temporary-file cleanup is now tested by forcibly terminating a separate lease-owner process and verifying safe cleanup on the next invocation. A child-process test now terminates publication after the final output is moved but before the manifest is published. Cleanup preserves the final output, pending manifest partial, and operation lock for explicit review. Automatic reconciliation/resume is not implemented. Remaining: resume semantics, broader real-world NTFS corpus coverage, and manual Windows desktop validation.
-6. Finish the physical acquisition release gate: add durable bad-sector/error reporting and a safe resume journal, validate cancellation and manifest-failure recovery, and test the guarded workflow against sacrificial physical hardware. The experimental WPF acquisition window is integrated; physical partition scanning remains disabled until the remaining checks pass.
+6. Physical-device inventory and acquisition are explicitly outside the current release scope. Keep the public API, WPF entry point, and CLI commands disabled. Any proposal to resume physical-device work requires a separate authorization, independent security review, a defined hardware-safety plan, and new release criteria; this roadmap does not authorize physical HDD testing.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for status and release gates.
 
