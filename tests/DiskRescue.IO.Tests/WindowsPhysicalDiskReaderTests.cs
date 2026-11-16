@@ -56,6 +56,28 @@ public sealed class WindowsPhysicalDiskReaderTests
             Assert.Throws<PlatformNotSupportedException>(() => WindowsPhysicalDiskReader.Open(descriptor));
     }
 
+    [Theory]
+    [InlineData(0, 24)]
+    [InlineData(23, 24)]
+    [InlineData(8, 8)]
+    public void DiscoveryRejectsIncompleteGeometryOrCapacityIoctlResponses(int bytesReturned, int expectedSize)
+    {
+        if (bytesReturned >= expectedSize)
+        {
+            WindowsPhysicalDiskDiscovery.EnsureCompleteIoctlResponse(bytesReturned, expectedSize, "test metadata");
+            return;
+        }
+
+        Assert.Throws<InvalidDataException>(() =>
+            WindowsPhysicalDiskDiscovery.EnsureCompleteIoctlResponse(bytesReturned, expectedSize, "test metadata"));
+    }
+
+    [Fact]
+    public void DiscoveryAcceptsCompleteIoctlResponse()
+    {
+        WindowsPhysicalDiskDiscovery.EnsureCompleteIoctlResponse(24, 24, "test metadata");
+    }
+
     [Fact]
     public void StorageDescriptorParserReadsBoundedHardwareIdentityFields()
     {
@@ -68,8 +90,11 @@ public sealed class WindowsPhysicalDiskReaderTests
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(24, 4), 53);
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(28, 4), 7);
         "ACME"u8.CopyTo(data.AsSpan(36));
+        data[40] = 0;
         "DiskModel"u8.CopyTo(data.AsSpan(42));
+        data[51] = 0;
         "SERIAL123"u8.CopyTo(data.AsSpan(53));
+        data[62] = 0;
 
         var result = WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor(data);
 
@@ -96,6 +121,42 @@ public sealed class WindowsPhysicalDiskReaderTests
 
         Assert.Throws<InvalidDataException>(() =>
             WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor(data));
+    }
+
+    [Fact]
+    public void StorageDescriptorParserIgnoresStringOffsetsIntoFixedHeader()
+    {
+        var data = new byte[48];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 36);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4, 4), 48);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(12, 4), 12);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(16, 4), 35);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(24, 4), 1);
+        data[36] = (byte)'V';
+
+        var result = WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor(data);
+
+        Assert.Null(result.Vendor);
+        Assert.Null(result.Model);
+        Assert.Null(result.SerialNumber);
+    }
+
+    [Fact]
+    public void StorageDescriptorParserIgnoresUnterminatedIdentityStrings()
+    {
+        var data = new byte[48];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 36);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4, 4), 48);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(12, 4), 36);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(16, 4), 36);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(24, 4), 36);
+        Array.Fill(data, (byte)'X', 36, data.Length - 36);
+
+        var result = WindowsPhysicalDiskDiscovery.ParseStorageDeviceDescriptor(data);
+
+        Assert.Null(result.Vendor);
+        Assert.Null(result.Model);
+        Assert.Null(result.SerialNumber);
     }
 
     [Fact]
@@ -249,6 +310,17 @@ public sealed class WindowsPhysicalDiskReaderTests
             Array.Empty<string>());
 
         Assert.True(result.CanTreatDiskAsUnmapped(12));
+    }
+
+    [Fact]
+    public void VolumeMapDoesNotTreatDiskAsUnmappedWhenDiagnosticsExistEvenIfMarkedComplete()
+    {
+        var result = new PhysicalVolumeMappingResult(
+            true,
+            new Dictionary<int, IReadOnlyList<string>>(),
+            new[] { "A volume extent query reported an error." });
+
+        Assert.False(result.CanTreatDiskAsUnmapped(12));
     }
 
     [Fact]
@@ -454,6 +526,61 @@ public sealed class WindowsPhysicalDiskReaderTests
             "exFAT", availableBytes: 8L * 1024 * 1024 * 1024, requiredBytes: 4L * 1024 * 1024 * 1024);
 
         Assert.Empty(issues);
+    }
+
+
+    [Fact]
+    public void BootPartitionParserRejectsTruncatedMbrPartitionFields()
+    {
+        var data = new byte[39];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 0);
+
+        Assert.Throws<InvalidDataException>(() => WindowsBootDeviceMap.IsFirmwareSystemPartition(data));
+    }
+
+    [Fact]
+    public void VolumeExtentParserRejectsExcessiveExtentCount()
+    {
+        var data = new byte[8];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 1025);
+
+        Assert.Throws<InvalidDataException>(() => WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(data));
+    }
+
+    [Fact]
+    public void VolumeExtentParserRejectsNegativeStartingOffset()
+    {
+        var data = new byte[8 + 24];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(8, 4), 2);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(16, 8), -1);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(24, 8), 4096);
+
+        Assert.Throws<InvalidDataException>(() => WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(data));
+    }
+
+    [Fact]
+    public void VolumeExtentParserRejectsNonPositiveExtentLength()
+    {
+        var data = new byte[8 + 24];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(8, 4), 2);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(16, 8), 0);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(24, 8), 0);
+
+        Assert.Throws<InvalidDataException>(() => WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(data));
+    }
+
+    [Fact]
+    public void VolumeExtentParserRejectsOverflowingExtentEnd()
+    {
+        var data = new byte[8 + 24];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(8, 4), 2);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(16, 8), long.MaxValue);
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(24, 8), 1);
+
+        Assert.Throws<OverflowException>(() => WindowsPhysicalDiskVolumeMap.ParseDiskNumbers(data));
     }
 
 }

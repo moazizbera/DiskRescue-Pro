@@ -995,6 +995,12 @@ static int RunDeletedExportReconciliation(string[] args)
 
 static int RunPhysicalDiskInventory(string[] args)
 {
+    if (!PhysicalDiskImageAcquisition.IsAcquisitionEnabled)
+    {
+        Console.Error.WriteLine("Physical-device inventory is disabled in this build. No physical-disk handles or device metadata were opened.");
+        return 1;
+    }
+
     if (args.Length != 1)
     {
         Console.Error.WriteLine("Usage: diskrescue list-physical-disks");
@@ -1034,6 +1040,12 @@ static int RunPhysicalDiskInventory(string[] args)
 
 static int RunPhysicalDiskAcquisition(string[] args)
 {
+    if (!PhysicalDiskImageAcquisition.IsAcquisitionEnabled)
+    {
+        Console.Error.WriteLine("Physical-disk acquisition is disabled in this build. No physical-disk handles or device metadata were opened.");
+        return 1;
+    }
+
     if (args.Length != 4 ||
         !int.TryParse(args[1], NumberStyles.None, CultureInfo.InvariantCulture, out var diskNumber) ||
         diskNumber < 0 ||
@@ -1130,8 +1142,8 @@ static void PrintUsage()
     Console.WriteLine("Usage:");
     Console.WriteLine("  diskrescue inspect <image-file> [--sector-size <bytes>]");
     Console.WriteLine("  diskrescue image-copy <source-image> <new-destination-image>");
-    Console.WriteLine("  diskrescue list-physical-disks");
-    Console.WriteLine("  diskrescue acquire-physical <disk-number> <exact-serial> <new-destination-image>");
+    Console.WriteLine("  diskrescue list-physical-disks  (disabled in this build)");
+    Console.WriteLine("  diskrescue acquire-physical <disk-number> <exact-serial> <new-destination-image>  (disabled in this build)");
     Console.WriteLine("  diskrescue discover-ntfs <image-file> [--sector-size <bytes>] [--max-scan-bytes <bytes>]");
     Console.WriteLine("  diskrescue discover-fat <image-file> [--sector-size <bytes>] [--max-scan-bytes <bytes>]");
     Console.WriteLine("  diskrescue scan-ntfs <image-file> --offset <bytes> --length <bytes> [--sector-size <bytes>] [--max-records <count>]");
@@ -1148,7 +1160,7 @@ static void PrintUsage()
     Console.WriteLine();
     Console.WriteLine("image-copy copies a regular image file to a new destination and prints SHA-256.");
     Console.WriteLine("inspect, image-copy, discover-ntfs, discover-fat, scan-ntfs, and extract-ntfs-file operate on regular image files.");
-    Console.WriteLine("list-physical-disks performs metadata-only Windows discovery. acquire-physical is experimental, guarded, and Windows-only.");
+    Console.WriteLine("Physical-device inventory and acquisition are disabled in this build; these commands return before opening physical-device handles.");
     Console.WriteLine("discover-fat performs bounded read-only FAT32/exFAT candidate discovery; it does not repair or recover files.");
     Console.WriteLine("NTFS scan returns a bounded partial MFT and directory-tree preview, not file recovery.");
     Console.WriteLine("extract-ntfs-file exports one validated live data stream to a new file.");

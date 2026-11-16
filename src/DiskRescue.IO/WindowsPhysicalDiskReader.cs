@@ -102,13 +102,15 @@ public static class WindowsPhysicalDiskDiscovery
     {
         if (!NativeMethods.DeviceIoControl(
                 handle, IoctlDiskGetDriveGeometry, IntPtr.Zero, 0,
-                out DiskGeometry geometry, Marshal.SizeOf<DiskGeometry>(), out _, IntPtr.Zero))
+                out DiskGeometry geometry, Marshal.SizeOf<DiskGeometry>(), out var geometryBytesReturned, IntPtr.Zero))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to read disk geometry.");
+        EnsureCompleteIoctlResponse(geometryBytesReturned, Marshal.SizeOf<DiskGeometry>(), "disk geometry");
 
         if (!NativeMethods.DeviceIoControl(
                 handle, IoctlDiskGetLengthInfo, IntPtr.Zero, 0,
-                out GetLengthInformation lengthInfo, Marshal.SizeOf<GetLengthInformation>(), out _, IntPtr.Zero))
+                out GetLengthInformation lengthInfo, Marshal.SizeOf<GetLengthInformation>(), out var lengthBytesReturned, IntPtr.Zero))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to read disk capacity.");
+        EnsureCompleteIoctlResponse(lengthBytesReturned, Marshal.SizeOf<GetLengthInformation>(), "disk capacity");
 
         var sectorSize = geometry.BytesPerSector;
         if (lengthInfo.Length <= 0)
@@ -125,6 +127,13 @@ public static class WindowsPhysicalDiskDiscovery
             identity.BusType, identity.RemovableMedia);
     }
 
+    internal static void EnsureCompleteIoctlResponse(int bytesReturned, int expectedSize, string description)
+    {
+        if (expectedSize <= 0 || bytesReturned < expectedSize)
+            throw new InvalidDataException(
+                $"The device returned an incomplete {description} response ({bytesReturned} of {expectedSize} bytes).");
+    }
+
     internal static (string? Vendor, string? Model, string? SerialNumber, uint? BusType, bool? RemovableMedia)
         ParseStorageDeviceDescriptor(ReadOnlySpan<byte> data)
     {
@@ -139,10 +148,12 @@ public static class WindowsPhysicalDiskDiscovery
 
         static string? ReadString(ReadOnlySpan<byte> bytes, uint offset, uint size)
         {
-            if (offset == 0 || offset >= size) return null;
+            // Offsets must point into the variable-length data after the fixed header.
+            if (offset < 36 || offset >= size) return null;
             var start = checked((int)offset);
             var end = start;
             while (end < size && bytes[end] != 0) end++;
+            if (end == size) return null; // Storage descriptor strings are NUL-terminated.
             var value = System.Text.Encoding.ASCII.GetString(bytes[start..end]).Trim();
             return value.Length == 0 ? null : value;
         }

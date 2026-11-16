@@ -82,6 +82,12 @@ public partial class MainWindow : Window
 
     private void PhysicalDiskInventory_Click(object sender, RoutedEventArgs e)
     {
+        if (!PhysicalDiskImageAcquisition.IsAcquisitionEnabled)
+        {
+            StatusText.Text = "Physical-device inventory and acquisition are disabled · no physical device was opened";
+            return;
+        }
+
         var window = new PhysicalAcquisitionWindow { Owner = this };
         if (window.ShowDialog() == true && !string.IsNullOrWhiteSpace(window.AcquiredImagePath))
         {

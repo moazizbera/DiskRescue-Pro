@@ -7,6 +7,36 @@ namespace DiskRescue.IO.Tests;
 public sealed class PhysicalDiskManifestPublisherTests
 {
     [Fact]
+    public async Task StreamWriterSerializesManifestWithoutClosingOrResolvingAPath()
+    {
+        await using var stream = new MemoryStream();
+
+        await PhysicalDiskManifestPublisher.WriteManifestAsync(
+            stream, new { format = "session-manifest", bytes = 2048 });
+
+        Assert.True(stream.CanWrite);
+        Assert.True(stream.CanRead);
+        Assert.True(stream.Length > 0);
+        stream.Position = 0;
+        using var document = await JsonDocument.ParseAsync(stream);
+        Assert.Equal("session-manifest", document.RootElement.GetProperty("format").GetString());
+        Assert.Equal(2048, document.RootElement.GetProperty("bytes").GetInt32());
+    }
+
+    [Fact]
+    public async Task StreamWriterRejectsReadOnlyStreamBeforeWriting()
+    {
+        await using var writable = new MemoryStream();
+        await writable.WriteAsync(new byte[] { 1, 2, 3 });
+        writable.Position = 0;
+        await using var readOnly = new MemoryStream(writable.ToArray(), writable: false);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            PhysicalDiskManifestPublisher.WriteManifestAsync(readOnly, new { format = "blocked" }));
+        Assert.Equal(0, readOnly.Position);
+    }
+
+    [Fact]
     public async Task PublishCreatesManifestWithoutOverwriting()
     {
         var directory = Path.Combine(Path.GetTempPath(), "diskrescue-manifest-" + Guid.NewGuid().ToString("N"));

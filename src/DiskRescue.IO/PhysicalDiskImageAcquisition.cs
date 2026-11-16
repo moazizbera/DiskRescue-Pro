@@ -20,9 +20,9 @@ public sealed record PhysicalDiskAcquisitionResult(
 public static class PhysicalDiskImageAcquisition
 {
     /// <summary>
-    /// Physical acquisition remains disabled until image and manifest I/O are bound to a
-    /// verified, handle-pinned Windows destination session. Do not enable by changing this
-    /// flag alone; the native session implementation and its Windows race tests are required.
+    /// Physical acquisition remains disabled pending independent security review,
+    /// broader Windows/filesystem compatibility testing, and disposable-VHDX end-to-end
+    /// validation of the integrated pinned-destination coordinator. Do not enable this flag alone.
     /// </summary>
     public static bool IsAcquisitionEnabled => false;
 
@@ -110,8 +110,8 @@ public static class PhysicalDiskImageAcquisition
         // directory object remains the same object checked during preflight.
         return Task.FromException<PhysicalDiskAcquisitionResult>(
             new NotSupportedException(
-                "Physical disk acquisition is disabled until a verified handle-pinned Windows destination session " +
-                "is implemented and its directory-replacement, reparse-point, same-volume, and no-replace publication tests pass."));
+                "Physical disk acquisition remains disabled pending independent security review, broader Windows/filesystem compatibility testing, " +
+                "and disposable-VHDX end-to-end validation of the integrated pinned-destination coordinator."));
     }
 
 }

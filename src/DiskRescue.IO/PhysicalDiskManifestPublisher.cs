@@ -36,6 +36,27 @@ public sealed class PhysicalDiskManifestPublicationException : IOException
 /// </summary>
 public static class PhysicalDiskManifestPublisher
 {
+    /// <summary>
+    /// Serializes a manifest to an already-open caller-owned stream. This overload
+    /// deliberately performs no path resolution, file creation, rename, or durable
+    /// flush; a pinned destination session owns those operations and the stream lifetime.
+    /// </summary>
+    internal static async Task WriteManifestAsync(
+        Stream destinationStream,
+        object manifest,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(destinationStream);
+        ArgumentNullException.ThrowIfNull(manifest);
+        if (!destinationStream.CanWrite)
+            throw new ArgumentException("Manifest destination stream must be writable.", nameof(destinationStream));
+
+        await JsonSerializer.SerializeAsync(destinationStream, manifest, new JsonSerializerOptions
+        {
+            WriteIndented = true
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     public static async Task PublishAsync(
         string manifestPath,
         object manifest,

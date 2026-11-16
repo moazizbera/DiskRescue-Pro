@@ -36,6 +36,20 @@ public partial class PhysicalAcquisitionWindow : Window
 
     private async Task RefreshInventoryAsync()
     {
+        if (!PhysicalDiskImageAcquisition.IsAcquisitionEnabled)
+        {
+            RefreshButton.IsEnabled = false;
+            DiskCombo.IsEnabled = false;
+            AcquireButton.IsEnabled = false;
+            BrowseDestinationButton.IsEnabled = false;
+            DestinationBox.IsEnabled = false;
+            ConfirmationBox.IsEnabled = false;
+            PreflightBox.Text = "Physical-device inventory and acquisition are disabled in this build. No physical-disk handles or device metadata will be opened.";
+            DestinationStatusText.Text = "Physical-device access is disabled.";
+            ProgressText.Text = "Physical-device access disabled";
+            return;
+        }
+
         if (_busy) return;
         RefreshButton.IsEnabled = false;
         DiskCombo.IsEnabled = false;
@@ -177,7 +191,7 @@ public partial class PhysicalAcquisitionWindow : Window
                     DestinationStatusText.Text = !_destinationAssessment.CanUseAsSeparateDestination
                         ? "BLOCKED · " + string.Join(" ", _destinationAssessment.Blockers)
                         : !PhysicalDiskImageAcquisition.IsAcquisitionEnabled
-                            ? "PREFLIGHT ONLY · Separate volume appears distinct, but acquisition is DISABLED until the handle-pinned destination session and Windows race tests are complete."
+                            ? "PREFLIGHT ONLY · Separate volume appears distinct, but acquisition remains DISABLED pending independent security review, broader Windows/filesystem compatibility testing, and disposable-VHDX end-to-end validation."
                             : $"SEPARATE DESTINATION VERIFIED · {_destinationAssessment.VolumeGuidPath} · Physical disk(s): {string.Join(", ", _destinationAssessment.DestinationDiskNumbers)}";
                 }
             }

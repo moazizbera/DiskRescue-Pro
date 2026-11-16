@@ -119,6 +119,90 @@
 <Style TargetType="TreeView">
   <Setter Property="FocusVisualStyle" Value="{StaticResource DiskRescueKeyboardFocus}"/>
 </Style>
+<Style TargetType="{x:Type TreeViewItem}">
+  <Setter Property="Foreground" Value="{StaticResource Text}"/>
+  <Setter Property="Background" Value="Transparent"/>
+  <Setter Property="Padding" Value="5,3"/>
+  <Setter Property="FocusVisualStyle" Value="{StaticResource DiskRescueKeyboardFocus}"/>
+  <!-- The stock WPF TreeViewItem template paints selection with system brushes.
+       Own the header template so selected/hover states remain inside the dark theme. -->
+  <Setter Property="Template">
+    <Setter.Value>
+      <ControlTemplate TargetType="{x:Type TreeViewItem}">
+        <Grid SnapsToDevicePixels="True">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="18"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <ToggleButton x:Name="Expander"
+                        Grid.Row="0" Grid.Column="0"
+                        Width="16" Height="24"
+                        Focusable="False"
+                        ClickMode="Press"
+                        IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}"
+                        Foreground="{TemplateBinding Foreground}"
+                        Background="Transparent"
+                        BorderThickness="0">
+            <ToggleButton.Template>
+              <ControlTemplate TargetType="{x:Type ToggleButton}">
+                <Border Background="{TemplateBinding Background}">
+                  <Path x:Name="Arrow"
+                        Data="M 0 0 L 0 8 L 4 4 Z"
+                        Fill="{TemplateBinding Foreground}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"/>
+                </Border>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="Arrow" Property="Data" Value="M 0 0 L 8 0 L 4 4 Z"/>
+                  </Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate>
+            </ToggleButton.Template>
+          </ToggleButton>
+          <Border x:Name="HeaderBorder"
+                  Grid.Row="0" Grid.Column="1"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="Transparent"
+                  BorderThickness="1"
+                  CornerRadius="4"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter ContentSource="Header"
+                              RecognizesAccessKey="True"
+                              HorizontalAlignment="Left"
+                              VerticalAlignment="Center"/>
+          </Border>
+          <ItemsPresenter x:Name="ItemsHost"
+                          Grid.Row="1" Grid.Column="1"
+                          Margin="0,1,0,0"
+                          Visibility="Collapsed"/>
+        </Grid>
+        <ControlTemplate.Triggers>
+          <Trigger Property="HasItems" Value="False">
+            <Setter TargetName="Expander" Property="Visibility" Value="Hidden"/>
+          </Trigger>
+          <Trigger Property="IsExpanded" Value="True">
+            <Setter TargetName="ItemsHost" Property="Visibility" Value="Visible"/>
+          </Trigger>
+          <Trigger Property="IsMouseOver" Value="True">
+            <Setter TargetName="HeaderBorder" Property="Background" Value="#1A2B40"/>
+          </Trigger>
+          <Trigger Property="IsSelected" Value="True">
+            <Setter TargetName="HeaderBorder" Property="Background" Value="#183B3E"/>
+            <Setter Property="Foreground" Value="#A7F0D5"/>
+          </Trigger>
+          <Trigger Property="IsKeyboardFocusWithin" Value="True">
+            <Setter TargetName="HeaderBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+          </Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate>
+    </Setter.Value>
+  </Setter>
+</Style>
 <Style TargetType="DataGridColumnHeader">
   <Setter Property="Background" Value="#17283D"/>
   <Setter Property="Foreground" Value="{StaticResource Muted}"/>

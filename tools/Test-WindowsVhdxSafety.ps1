@@ -26,21 +26,30 @@ $attached = $false
 $testExitCode = 1
 
 try {
-    # The VHDX is deliberately left RAW: no partition table, filesystem, or volume is created.
-    @"
-create vdisk file="$vhdPath" maximum=128 type=expandable
-select vdisk file="$vhdPath"
-attach vdisk readonly
-exit
-"@ | Set-Content -LiteralPath $diskpartPath -Encoding Unicode
+    # DiskPart script files use the active Windows ANSI code page. UTF-16LE
+    # input is parsed as invalid commands and produces the DiskPart help screen.
+    # The CI runner temp path is ASCII; reject unrepresentable paths rather than
+    # silently changing a path that DiskPart would receive.
+    $commands = @(
+        "create vdisk file=`"$vhdPath`" maximum=128"
+        "select vdisk file=`"$vhdPath`""
+        "attach vdisk readonly"
+        "exit"
+    ) -join "`r`n"
+    if ([System.Text.Encoding]::ASCII.GetString([System.Text.Encoding]::ASCII.GetBytes($commands)) -cne $commands) {
+        throw "The temporary VHDX path contains non-ASCII characters that cannot be represented safely in the DiskPart script."
+    }
+    [System.IO.File]::WriteAllText($diskpartPath, $commands + "`r`n", [System.Text.Encoding]::ASCII)
 
-    & diskpart.exe /s $diskpartPath
+    $diskpartOutput = & diskpart.exe /s $diskpartPath 2>&1
+    $diskpartExitCode = $LASTEXITCODE
+    $diskpartOutput | ForEach-Object { Write-Host $_ }
     # Check the actual attachment state even if DiskPart reports a non-zero exit;
     # never delete a VHDX that may have been attached before a partial failure.
     $imageState = Get-DiskImage -ImagePath $vhdPath -ErrorAction SilentlyContinue
     $attached = [bool]($imageState -and $imageState.Attached)
-    if ($LASTEXITCODE -ne 0) {
-        throw "diskpart failed while creating or attaching the disposable VHDX (exit $LASTEXITCODE)."
+    if ($diskpartExitCode -ne 0) {
+        throw "diskpart failed while creating or attaching the disposable VHDX (exit $diskpartExitCode). Review the DiskPart output above."
     }
     if (-not $attached) {
         throw "Windows did not confirm that the disposable VHDX is attached."
@@ -60,7 +69,7 @@ exit
     }
 
     Write-Host "Disposable VHDX attached read-only as PhysicalDrive$($disk.Number)."
-    Write-Host "No partitioning, formatting, filesystem creation, or source-sector reads will be performed."
+    Write-Host "No partitioning, formatting, or filesystem creation will be performed. The policy test reads no sectors; the internal integration reads only this disposable VHDX through a read-only handle."
 
     $env:DISKRESCUE_TEST_VHDX_DISK_NUMBER = [string]$disk.Number
     dotnet test $testProject --configuration Release --filter "FullyQualifiedName~WindowsVhdxSafetySmokeTests" --logger "console;verbosity=normal"
@@ -69,7 +78,7 @@ exit
         throw "The Windows VHDX safety smoke test failed (dotnet test exit $testExitCode)."
     }
 
-    Write-Host "PASS: the virtual disk was discovered and production acquisition policy blocked it."
+    Write-Host "PASS: public physical acquisition remained blocked; the internal coordinator integration verified copied bytes, SHA-256, manifest publication, and source hash invariance using synthetic inventory metadata and the real pinned destination adapter."
 }
 finally {
     Remove-Item Env:\DISKRESCUE_TEST_VHDX_DISK_NUMBER -ErrorAction SilentlyContinue
@@ -81,11 +90,12 @@ finally {
     }
 
     if ($attached) {
-        @"
-select vdisk file="$vhdPath"
-detach vdisk
-exit
-"@ | Set-Content -LiteralPath $diskpartPath -Encoding Unicode
+        $detachCommands = @(
+            "select vdisk file=`"$vhdPath`""
+            "detach vdisk"
+            "exit"
+        ) -join "`r`n"
+        [System.IO.File]::WriteAllText($diskpartPath, $detachCommands + "`r`n", [System.Text.Encoding]::ASCII)
         & diskpart.exe /s $diskpartPath
         $detachExitCode = $LASTEXITCODE
         $imageState = Get-DiskImage -ImagePath $vhdPath -ErrorAction SilentlyContinue

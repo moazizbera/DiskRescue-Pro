@@ -16,7 +16,7 @@ public sealed record PhysicalVolumeMappingResult(
     IReadOnlyList<string> Issues)
 {
     public bool CanTreatDiskAsUnmapped(int diskNumber) =>
-        IsComplete && !VolumePathsByDisk.ContainsKey(diskNumber);
+        IsComplete && Issues.Count == 0 && !VolumePathsByDisk.ContainsKey(diskNumber);
 }
 
 public static class WindowsPhysicalDiskVolumeMap
@@ -121,6 +121,43 @@ public static class WindowsPhysicalDiskVolumeMap
             byDisk.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value.AsReadOnly()),
             issues);
     }
+
+    /// <summary>
+    /// Resolves the physical disk numbers associated with a volume-GUID root captured
+    /// from an already-pinned handle. Incomplete maps are never treated as an empty mapping.
+    /// </summary>
+    internal static IReadOnlyList<int> ResolveDiskNumbersForVolumeGuidPath(
+        PhysicalVolumeMappingResult volumeMap,
+        string volumeGuidPath)
+    {
+        ArgumentNullException.ThrowIfNull(volumeMap);
+        ArgumentException.ThrowIfNullOrWhiteSpace(volumeGuidPath);
+        if (!volumeMap.IsComplete || volumeMap.Issues.Count != 0)
+            throw new InvalidOperationException("A complete, diagnostic-free volume map is required.");
+
+        var normalized = NormalizeVolumeGuidPath(volumeGuidPath);
+        var prefix = @"\\?\Volume{";
+        if (!normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("A volume-GUID root path is required.", nameof(volumeGuidPath));
+
+        var closeBrace = normalized.IndexOf('}');
+        if (closeBrace <= prefix.Length ||
+            !Guid.TryParse(normalized.AsSpan(prefix.Length, closeBrace - prefix.Length), out _) ||
+            closeBrace != normalized.Length - 1)
+        {
+            throw new ArgumentException("Volume-GUID root path is malformed.", nameof(volumeGuidPath));
+        }
+
+        return volumeMap.VolumePathsByDisk
+            .Where(pair => pair.Value.Any(path =>
+                StringComparer.OrdinalIgnoreCase.Equals(NormalizeVolumeGuidPath(path), normalized)))
+            .Select(pair => pair.Key)
+            .Order()
+            .ToArray();
+    }
+
+    private static string NormalizeVolumeGuidPath(string path) =>
+        path.Trim().TrimEnd('\\', '/');
 
     internal static IReadOnlyList<int> ParseDiskNumbers(ReadOnlySpan<byte> data)
     {

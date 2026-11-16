@@ -18,9 +18,9 @@ internal sealed class PhysicalDiskOpenedSource : IDisposable
 }
 
 /// <summary>
-/// Injectable boundary around Windows hardware discovery and read-only device opening.
-/// Production uses WindowsPhysicalDiskAcquisitionEnvironment; tests can supply deterministic
-/// snapshots and disposable in-memory sources without weakening production policy.
+/// Injectable boundary around Windows hardware discovery, read-only source opening,
+/// and pinned destination-session creation. Tests can supply deterministic snapshots
+/// and disposable sources without weakening production policy.
 /// </summary>
 internal interface IPhysicalDiskAcquisitionEnvironment
 {
@@ -32,7 +32,7 @@ internal interface IPhysicalDiskAcquisitionEnvironment
         int sourceDiskNumber, string destinationPath,
         PhysicalVolumeMappingResult volumeMap, long requiredBytes);
     PhysicalDiskOpenedSource OpenReadOnly(PhysicalDiskDescriptor descriptor);
-    Task PublishManifestAsync(string manifestPath, object manifest, string imagePath, string sha256);
+    IPhysicalAcquisitionDestinationSession OpenDestinationSession(string destinationDirectoryPath);
 }
 
 /// <summary>Real Windows implementation. No virtual-device or production policy bypasses are added.</summary>
@@ -60,17 +60,24 @@ internal sealed class WindowsPhysicalDiskAcquisitionEnvironment : IPhysicalDiskA
         return new PhysicalDiskOpenedSource(reader, reader.Descriptor);
     }
 
-    public Task PublishManifestAsync(string manifestPath, object manifest, string imagePath, string sha256) =>
-        PhysicalDiskManifestPublisher.PublishAsync(manifestPath, manifest, imagePath, sha256);
+    public IPhysicalAcquisitionDestinationSession OpenDestinationSession(string destinationDirectoryPath) =>
+        WindowsPhysicalAcquisitionDestinationSession.Open(destinationDirectoryPath);
 }
 
 /// <summary>
-/// Orchestrates repeated fail-closed preflight, source identity revalidation, a final destination
-/// recheck before the first source read, read-only imaging, SHA-256 verification, and
-/// non-cancellable sidecar publication after image commit.
+/// Orchestrates repeated fail-closed preflight, source identity revalidation, pinned
+/// destination-volume reconciliation, read-only imaging, and handle-relative image/manifest
+/// publication. No path-based image or manifest writer is used by this coordinator.
 /// </summary>
 internal static class PhysicalDiskAcquisitionCoordinator
 {
+    private sealed record PreflightSnapshot(
+        PhysicalDiskAcquisitionAssessment Assessment,
+        PhysicalDiskDescriptor CurrentDescriptor,
+        PhysicalDiskDiscoveryResult Inventory,
+        PhysicalVolumeMappingResult VolumeMap,
+        PhysicalImageDestinationAssessment? Destination);
+
     public static async Task<PhysicalDiskAcquisitionResult> AcquireAsync(
         PhysicalDiskDescriptor selected,
         string destinationImagePath,
@@ -86,9 +93,16 @@ internal static class PhysicalDiskAcquisitionCoordinator
         cancellationToken.ThrowIfCancellationRequested();
 
         var fullImagePath = ValidateNewImageDestination(destinationImagePath);
-        var manifestPath = fullImagePath + ".diskrescue.json";
-        if (File.Exists(manifestPath) || Directory.Exists(manifestPath))
+        var manifestPreflightPath = fullImagePath + ".diskrescue.json";
+        if (File.Exists(manifestPreflightPath) || Directory.Exists(manifestPreflightPath))
             throw new IOException("Acquisition manifest already exists; existing files are never overwritten.");
+
+        // Pin the requested directory before any path-based destination preflight.
+        // Keep this handle for the whole operation so a same-volume directory swap
+        // during preflight cannot silently redirect publication to a replacement folder.
+        var destinationDirectory = Path.GetDirectoryName(fullImagePath)
+            ?? throw new IOException("Destination directory is invalid.");
+        await using var destinationSession = environment.OpenDestinationSession(destinationDirectory);
 
         var first = RunPreflight(selected, fullImagePath, environment);
         if (!first.Assessment.CanAcquire)
@@ -101,6 +115,9 @@ internal static class PhysicalDiskAcquisitionCoordinator
             throw new InvalidOperationException("Physical acquisition revalidation failed: " +
                 string.Join(" ", second.Assessment.Blockers));
 
+        var requestedDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationDirectory));
+        EnsurePinnedDirectoryStillMatches(destinationSession, requestedDirectory);
+
         cancellationToken.ThrowIfCancellationRequested();
         using var opened = environment.OpenReadOnly(second.CurrentDescriptor);
         if (!WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(second.CurrentDescriptor, opened.Descriptor))
@@ -108,10 +125,8 @@ internal static class PhysicalDiskAcquisitionCoordinator
         if (opened.Source.Length != opened.Descriptor.LengthBytes)
             throw new IOException("The opened read-only source length does not match its revalidated disk capacity.");
 
-        // The destination may have changed after the second preflight (for example, a
-        // volume mapping or available capacity change). Re-enumerate all relevant state
-        // after the source handle is open but before reading the first source byte.
-        // The opened handle remains bound to the already identity-checked source device.
+        // Re-enumerate source, boot, volume, and path-based destination state after
+        // opening the source but before reading its first byte.
         cancellationToken.ThrowIfCancellationRequested();
         var finalPreflight = RunPreflight(selected, fullImagePath, environment);
         if (!finalPreflight.Assessment.CanAcquire)
@@ -121,47 +136,112 @@ internal static class PhysicalDiskAcquisitionCoordinator
             !WindowsPhysicalDiskDiscovery.MatchesIdentitySnapshot(opened.Descriptor, finalPreflight.CurrentDescriptor))
             throw new IOException("The source device identity changed during final pre-read revalidation. No source sectors were read.");
 
-        var image = await DiskImager.CreateImageAsync(
-            opened.Source, fullImagePath, progress, cancellationToken).ConfigureAwait(false);
+        var destinationAssessment = finalPreflight.Destination
+            ?? throw new IOException("Final preflight did not produce a destination assessment.");
 
-        var manifest = new
-        {
-            format = "DiskRescue.PhysicalAcquisitionManifest.v1",
-            acquiredAtUtc = DateTimeOffset.UtcNow,
-            source = new
-            {
-                opened.Descriptor.DiskNumber,
-                opened.Descriptor.DevicePath,
-                opened.Descriptor.LengthBytes,
-                opened.Descriptor.BytesPerSector,
-                opened.Descriptor.Vendor,
-                opened.Descriptor.Model,
-                opened.Descriptor.SerialNumber,
-                opened.Descriptor.BusType,
-                opened.Descriptor.RemovableMedia
-            },
-            image = new
-            {
-                image.ImagePath,
-                image.BytesCopied,
-                sha256 = image.Sha256,
-                verifiedBeforePublish = true
-            },
-            acquisition = new
-            {
-                mode = "read-only-live-copy",
-                unreadableSectorPolicy = "abort-without-zero-fill",
-                hardwareWriteBlocked = false,
-                pointInTimeConsistencyGuaranteed = false,
-                resumable = false
-            },
-            warnings = finalPreflight.Assessment.Warnings
-        };
+        // Recheck after the final path-based preflight and before the first source read.
+        // The session was pinned before preflight, so a directory replacement at the
+        // requested path is detected even when the replacement is on the same volume.
+        EnsurePinnedDirectoryStillMatches(destinationSession, requestedDirectory);
 
-        await environment.PublishManifestAsync(
-            manifestPath, manifest, image.ImagePath, image.Sha256).ConfigureAwait(false);
+        var pinnedMappingIssues = PhysicalImageDestinationSafety.ValidatePinnedDestinationVolume(
+            selected.DiskNumber,
+            destinationSession.VolumeGuidPath,
+            finalPreflight.VolumeMap,
+            destinationAssessment.DestinationDiskNumbers);
+        if (pinnedMappingIssues.Count != 0)
+            throw new IOException("Pinned destination volume failed physical-disk reconciliation: " +
+                string.Join(" ", pinnedMappingIssues));
 
-        return new(image, manifestPath, opened.Descriptor, finalPreflight.Assessment.Warnings);
+        var physicalIdentityIssues = PhysicalImageDestinationSafety.ValidatePhysicalDiskIdentities(
+            finalPreflight.Inventory,
+            new[] { selected.DiskNumber },
+            destinationAssessment.DestinationDiskNumbers);
+        if (physicalIdentityIssues.Count != 0)
+            throw new IOException("Pinned destination physical-disk identity check failed: " +
+                string.Join(" ", physicalIdentityIssues));
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var imageLeaf = Path.GetFileName(fullImagePath);
+        var manifestLeaf = Path.GetFileName(manifestPreflightPath);
+        if (string.IsNullOrWhiteSpace(imageLeaf) || string.IsNullOrWhiteSpace(manifestLeaf))
+            throw new IOException("Image or manifest destination leaf name is invalid.");
+
+        var writeResult = await PhysicalAcquisitionDestinationWriter.WriteAndPublishAsync(
+            opened.Source,
+            destinationSession,
+            $".diskrescue-{Guid.NewGuid():N}.image.partial",
+            imageLeaf,
+            $".diskrescue-{Guid.NewGuid():N}.manifest.partial",
+            manifestLeaf,
+            imageContent =>
+            {
+                // Resolve the directory name again from the pinned handle after the image
+                // commit; the original input path may have been renamed or replaced.
+                var currentDirectoryPath = destinationSession.GetCurrentDirectoryPath();
+                var currentImagePath = Path.Combine(currentDirectoryPath, imageLeaf);
+                return new
+                {
+                    format = "DiskRescue.PhysicalAcquisitionManifest.v1",
+                    acquiredAtUtc = DateTimeOffset.UtcNow,
+                    source = new
+                    {
+                        opened.Descriptor.DiskNumber,
+                        opened.Descriptor.DevicePath,
+                        opened.Descriptor.LengthBytes,
+                        opened.Descriptor.BytesPerSector,
+                        opened.Descriptor.Vendor,
+                        opened.Descriptor.Model,
+                        opened.Descriptor.SerialNumber,
+                        opened.Descriptor.BusType,
+                        opened.Descriptor.RemovableMedia
+                    },
+                    destination = new
+                    {
+                        volumeGuidPath = destinationSession.VolumeGuidPath,
+                        directoryPathAtManifestCreation = currentDirectoryPath,
+                        directoryFileIdHigh = destinationSession.DirectoryIdentity.FileIdHigh,
+                        directoryFileIdLow = destinationSession.DirectoryIdentity.FileIdLow
+                    },
+                    image = new
+                    {
+                        ImagePath = currentImagePath,
+                        imageContent.BytesCopied,
+                        sha256 = imageContent.Sha256,
+                        verifiedBeforePublish = true
+                    },
+                    acquisition = new
+                    {
+                        mode = "read-only-live-copy",
+                        unreadableSectorPolicy = "abort-without-zero-fill",
+                        hardwareWriteBlocked = false,
+                        pointInTimeConsistencyGuaranteed = false,
+                        resumable = false
+                    },
+                    warnings = finalPreflight.Assessment.Warnings
+                };
+            },
+            progress,
+            cancellationToken).ConfigureAwait(false);
+
+        var committedDirectoryPath = destinationSession.GetCurrentDirectoryPath();
+        var committedImagePath = Path.Combine(committedDirectoryPath, imageLeaf);
+        var committedManifestPath = Path.Combine(committedDirectoryPath, manifestLeaf);
+        var image = new DiskImageResult(
+            committedImagePath, writeResult.BytesCopied, writeResult.Sha256);
+        return new(image, committedManifestPath, opened.Descriptor, finalPreflight.Assessment.Warnings);
+    }
+
+    private static void EnsurePinnedDirectoryStillMatches(
+        IPhysicalAcquisitionDestinationSession destinationSession,
+        string requestedDirectory)
+    {
+        var pinnedDirectory = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(destinationSession.GetCurrentDirectoryPath()));
+        if (!string.Equals(requestedDirectory, pinnedDirectory, StringComparison.OrdinalIgnoreCase))
+            throw new IOException(
+                "The destination directory path no longer resolves to the directory object pinned by the session. No source sectors were read.");
     }
 
     private static string ValidateNewImageDestination(string destinationImagePath)
@@ -182,18 +262,17 @@ internal static class PhysicalDiskAcquisitionCoordinator
         return fullPath;
     }
 
-    private static (PhysicalDiskAcquisitionAssessment Assessment, PhysicalDiskDescriptor CurrentDescriptor)
-        RunPreflight(
-            PhysicalDiskDescriptor selected,
-            string destinationPath,
-            IPhysicalDiskAcquisitionEnvironment environment)
+    private static PreflightSnapshot RunPreflight(
+        PhysicalDiskDescriptor selected,
+        string destinationPath,
+        IPhysicalDiskAcquisitionEnvironment environment)
     {
         var inventory = environment.EnumeratePhysicalDisks();
         var volumeMap = environment.EnumerateVolumes();
         var bootMap = environment.EnumerateBootDevices(volumeMap);
         var assessment = PhysicalDiskImageAcquisition.Assess(selected, inventory, volumeMap, bootMap);
         if (!assessment.CanAcquire)
-            return (assessment, selected);
+            return new(assessment, selected, inventory, volumeMap, null);
 
         var destination = environment.AssessDestination(
             selected.DiskNumber, destinationPath, volumeMap, selected.LengthBytes);
@@ -204,10 +283,10 @@ internal static class PhysicalDiskAcquisitionCoordinator
                 CanAcquire = false,
                 Blockers = assessment.Blockers.Concat(destination.Blockers).ToArray()
             };
-            return (assessment, selected);
+            return new(assessment, selected, inventory, volumeMap, destination);
         }
 
         var current = inventory.Disks.Single(disk => disk.DiskNumber == selected.DiskNumber);
-        return (assessment, current);
+        return new(assessment, current, inventory, volumeMap, destination);
     }
 }
