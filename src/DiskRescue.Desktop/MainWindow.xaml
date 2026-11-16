@@ -400,10 +400,10 @@
             <Button Grid.Column="2" x:Name="ExportButton" AutomationProperties.Name="Export inspection report as JSON" ToolTip="Save the current inspection report to a separate user-selected path." Content="Export JSON report"
                     Click="Export_Click" IsEnabled="False" Margin="8,0,0,0"
                     Background="#22354B" Foreground="{StaticResource Text}"/>
-            <Button Grid.Column="3" x:Name="PhysicalDiskButton" AutomationProperties.Name="Open experimental physical disk acquisition tools" ToolTip="Experimental read-only image acquisition only; not physical partition scanning or recovery."
-                    Content="Advanced device tools…"
-                    Click="PhysicalDiskInventory_Click" Padding="12,9"
-                    Margin="8,0,0,0" Background="#183B3E" Foreground="#A7F0D5"/>
+            <Button Grid.Column="3" x:Name="PhysicalDiskButton" AutomationProperties.Name="Physical-device access disabled" ToolTip="Physical-device inventory and acquisition are disabled in this build. No physical disk is opened."
+                    Content="Physical access disabled"
+                    Click="PhysicalDiskInventory_Click" IsEnabled="False" Padding="12,9"
+                    Margin="8,0,0,0" Background="#30445D" Foreground="{StaticResource Text}"/>
         </Grid>
     </Grid>
 </Window>
