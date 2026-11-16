@@ -1461,7 +1461,7 @@ This closes the **synthetic recovery and Windows x64 CI validation milestone** f
 - [x] The physical-acquisition window has a defensive early gate in its inventory refresh method; even if opened directly, it disables its controls and returns before calling physical-disk discovery, volume mapping, or boot mapping.
 - [x] Added `tools/Test-PhysicalAcquisitionDisabled.ps1` and a required Windows CI step to invoke both CLI commands and assert they reject before device access.
 - [x] Corrected README claims and command instructions so users are not told that physical acquisition is available.
-- [ ] Exact-head CI for these changes must pass before this hardening is accepted.
+- [x] Exact-head Windows CI #1538 passed on `2241281eefce7ef243ae1ce62efd32e9e3513503`: build, standard tests, the new physical-device CLI pre-I/O guard test, disposable-VHDX policy/ENOSPC integrations, generated-image recovery, WPF/CLI x64 publishing, screenshot capture, and artifact uploads all succeeded. [Workflow #1538](https://github.com/moazizbera/DiskRescue-Pro/actions/runs/43812889082).
 
 ## Explicit scope decisions for this milestone
 
@@ -1480,3 +1480,13 @@ This closes the **synthetic recovery and Windows x64 CI validation milestone** f
 
 **Current acceptance boundary:** synthetic image recovery and hosted Windows x64/disposable-NTFS-VHDX integration only. PR #30 remains draft/open/unmerged; public physical acquisition remains hard-disabled.
 
+
+
+## Exact-head hardening validation — 2026-11-16
+
+- [x] Current branch head at validation: `2241281eefce7ef243ae1ce62efd32e9e3513503`.
+- [x] CI #1538 passed on that exact head. The CLI guard script confirmed both physical-device commands reject before physical inventory or device-handle access.
+- [x] The public acquisition gate remains false; desktop physical-device UI is disabled; the acquisition window has a defensive pre-enumeration guard.
+- [x] README and PR #30 description now accurately state the disabled boundary and current validation limits.
+- [ ] Independent security review, manual UI/accessibility/high-DPI acceptance, broader compatibility, and any separately approved disposable-VM crash/recovery experiment remain external gates. They are not inferred from CI success.
+- [x] No physical HDD/SSD was accessed or tested. PR #30 remains draft/open/unmerged.
