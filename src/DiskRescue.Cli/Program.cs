@@ -1142,8 +1142,8 @@ static void PrintUsage()
     Console.WriteLine("Usage:");
     Console.WriteLine("  diskrescue inspect <image-file> [--sector-size <bytes>]");
     Console.WriteLine("  diskrescue image-copy <source-image> <new-destination-image>");
-    Console.WriteLine("  diskrescue list-physical-disks");
-    Console.WriteLine("  diskrescue acquire-physical <disk-number> <exact-serial> <new-destination-image>");
+    Console.WriteLine("  diskrescue list-physical-disks  (disabled in this build)");
+    Console.WriteLine("  diskrescue acquire-physical <disk-number> <exact-serial> <new-destination-image>  (disabled in this build)");
     Console.WriteLine("  diskrescue discover-ntfs <image-file> [--sector-size <bytes>] [--max-scan-bytes <bytes>]");
     Console.WriteLine("  diskrescue discover-fat <image-file> [--sector-size <bytes>] [--max-scan-bytes <bytes>]");
     Console.WriteLine("  diskrescue scan-ntfs <image-file> --offset <bytes> --length <bytes> [--sector-size <bytes>] [--max-records <count>]");
