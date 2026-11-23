@@ -54,8 +54,11 @@ public static class WindowsPhysicalDiskDiscovery
     /// </summary>
     public static PhysicalDiskDiscoveryResult Enumerate(int maxDiskNumberExclusive = DefaultMaximumDiskNumberExclusive)
     {
-        if (maxDiskNumberExclusive is < 1 or > 128)
-            throw new ArgumentOutOfRangeException(nameof(maxDiskNumberExclusive), "Probe limit must be between 1 and 128.");
+        // Central fail-closed boundary: callers cannot bypass the CLI/WPF gates by
+        // invoking this public library API directly. This check must remain before
+        // validation, platform checks, and every native device operation.
+        EnsureDiscoveryEnabled();
+        ValidateProbeLimit(maxDiskNumberExclusive);
         EnsureWindows();
 
         var disks = new List<PhysicalDiskDescriptor>();
@@ -96,6 +99,19 @@ public static class WindowsPhysicalDiskDiscovery
         }
 
         return new PhysicalDiskDiscoveryResult(disks, issues);
+    }
+
+    internal static void EnsureDiscoveryEnabled()
+    {
+        if (!PhysicalDiskImageAcquisition.IsAcquisitionEnabled)
+            throw new NotSupportedException(
+                "Physical-disk discovery is disabled. No physical-device handles or metadata were accessed.");
+    }
+
+    internal static void ValidateProbeLimit(int maxDiskNumberExclusive)
+    {
+        if (maxDiskNumberExclusive is < 1 or > 128)
+            throw new ArgumentOutOfRangeException(nameof(maxDiskNumberExclusive), "Probe limit must be between 1 and 128.");
     }
 
     internal static PhysicalDiskDescriptor ReadDescriptor(SafeFileHandle handle, int diskNumber, string path)
