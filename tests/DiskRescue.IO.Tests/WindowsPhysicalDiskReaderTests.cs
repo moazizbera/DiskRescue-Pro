@@ -13,7 +13,7 @@ public sealed class WindowsPhysicalDiskReaderTests
     [InlineData(129)]
     public void DiscoveryRejectsOutOfRangeProbeLimit(int maximum)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => WindowsPhysicalDiskDiscovery.Enumerate(maximum));
+        Assert.Throws<ArgumentOutOfRangeException>(() => WindowsPhysicalDiskDiscovery.ValidateProbeLimit(maximum));
     }
 
     [Theory]
@@ -28,12 +28,9 @@ public sealed class WindowsPhysicalDiskReaderTests
     }
 
     [Fact]
-    public void DiscoveryDoesNotAttemptPhysicalDeviceAccessOnNonWindows()
+    public void DiscoveryGateRejectsAccessBeforeAnyPlatformOrNativeDeviceOperation()
     {
-        if (OperatingSystem.IsWindows())
-            return;
-
-        Assert.Throws<PlatformNotSupportedException>(() => WindowsPhysicalDiskDiscovery.Enumerate());
+        Assert.Throws<NotSupportedException>(() => WindowsPhysicalDiskDiscovery.EnsureDiscoveryEnabled());
     }
 
     [Fact]
